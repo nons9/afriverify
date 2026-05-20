@@ -16,7 +16,7 @@ import { issueVIT } from '../services/vit.service';
 import { checkBlacklist } from '../services/blacklist.service';
 import { query, queryOne } from '../db';
 import { sha256, generateSecureToken } from '../utils/crypto';
-import { uploadToS3 } from '../utils/s3';
+import { uploadToS3, downloadFromS3 } from '../utils/s3';
 import logger from '../utils/logger';
 import { VerificationSession } from '../types';
 
@@ -383,7 +383,7 @@ router.post(
       result: 'pending'
     });
 
-    // Run biometric processing asynchronously
+    // Run biometric processing asynchronously — client polls GET /verify/status/:session_token
     runBiometricProcessing(session, selfieKey, req).catch((err) =>
       logger.error('Biometric processing failed', { error: err.message, session: session.id })
     );
@@ -463,19 +463,33 @@ async function runBiometricProcessing(
       [identityId]
     );
 
+    const selfieBuffer = await downloadFromS3(selfieKey);
+    const idPhotoBuffer = session.id_photo_s3_key
+      ? await downloadFromS3(session.id_photo_s3_key)
+      : undefined;
+
     const result = await biometricKYC({
       country: (identity?.nationality ?? 'NG').toUpperCase().substring(0, 2),
       id_type: (identity?.id_type ?? 'NIN').toUpperCase(),
-      partner_user_id: identityId
+      partner_user_id: identityId,
+      selfie_buffer: selfieBuffer,
+      id_photo_buffer: idPhotoBuffer
     });
 
     if (result.success && (result.face_match_confidence ?? 0) >= 70) {
       await completeLevel2(session.id, identityId, result.face_match_confidence ?? 90, req);
     } else {
-      await failSession(session.id, identityId, 'Face match failed. Please retry with better lighting.', req);
+      await failSession(
+        session.id,
+        identityId,
+        'Face match failed. Please retry with better lighting.',
+        req
+      );
     }
   } catch (err) {
-    logger.warn('Biometric service unavailable, falling back to Level 1', { error: (err as Error).message });
+    logger.warn('Biometric service unavailable, falling back to Level 1', {
+      error: (err as Error).message
+    });
     await completeLevel1(session.id, identityId, req);
   }
 }
