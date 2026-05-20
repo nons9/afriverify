@@ -1,0 +1,206 @@
+import { Router, Request, Response } from 'express';
+import { z } from 'zod';
+import { authenticate, requirePermission } from '../middleware/auth';
+import { rateLimitApiKey } from '../middleware/rateLimit';
+import { validateBody, validateQuery } from '../middleware/validate';
+import { writeAuditEvent } from '../middleware/audit';
+import { query, queryOne } from '../db';
+import { sha256 } from '../utils/crypto';
+import { issueVIT } from '../services/vit.service';
+import { VerifiedIdentity } from '../types';
+import logger from '../utils/logger';
+
+const router = Router();
+router.use(authenticate);
+router.use(rateLimitApiKey);
+
+// ─── GET /identity/check ─────────────────────────────────────────────────────
+const checkQuerySchema = z.object({
+  phone: z.string().min(7).max(20)
+});
+
+router.get(
+  '/check',
+  requirePermission('check'),
+  validateQuery(checkQuerySchema),
+  async (req: Request, res: Response): Promise<void> => {
+    const { phone } = req.query as { phone: string };
+
+    const identity = await queryOne<Pick<
+      VerifiedIdentity,
+      'id' | 'verification_level' | 'trust_score' | 'trust_level' | 'is_blacklisted' | 'aml_status' | 'is_pep'
+    >>(
+      `SELECT id, verification_level, trust_score, trust_level, is_blacklisted, aml_status, is_pep
+       FROM verified_identities
+       WHERE phone = $1`,
+      [phone]
+    );
+
+    if (!identity) {
+      res.json({ verified: false, level: 0, trust_score: null, trust_level: null, flags: [] });
+      return;
+    }
+
+    const flags: string[] = [];
+    if (identity.is_blacklisted) flags.push('blacklisted');
+    if (identity.is_pep) flags.push('pep');
+    if (identity.aml_status === 'flagged') flags.push('aml_flagged');
+
+    res.json({
+      verified: identity.verification_level >= 1,
+      level: identity.verification_level,
+      trust_score: identity.trust_score,
+      trust_level: identity.trust_level,
+      flags
+    });
+  }
+);
+
+// ─── POST /identity/connect ───────────────────────────────────────────────────
+const connectSchema = z.object({
+  identity_id: z.string().uuid(),
+  platform_user_id: z.string().min(1).max(255)
+});
+
+router.post(
+  '/connect',
+  requirePermission('verify'),
+  validateBody(connectSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    const { identity_id, platform_user_id } = req.body as { identity_id: string; platform_user_id: string };
+    const platform = req.platform!;
+    const apiKey = req.apiKey!;
+
+    const identity = await queryOne<VerifiedIdentity>(
+      'SELECT * FROM verified_identities WHERE id = $1',
+      [identity_id]
+    );
+    if (!identity) {
+      res.status(404).json({ error: 'identity_not_found', message: 'Identity not found' });
+      return;
+    }
+    if (identity.is_blacklisted && identity.blacklist_scope === 'global') {
+      res.status(403).json({ error: 'identity_blocked', message: 'This identity is blocked from all platforms' });
+      return;
+    }
+
+    await query(
+      `INSERT INTO platform_connections
+         (identity_id, platform_name, platform_api_key_id, platform_user_id, last_verified)
+       VALUES ($1,$2,$3,$4,NOW())
+       ON CONFLICT (identity_id, platform_name)
+       DO UPDATE SET platform_user_id = $4, last_verified = NOW(), is_active = true`,
+      [identity_id, platform, apiKey.id, platform_user_id]
+    );
+
+    await writeAuditEvent(req, {
+      event_type: 'platform_connected',
+      identity_id,
+      result: 'passed',
+      metadata: { platform, platform_user_id }
+    });
+
+    const { token, payload } = await issueVIT(identity_id);
+
+    res.json({
+      connected: true,
+      identity_summary: {
+        identity_id,
+        name: identity.full_name,
+        nationality: identity.nationality,
+        verification_level: identity.verification_level,
+        trust_score: identity.trust_score,
+        trust_level: identity.trust_level
+      },
+      vit: token,
+      vit_payload: payload
+    });
+  }
+);
+
+// ─── GET /identity/profile/:identity_id ──────────────────────────────────────
+router.get(
+  '/profile/:identity_id',
+  requirePermission('check'),
+  async (req: Request, res: Response): Promise<void> => {
+    const { identity_id } = req.params;
+
+    const identity = await queryOne<VerifiedIdentity>(
+      `SELECT id, full_name, nationality, verification_level, trust_score, trust_level,
+              aml_status, is_pep, verified_at, created_at
+       FROM verified_identities WHERE id = $1`,
+      [identity_id]
+    );
+    if (!identity) {
+      res.status(404).json({ error: 'identity_not_found', message: 'Identity not found' });
+      return;
+    }
+
+    const platforms = await query<{ platform_name: string; connected_at: Date }>(
+      `SELECT platform_name, connected_at FROM platform_connections
+       WHERE identity_id = $1 AND is_active = true ORDER BY connected_at ASC`,
+      [identity_id]
+    );
+
+    res.json({
+      identity_id,
+      name: identity.full_name,
+      nationality: identity.nationality,
+      verification_level: identity.verification_level,
+      trust_score: identity.trust_score,
+      trust_level: identity.trust_level,
+      aml_clear: identity.aml_status === 'clear' || identity.aml_status === 'not_screened',
+      is_pep: identity.is_pep,
+      verified_at: identity.verified_at,
+      platforms: platforms.map((p) => ({
+        name: p.platform_name,
+        connected_at: p.connected_at
+      }))
+    });
+  }
+);
+
+// ─── POST /identity/flag ──────────────────────────────────────────────────────
+const flagSchema = z.object({
+  identity_id: z.string().uuid(),
+  fraud_type: z.enum([
+    'fake_identity', 'impersonation', 'deepfake', 'stolen_id',
+    'multiple_accounts', 'scam_network', 'financial_fraud', 'other'
+  ]),
+  evidence_summary: z.string().min(10).max(2000),
+  confidence_score: z.number().min(0).max(1)
+});
+
+router.post(
+  '/flag',
+  requirePermission('verify'),
+  validateBody(flagSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    const { identity_id, fraud_type, evidence_summary, confidence_score } =
+      req.body as z.infer<typeof flagSchema>;
+    const platform = req.platform!;
+
+    const rows = await query<{ id: string }>(
+      `INSERT INTO fraud_intelligence_reports
+         (reporting_platform, target_type, target_hash, fraud_type,
+          evidence_summary, confidence_score)
+       VALUES ($1,'identity',$2,$3,$4,$5)
+       RETURNING id`,
+      [platform, sha256(identity_id), fraud_type, evidence_summary, confidence_score]
+    );
+
+    await writeAuditEvent(req, {
+      event_type: 'flag_received',
+      identity_id,
+      result: 'flagged',
+      risk_score: confidence_score,
+      metadata: { fraud_type, reported_by: platform }
+    });
+
+    logger.warn('Fraud flag received', { identity_id, fraud_type, platform, confidence_score });
+
+    res.status(201).json({ report_id: rows[0].id, status: 'received' });
+  }
+);
+
+export default router;
