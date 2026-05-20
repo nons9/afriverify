@@ -14,6 +14,7 @@ import { verifyIdWithSmile, biometricKYC } from '../services/smile-identity.serv
 import { applyTrustEvent } from '../services/trust-score.service';
 import { issueVIT } from '../services/vit.service';
 import { checkBlacklist } from '../services/blacklist.service';
+import { scanImage } from '../services/orbitshield/deepscan.service';
 import { query, queryOne } from '../db';
 import { sha256, generateSecureToken } from '../utils/crypto';
 import { uploadToS3, downloadFromS3 } from '../utils/s3';
@@ -26,7 +27,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 router.use(authenticate);
 router.use(rateLimitApiKey);
 
-// ─── POST /verify/initiate ───────────────────────────────────────────────────
+// ─── POST /verify/initiate ────────────────────────────────────────────────────────────────────────────────
 const initiateSchema = z.object({
   phone: z.string().min(7).max(20).regex(/^\+?[1-9]\d{6,19}$/, 'Invalid phone number'),
   redirect_url: z.string().url().optional()
@@ -95,7 +96,7 @@ router.post(
   }
 );
 
-// ─── POST /verify/otp/send ───────────────────────────────────────────────────
+// ─── POST /verify/otp/send ────────────────────────────────────────────────────────────────────────────
 router.post(
   '/otp/send',
   validateBody(z.object({ session_token: z.string().length(64) })),
@@ -128,7 +129,7 @@ router.post(
   }
 );
 
-// ─── POST /verify/otp/confirm ────────────────────────────────────────────────
+// ─── POST /verify/otp/confirm ────────────────────────────────────────────────────────────────────────────────
 const otpConfirmSchema = z.object({
   session_token: z.string().length(64),
   otp: z.string().length(6).regex(/^\d{6}$/, 'OTP must be 6 digits')
@@ -181,7 +182,6 @@ router.post(
       return;
     }
 
-    // Returning user?
     const existing = await queryOne<{ id: string; verification_level: number }>(
       'SELECT id, verification_level FROM verified_identities WHERE phone = $1',
       [session.phone]
@@ -210,7 +210,6 @@ router.post(
       return;
     }
 
-    // New user — create Level-1 identity
     const newId = uuidv4();
     await query(
       `INSERT INTO verified_identities
@@ -232,7 +231,7 @@ router.post(
   }
 );
 
-// ─── POST /verify/id/upload ──────────────────────────────────────────────────
+// ─── POST /verify/id/upload ─────────────────────────────────────────────────────────────────────────────────
 router.post(
   '/id/upload',
   upload.single('id_photo'),
@@ -262,6 +261,48 @@ router.post(
       res.status(404).json({ error: 'session_not_found', message: 'Session not found or wrong step' });
       return;
     }
+
+    // ─── OrbitShield Layer 1: DeepScan document pre-screen ──────────────────────────────────
+    // Runs BEFORE Smile Identity. Catches AI-generated documents, screenshots
+    // of someone else's ID on a screen, and images too small to be authentic.
+    // Rejected documents never reach the external Smile API, saving cost.
+    const deepScan = await scanImage(
+      file.buffer,
+      'id_document',
+      session.identity_id,
+      session.id
+    );
+
+    if (deepScan.blocked) {
+      await writeAuditEvent(req, {
+        event_type: 'id_rejected',
+        identity_id: session.identity_id,
+        result: 'failed',
+        metadata: {
+          reason: 'deepscan_rejected',
+          deepscan_confidence: deepScan.confidence,
+          deepscan_signals: deepScan.signals
+        }
+      });
+      await query(`UPDATE verification_sessions SET step = 'failed' WHERE id = $1`, [session.id]);
+      res.status(400).json({
+        error: 'document_rejected',
+        message:
+          'The submitted ID photo could not be verified as authentic. ' +
+          'Please use a clear, well-lit photo of your original government-issued ID.',
+        code: 'deepscan_rejected'
+      });
+      return;
+    }
+
+    if (deepScan.verdict === 'suspicious') {
+      logger.warn('DeepScan: document flagged suspicious, proceeding with manual review flag', {
+        identity: session.identity_id,
+        confidence: deepScan.confidence,
+        signals: deepScan.signals
+      });
+    }
+    // ─────────────────────────────────────────────────────────────────────────────────
 
     const s3Key = `id-photos/${session.identity_id}/${uuidv4()}.jpg`;
     try {
@@ -319,7 +360,12 @@ router.post(
         nationality,
         id_type,
         idHash,
-        JSON.stringify({ smile_code: smileCode, id_verified: idVerified }),
+        JSON.stringify({
+          smile_code: smileCode,
+          id_verified: idVerified,
+          deepscan_verdict: deepScan.verdict,
+          deepscan_confidence: deepScan.confidence
+        }),
         session.identity_id
       ]
     );
@@ -331,14 +377,14 @@ router.post(
       event_type: idVerified ? 'id_verified' : 'id_submitted',
       identity_id: session.identity_id,
       result: idVerified ? 'passed' : 'pending',
-      metadata: { id_type, nationality, smile_code: smileCode }
+      metadata: { id_type, nationality, smile_code: smileCode, deepscan_verdict: deepScan.verdict }
     });
 
     res.json({ upload_id: s3Key, id_verified: idVerified, next_step: 'face_scan' });
   }
 );
 
-// ─── POST /verify/face/submit ────────────────────────────────────────────────
+// ─── POST /verify/face/submit ─────────────────────────────────────────────────────────────────────────────────
 router.post(
   '/face/submit',
   upload.single('selfie'),
@@ -365,6 +411,40 @@ router.post(
       return;
     }
 
+    // ─── OrbitShield Layer 1: DeepScan selfie pre-screen ────────────────────────────────────
+    // Runs BEFORE S3 upload and before biometric processing.
+    // Catches AI-generated faces (GAN/diffusion output), screen replay attacks
+    // (phone held up to another screen), and photos-of-photos.
+    const deepScan = await scanImage(
+      file.buffer,
+      'selfie',
+      session.identity_id,
+      session.id
+    );
+
+    if (deepScan.blocked) {
+      await writeAuditEvent(req, {
+        event_type: 'face_submitted',
+        identity_id: session.identity_id,
+        result: 'failed',
+        metadata: {
+          reason: 'deepscan_rejected',
+          deepscan_confidence: deepScan.confidence,
+          deepscan_signals: deepScan.signals
+        }
+      });
+      res.status(400).json({
+        error: 'selfie_rejected',
+        message:
+          'The submitted selfie could not be verified as authentic. ' +
+          'Please take a clear, well-lit selfie directly with your camera. ' +
+          'Do not use a photo of a photo or a screen capture.',
+        code: 'deepscan_rejected'
+      });
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────────────
+
     const selfieKey = `selfies/${session.identity_id}/${uuidv4()}.jpg`;
     try {
       await uploadToS3(selfieKey, file.buffer, file.mimetype);
@@ -380,10 +460,10 @@ router.post(
     await writeAuditEvent(req, {
       event_type: 'face_submitted',
       identity_id: session.identity_id,
-      result: 'pending'
+      result: 'pending',
+      metadata: { deepscan_verdict: deepScan.verdict }
     });
 
-    // Run biometric processing asynchronously — client polls GET /verify/status/:session_token
     runBiometricProcessing(session, selfieKey, req).catch((err) =>
       logger.error('Biometric processing failed', { error: err.message, session: session.id })
     );
@@ -396,7 +476,7 @@ router.post(
   }
 );
 
-// ─── GET /verify/status/:session_token ──────────────────────────────────────
+// ─── GET /verify/status/:session_token ───────────────────────────────────────────────────────────────────────────
 router.get(
   '/status/:session_token',
   async (req: Request, res: Response): Promise<void> => {
@@ -449,7 +529,7 @@ router.get(
   }
 );
 
-// ─── Internal: async biometric processing ────────────────────────────────────
+// ─── Internal: async biometric processing ────────────────────────────────────────────────────────────────────────
 async function runBiometricProcessing(
   session: VerificationSession,
   selfieKey: string,

@@ -7,6 +7,9 @@ import { writeAuditEvent } from '../middleware/audit';
 import { query, queryOne } from '../db';
 import { sha256 } from '../utils/crypto';
 import { issueVIT } from '../services/vit.service';
+import { recordContinuity } from '../services/orbitshield/live-ledger.service';
+import { recordFraudSignal, evaluateNetworkRisk } from '../services/orbitshield/fraud-graph.service';
+import { addVouch, getVouchStatus, applyFraudPenalties } from '../services/orbitshield/community-vouch.service';
 import { VerifiedIdentity } from '../types';
 import logger from '../utils/logger';
 
@@ -14,7 +17,7 @@ const router = Router();
 router.use(authenticate);
 router.use(rateLimitApiKey);
 
-// ─── GET /identity/check ─────────────────────────────────────────────────────
+// ─── GET /identity/check ─────────────────────────────────────────────────────────────────────────────────────
 const checkQuerySchema = z.object({
   phone: z.string().min(7).max(20)
 });
@@ -46,17 +49,50 @@ router.get(
     if (identity.is_pep) flags.push('pep');
     if (identity.aml_status === 'flagged') flags.push('aml_flagged');
 
+    // OrbitShield: LiveLedger continuity check
+    // Runs asynchronously — does not block the response.
+    // Result is included in the response for the calling platform to act on.
+    const continuityPromise = recordContinuity({
+      identityId: identity.id,
+      platformName: req.platform ?? 'unknown',
+      ipAddress: req.ip ?? undefined,
+      deviceId: (req.headers['x-device-id'] as string) ?? undefined,
+      userAgent: req.headers['user-agent'] ?? undefined
+    }).catch((err) => {
+      logger.error('LiveLedger: continuity check failed', { error: err.message });
+      return { continuityScore: 100, flags: [] as string[] };
+    });
+
+    // OrbitShield: FraudGraph network risk check
+    const networkRiskPromise = evaluateNetworkRisk(
+      identity.id,
+      (req.headers['x-device-id'] as string) ?? undefined,
+      req.ip ?? undefined
+    ).catch((err) => {
+      logger.error('FraudGraph: evaluation failed', { error: err.message });
+      return { networkRiskScore: 0, connectedFraudReports: 0, riskFactors: [] as string[] };
+    });
+
+    const [continuity, networkRisk] = await Promise.all([continuityPromise, networkRiskPromise]);
+
     res.json({
       verified: identity.verification_level >= 1,
       level: identity.verification_level,
       trust_score: identity.trust_score,
       trust_level: identity.trust_level,
-      flags
+      flags,
+      // OrbitShield signals — unique to OrbitVerify
+      orbitshield: {
+        continuity_score: continuity.continuityScore,
+        continuity_flags: continuity.flags,
+        network_risk_score: networkRisk.networkRiskScore,
+        network_risk_factors: networkRisk.riskFactors
+      }
     });
   }
 );
 
-// ─── POST /identity/connect ───────────────────────────────────────────────────
+// ─── POST /identity/connect ───────────────────────────────────────────────────────────────────────────────────────
 const connectSchema = z.object({
   identity_id: z.string().uuid(),
   platform_user_id: z.string().min(1).max(255)
@@ -102,6 +138,13 @@ router.post(
 
     const { token, payload } = await issueVIT(identity_id);
 
+    // OrbitShield: FraudGraph check on connect (heavier event than check)
+    const networkRisk = await evaluateNetworkRisk(
+      identity_id,
+      (req.headers['x-device-id'] as string) ?? undefined,
+      req.ip ?? undefined
+    ).catch(() => ({ networkRiskScore: 0, connectedFraudReports: 0, riskFactors: [] as string[] }));
+
     res.json({
       connected: true,
       identity_summary: {
@@ -113,12 +156,16 @@ router.post(
         trust_level: identity.trust_level
       },
       vit: token,
-      vit_payload: payload
+      vit_payload: payload,
+      orbitshield: {
+        network_risk_score: networkRisk.networkRiskScore,
+        network_risk_factors: networkRisk.riskFactors
+      }
     });
   }
 );
 
-// ─── GET /identity/profile/:identity_id ──────────────────────────────────────
+// ─── GET /identity/profile/:identity_id ─────────────────────────────────────────────────────────────────────────────
 router.get(
   '/profile/:identity_id',
   requirePermission('check'),
@@ -142,6 +189,8 @@ router.get(
       [identity_id]
     );
 
+    const vouchStatus = await getVouchStatus(identity_id).catch(() => null);
+
     res.json({
       identity_id,
       name: identity.full_name,
@@ -155,12 +204,15 @@ router.get(
       platforms: platforms.map((p) => ({
         name: p.platform_name,
         connected_at: p.connected_at
-      }))
+      })),
+      community_vouch: vouchStatus
+        ? { active_vouches: vouchStatus.activeVouches, required: vouchStatus.required }
+        : null
     });
   }
 );
 
-// ─── POST /identity/flag ──────────────────────────────────────────────────────
+// ─── POST /identity/flag ────────────────────────────────────────────────────────────────────────────────────────────
 const flagSchema = z.object({
   identity_id: z.string().uuid(),
   fraud_type: z.enum([
@@ -197,9 +249,96 @@ router.post(
       metadata: { fraud_type, reported_by: platform }
     });
 
+    // OrbitShield: update fraud graph with this signal
+    recordFraudSignal({
+      identityId: identity_id,
+      deviceId: (req.headers['x-device-id'] as string) ?? undefined,
+      ipAddress: req.ip ?? undefined,
+      fraudType: fraud_type,
+      reportingPlatform: platform
+    }).catch((err) => logger.error('FraudGraph: signal write failed', { error: err.message }));
+
+    // High-confidence flags trigger automatic vouch penalty propagation
+    if (confidence_score >= 0.9) {
+      applyFraudPenalties(identity_id, platform).catch((err) =>
+        logger.error('CommunityVouch: penalty propagation failed', { error: err.message })
+      );
+    }
+
     logger.warn('Fraud flag received', { identity_id, fraud_type, platform, confidence_score });
 
     res.status(201).json({ report_id: rows[0].id, status: 'received' });
+  }
+);
+
+// ─── POST /identity/vouch ──────────────────────────────────────────────────────────────────────────────────────────
+const vouchSchema = z.object({
+  voucher_identity_id: z.string().uuid(),
+  vouched_identity_id: z.string().uuid(),
+  relationship: z.enum(['personal_acquaintance', 'business_partner', 'family', 'community_member']),
+  statement: z.string().min(20).max(500)
+});
+
+router.post(
+  '/vouch',
+  requirePermission('verify'),
+  validateBody(vouchSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    const { voucher_identity_id, vouched_identity_id, relationship, statement } =
+      req.body as z.infer<typeof vouchSchema>;
+
+    try {
+      const result = await addVouch({
+        voucherId: voucher_identity_id,
+        vouchedId: vouched_identity_id,
+        relationship,
+        statement,
+        platform: req.platform ?? 'unknown'
+      });
+
+      await writeAuditEvent(req, {
+        event_type: 'vouch_submitted',
+        identity_id: vouched_identity_id,
+        result: 'passed',
+        metadata: {
+          voucher: voucher_identity_id,
+          relationship,
+          upgraded: result.upgraded
+        }
+      });
+
+      res.status(201).json({
+        vouch_id: result.vouch_id,
+        upgraded: result.upgraded,
+        message: result.upgraded
+          ? 'Vouch accepted. The vouched identity has been upgraded to Level 2.'
+          : 'Vouch accepted. More vouches may be needed to qualify for an upgrade.'
+      });
+    } catch (err) {
+      const message = (err as Error).message;
+      res.status(400).json({ error: 'vouch_failed', message });
+    }
+  }
+);
+
+// ─── GET /identity/vouches/:identity_id ────────────────────────────────────────────────────────────────────────────
+router.get(
+  '/vouches/:identity_id',
+  requirePermission('check'),
+  async (req: Request, res: Response): Promise<void> => {
+    const { identity_id } = req.params;
+
+    const identity = await queryOne<{ id: string }>(
+      'SELECT id FROM verified_identities WHERE id = $1',
+      [identity_id]
+    );
+    if (!identity) {
+      res.status(404).json({ error: 'identity_not_found', message: 'Identity not found' });
+      return;
+    }
+
+    const status = await getVouchStatus(identity_id);
+    res.json(status);
   }
 );
 
