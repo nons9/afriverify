@@ -33,7 +33,7 @@ router.get(
   '/:identity_id',
   requirePermission('trust'),
   async (req: Request, res: Response): Promise<void> => {
-    const { identity_id } = req.params;
+    const identity_id = req.params.identity_id as string;
 
     const identity = await queryOne<Pick<VerifiedIdentity, 'trust_score' | 'trust_level'>>(
       'SELECT trust_score, trust_level FROM verified_identities WHERE id = $1',
