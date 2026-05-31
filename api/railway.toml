@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm ci && npm run build"
+buildCommand = "npm ci --cache /tmp/.npm-cache && npm run build"
 
 [deploy]
 startCommand = "node dist/db/migrate.js && node dist/index.js"
@@ -8,17 +8,3 @@ healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
-
-# Environment variables — set these in the Railway dashboard
-# DATABASE_URL         (auto-provided by Railway Postgres plugin)
-# REDIS_URL            (auto-provided by Railway Redis plugin)
-# NODE_ENV             production
-# PORT                 3000
-# SESSION_JWT_SECRET   <long random string>
-# VIT_PRIVATE_KEY      <RS256 private key>
-# VIT_PUBLIC_KEY       <RS256 public key>
-# AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET_NAME
-# TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE_SID
-# TERMII_API_KEY, TERMII_SENDER_ID
-# SMILE_IDENTITY_PARTNER_ID, SMILE_IDENTITY_API_KEY, SMILE_IDENTITY_ENV
-# ALLOWED_ORIGINS      https://console.orbitverify.africa

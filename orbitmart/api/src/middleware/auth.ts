@@ -1,9 +1,7 @@
-import { createClerkClient } from '@clerk/backend';
+import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import { queryOne } from '../db';
 import { UserRow } from '../types';
-
-const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
 
 export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
@@ -11,15 +9,14 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     res.status(401).json({ error: 'missing_token' });
     return;
   }
-
   const token = authHeader.slice(7);
   try {
-    const payload = await clerk.verifyToken(token);
+    const payload = jwt.verify(token, process.env.SESSION_JWT_SECRET!) as { sub: string };
     const user = await queryOne<UserRow>(
       `SELECT u.*, sp.id as seller_profile_id, sp.shop_name, sp.kyc_level
        FROM users u
        LEFT JOIN seller_profiles sp ON sp.user_id = u.id
-       WHERE u.clerk_id = $1 AND u.is_active = TRUE`,
+       WHERE u.id = $1 AND u.is_active = TRUE`,
       [payload.sub]
     );
     if (!user) {
