@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm ci && npm run build"
+buildCommand = "npm ci --cache /tmp/.npm-cache && npm run build"
 
 [deploy]
 startCommand = "node dist/db/migrate.js && node dist/index.js"
