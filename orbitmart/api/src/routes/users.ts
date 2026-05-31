@@ -8,7 +8,8 @@ import { AddressRow } from '../types';
 export const usersRouter = Router();
 
 usersRouter.get('/me', authenticate, async (req: Request, res: Response): Promise<void> => {
-  res.json({ user: req.user });
+  const { password_hash: _pw, ...safeUser } = req.user!;
+  res.json({ user: safeUser });
 });
 
 const addressSchema = z.object({

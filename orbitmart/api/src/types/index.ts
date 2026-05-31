@@ -1,7 +1,7 @@
 export interface UserRow {
   id: string;
-  clerk_id: string;
   email: string;
+  password_hash: string;
   full_name: string;
   phone: string | null;
   avatar_url: string | null;
@@ -54,7 +54,6 @@ export interface ProductRow {
   view_count: number;
   created_at: string;
   updated_at: string;
-  // joined
   images?: ProductImageRow[];
   seller?: Pick<SellerProfileRow, 'id' | 'shop_name' | 'slug' | 'is_verified' | 'rating'>;
 }
