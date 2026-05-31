@@ -49,9 +49,6 @@ router.get(
     if (identity.is_pep) flags.push('pep');
     if (identity.aml_status === 'flagged') flags.push('aml_flagged');
 
-    // OrbitShield: LiveLedger continuity check
-    // Runs asynchronously — does not block the response.
-    // Result is included in the response for the calling platform to act on.
     const continuityPromise = recordContinuity({
       identityId: identity.id,
       platformName: req.platform ?? 'unknown',
@@ -63,7 +60,6 @@ router.get(
       return { continuityScore: 100, flags: [] as string[] };
     });
 
-    // OrbitShield: FraudGraph network risk check
     const networkRiskPromise = evaluateNetworkRisk(
       identity.id,
       (req.headers['x-device-id'] as string) ?? undefined,
@@ -81,7 +77,6 @@ router.get(
       trust_score: identity.trust_score,
       trust_level: identity.trust_level,
       flags,
-      // OrbitShield signals — unique to OrbitVerify
       orbitshield: {
         continuity_score: continuity.continuityScore,
         continuity_flags: continuity.flags,
@@ -138,7 +133,6 @@ router.post(
 
     const { token, payload } = await issueVIT(identity_id);
 
-    // OrbitShield: FraudGraph check on connect (heavier event than check)
     const networkRisk = await evaluateNetworkRisk(
       identity_id,
       (req.headers['x-device-id'] as string) ?? undefined,
@@ -170,7 +164,7 @@ router.get(
   '/profile/:identity_id',
   requirePermission('check'),
   async (req: Request, res: Response): Promise<void> => {
-    const { identity_id } = req.params;
+    const identity_id = req.params.identity_id as string;
 
     const identity = await queryOne<VerifiedIdentity>(
       `SELECT id, full_name, nationality, verification_level, trust_score, trust_level,
@@ -249,7 +243,6 @@ router.post(
       metadata: { fraud_type, reported_by: platform }
     });
 
-    // OrbitShield: update fraud graph with this signal
     recordFraudSignal({
       identityId: identity_id,
       deviceId: (req.headers['x-device-id'] as string) ?? undefined,
@@ -258,7 +251,6 @@ router.post(
       reportingPlatform: platform
     }).catch((err) => logger.error('FraudGraph: signal write failed', { error: err.message }));
 
-    // High-confidence flags trigger automatic vouch penalty propagation
     if (confidence_score >= 0.9) {
       applyFraudPenalties(identity_id, platform).catch((err) =>
         logger.error('CommunityVouch: penalty propagation failed', { error: err.message })
@@ -326,7 +318,7 @@ router.get(
   '/vouches/:identity_id',
   requirePermission('check'),
   async (req: Request, res: Response): Promise<void> => {
-    const { identity_id } = req.params;
+    const identity_id = req.params.identity_id as string;
 
     const identity = await queryOne<{ id: string }>(
       'SELECT id FROM verified_identities WHERE id = $1',
