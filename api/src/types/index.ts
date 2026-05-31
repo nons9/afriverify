@@ -101,11 +101,18 @@ export interface DeviceFingerprint {
   last_seen: string;
 }
 
+export interface DeveloperSession {
+  id: string;
+  email: string;
+  company: string;
+}
+
 declare global {
   namespace Express {
     interface Request {
       apiKey?: ApiKey;
       platform?: string;
+      developer?: DeveloperSession;
     }
   }
 }
