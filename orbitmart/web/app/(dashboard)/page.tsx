@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useAuth } from '@clerk/nextjs';
 import { api } from '@/lib/api';
 
 interface SellerProfile {
@@ -11,25 +10,21 @@ interface SellerProfile {
 const KOBO = (n: number) => `₦${(n / 100).toLocaleString('en-NG', { minimumFractionDigits: 0 })}`;
 
 export default function DashboardPage() {
-  const { getToken } = useAuth();
-  const [seller, setSeller] = useState<SellerProfile | null>(null);
+  const [seller,  setSeller]  = useState<SellerProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getToken().then(token => {
-      if (!token) return;
-      api.getAuth<{ seller: SellerProfile }>('/v1/sellers/me', token)
-        .then(d => setSeller(d.seller))
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    });
-  }, [getToken]);
+    api.auth.get<{ seller: SellerProfile }>('/v1/sellers/me')
+      .then(d => setSeller(d.seller))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const stats = [
-    { label: 'Total Sales',   value: seller ? String(seller.total_sales)      : '—', icon: '🛒' },
-    { label: 'Revenue',       value: seller ? KOBO(seller.total_revenue)       : '—', icon: '💰' },
-    { label: 'Rating',        value: seller ? `${Number(seller.rating).toFixed(1)} ⭐` : '—', icon: '⭐' },
-    { label: 'KYC Level',     value: seller ? `Level ${seller.kyc_level}`      : '—', icon: '✅' },
+    { label: 'Total Sales', value: seller ? String(seller.total_sales)         : '—', icon: '🛒' },
+    { label: 'Revenue',     value: seller ? KOBO(seller.total_revenue)          : '—', icon: '💰' },
+    { label: 'Rating',      value: seller ? `${Number(seller.rating).toFixed(1)} ⭐` : '—', icon: '⭐' },
+    { label: 'KYC Level',   value: seller ? `Level ${seller.kyc_level}`         : '—', icon: '✅' },
   ];
 
   return (
@@ -45,7 +40,9 @@ export default function DashboardPage() {
         {stats.map(s => (
           <div key={s.label} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
             <div className="text-2xl mb-2">{s.icon}</div>
-            <div className="text-2xl font-bold text-gray-900">{loading ? <div className="h-7 w-20 bg-gray-200 rounded animate-pulse" /> : s.value}</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {loading ? <div className="h-7 w-20 bg-gray-200 rounded animate-pulse" /> : s.value}
+            </div>
             <div className="text-sm text-gray-500 mt-0.5">{s.label}</div>
           </div>
         ))}
@@ -62,9 +59,9 @@ export default function DashboardPage() {
       <div className="bg-white border border-gray-100 rounded-xl p-6">
         <h2 className="font-semibold text-gray-700 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {[['📦 New Listing', '/dashboard/listings/new'],
-            ['🛒 View Orders', '/dashboard/orders'],
-            ['💰 Earnings',    '/dashboard/earnings']].map(([label, href]) => (
+          {[['📦 New Listing', '/dashboard/listings'],
+            ['🛒 View Orders',  '/dashboard/orders'],
+            ['💰 Earnings',     '/dashboard/earnings']].map(([label, href]) => (
             <a key={href} href={href} className="flex items-center justify-center py-3 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">{label}</a>
           ))}
         </div>

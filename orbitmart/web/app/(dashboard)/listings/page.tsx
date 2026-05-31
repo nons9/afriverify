@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
 import Image from 'next/image';
 import { api } from '@/lib/api';
@@ -8,7 +7,6 @@ import { api } from '@/lib/api';
 interface Product {
   id: string; title: string; price: number; stock: number; status: string;
   images: { url: string; is_primary: boolean }[];
-  created_at: string;
 }
 
 const KOBO = (n: number) => `₦${(n / 100).toLocaleString('en-NG', { minimumFractionDigits: 0 })}`;
@@ -21,22 +19,17 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function ListingsPage() {
-  const { getToken } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
-    getToken().then(token => {
-      if (!token) return;
-      api.getAuth<{ products: Product[] }>('/v1/sellers/me/products', token)
-        .then(d => setProducts(d.products))
-        .finally(() => setLoading(false));
-    });
-  }, [getToken]);
+    api.auth.get<{ products: Product[] }>('/v1/sellers/me/products')
+      .then(d => setProducts(d.products))
+      .finally(() => setLoading(false));
+  }, []);
 
   const publish = async (id: string) => {
-    const token = await getToken();
-    await api.patchAuth(`/v1/products/${id}/publish`, {}, token!);
+    await api.auth.patch(`/v1/products/${id}/publish`, {});
     setProducts(ps => ps.map(p => p.id === id ? { ...p, status: 'active' } : p));
   };
 
