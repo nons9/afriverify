@@ -1,0 +1,151 @@
+import { Router, Request, Response } from 'express';
+import { z } from 'zod';
+import { authenticate } from '../middleware/auth';
+import { sessionAuth } from '../middleware/sessionAuth';
+import { validateBody } from '../middleware/validate';
+import { query, queryOne } from '../db';
+import { generateApiKey } from '../utils/crypto';
+import logger from '../utils/logger';
+
+const router = Router();
+
+const createKeySchema = z.object({
+  platform_name: z.string().min(2).max(100),
+  platform_email: z.string().email(),
+  environment: z.enum(['sandbox', 'production']).default('sandbox')
+});
+
+// POST /developer/keys — public bootstrap (no auth required)
+router.post(
+  '/keys',
+  validateBody(createKeySchema),
+  async (req: Request, res: Response): Promise<void> => {
+    const { platform_name, platform_email, environment } =
+      req.body as z.infer<typeof createKeySchema>;
+
+    const { key, hash, prefix } = generateApiKey(environment);
+
+    const rows = await query<{ id: string }>(
+      `INSERT INTO api_keys
+         (platform_name, platform_email, api_key_hash, api_key_prefix, environment,
+          tier, monthly_limit)
+       VALUES ($1,$2,$3,$4,$5,'free',100)
+       RETURNING id`,
+      [platform_name, platform_email, hash, prefix, environment]
+    );
+
+    logger.info('New API key created', { platform: platform_name, environment, id: rows[0].id });
+
+    res.status(201).json({
+      api_key: key,
+      prefix,
+      environment,
+      tier: 'free',
+      monthly_limit: 100,
+      message: 'Store this API key securely. It will NOT be shown again.',
+      id: rows[0].id
+    });
+  }
+);
+
+// GET /developer/keys — list all keys for the signed-in developer (session auth)
+router.get('/keys', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const keys = await query<{
+    id: string;
+    platform_name: string;
+    api_key_prefix: string;
+    environment: string;
+    tier: string;
+    monthly_limit: number;
+    verifications_this_month: number;
+    last_used: string | null;
+    is_active: boolean;
+    created_at: string;
+  }>(
+    `SELECT id, platform_name, api_key_prefix, environment, tier, monthly_limit,
+            verifications_this_month, last_used, is_active, created_at
+     FROM api_keys WHERE platform_email = $1 ORDER BY created_at DESC`,
+    [req.developer!.email]
+  );
+
+  res.json({ keys });
+});
+
+// DELETE /developer/keys/:id — revoke a key (session auth)
+router.delete('/keys/:id', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  const result = await query<{ id: string }>(
+    `UPDATE api_keys SET is_active = false
+     WHERE id = $1 AND platform_email = $2 AND is_active = true
+     RETURNING id`,
+    [id, req.developer!.email]
+  );
+
+  if (result.length === 0) {
+    res.status(404).json({ error: 'not_found', message: 'Key not found or already revoked' });
+    return;
+  }
+
+  logger.info('API key revoked', { id });
+  res.json({ success: true });
+});
+
+// GET /developer/overview — dashboard summary (session auth)
+router.get('/overview', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const email = req.developer!.email;
+
+  const [keyStats, recentEvents] = await Promise.all([
+    queryOne<{ total_keys: string; active_keys: string; total_verifications: string }>(
+      `SELECT
+         COUNT(*) as total_keys,
+         COUNT(*) FILTER (WHERE is_active = true) as active_keys,
+         COALESCE(SUM(verifications_this_month), 0) as total_verifications
+       FROM api_keys WHERE platform_email = $1`,
+      [email]
+    ),
+    query<{ type: string; created_at: string }>(
+      `SELECT ve.type, ve.created_at
+       FROM verification_events ve
+       JOIN api_keys ak ON ak.id = ve.api_key_id
+       WHERE ak.platform_email = $1
+       ORDER BY ve.created_at DESC LIMIT 10`,
+      [email]
+    )
+  ]);
+
+  res.json({
+    total_keys: parseInt(keyStats?.total_keys ?? '0'),
+    active_keys: parseInt(keyStats?.active_keys ?? '0'),
+    total_verifications: parseInt(keyStats?.total_verifications ?? '0'),
+    recent_events: recentEvents
+  });
+});
+
+// GET /developer/usage — per-key usage stats (API key auth)
+router.get('/usage', authenticate, async (req: Request, res: Response): Promise<void> => {
+  const apiKey = req.apiKey!;
+
+  const today = await queryOne<{ count: string }>(
+    `SELECT COUNT(*) as count FROM verification_events
+     WHERE api_key_id = $1 AND created_at >= CURRENT_DATE`,
+    [apiKey.id]
+  );
+
+  const used = apiKey.verifications_this_month;
+  const limit = apiKey.monthly_limit;
+  const pct = limit > 0 ? Math.round((used / limit) * 100) : 0;
+
+  res.json({
+    platform: apiKey.platform_name,
+    environment: apiKey.environment,
+    tier: apiKey.tier,
+    verifications_today: parseInt(today?.count ?? '0'),
+    verifications_this_month: used,
+    monthly_limit: limit,
+    percentage_used: pct,
+    overage_warning: pct >= 80
+  });
+});
+
+export default router;
