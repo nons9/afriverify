@@ -159,7 +159,7 @@ router.post('/users/:platformUserId/link', async (req: Request, res: Response): 
 
     if (!identity) {
       // No identity yet — create a stub so the connection exists when they verify
-      const { rows } = await query<{ id: string }>(
+      const rows = await query<{ id: string }>(
         `INSERT INTO verified_identities (phone) VALUES ($1)
          ON CONFLICT (phone) DO UPDATE SET phone = EXCLUDED.phone
          RETURNING id`,
