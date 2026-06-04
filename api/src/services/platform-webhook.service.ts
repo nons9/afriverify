@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto';
+import { createHmac, randomUUID } from 'crypto';
 import { query, queryOne } from '../db';
 import logger from '../utils/logger';
 
@@ -18,21 +18,24 @@ const LEVEL_LABELS: Record<number, 'none' | 'basic' | 'biometric'> = {
   2: 'biometric',
 };
 
-async function signAndDeliver(
+// Exponential backoff delays before attempt 2 and 3 (ms)
+const RETRY_DELAYS_MS = [2_000, 4_000];
+const MAX_ATTEMPTS    = 3;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function attemptDelivery(
   webhookUrl: string,
-  secretHash: string | null,
+  signingSecret: string,
+  body: string,
   payload: WebhookPayload,
   apiKeyId: string,
-  attempt = 1
-): Promise<void> {
-  const body = JSON.stringify(payload);
-
-  // Sign with HMAC-SHA512 using the stored secret (raw secret was shown once at key creation)
-  // secretHash is stored as SHA-256 of secret — we need the raw secret for HMAC
-  // The raw webhook_secret is stored in environment-level key store, passed via ORBITVERIFY_WEBHOOK_SIGNING_KEY
-  // Per-platform secrets are stored in api_keys.webhook_secret (plaintext AES-256 encrypted at rest)
-  // Here we use the raw secret for HMAC — it must be stored in decryptable form
-  const signingSecret = secretHash ?? process.env.ORBITVERIFY_DEFAULT_WEBHOOK_SECRET ?? 'no-secret';
+  correlationId: string,
+  attempt: number,
+  isFinal: boolean,
+): Promise<boolean> {
   const sig = createHmac('sha512', signingSecret).update(body).digest('hex');
 
   let httpStatus: number | null = null;
@@ -43,41 +46,38 @@ async function signAndDeliver(
     const res = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type':            'application/json',
         'X-OrbitVerify-Signature': `sha512=${sig}`,
-        'X-OrbitVerify-Event': payload.event,
+        'X-OrbitVerify-Event':     payload.event,
         'X-OrbitVerify-Timestamp': payload.timestamp,
+        'X-OrbitVerify-Attempt':   String(attempt),
       },
       body,
       signal: AbortSignal.timeout(10_000),
     });
 
-    httpStatus = res.status;
-    responseBody = (await res.text()).slice(0, 500);
-    success = res.ok;
+    httpStatus    = res.status;
+    responseBody  = (await res.text()).slice(0, 500);
+    success       = res.ok;
 
     if (!res.ok) {
       logger.warn('Webhook delivery failed', {
-        webhookUrl,
-        status: res.status,
-        event: payload.event,
-        attempt,
+        webhookUrl, status: res.status, event: payload.event, attempt,
       });
     }
   } catch (err) {
     logger.error('Webhook delivery error', {
-      webhookUrl,
-      error: (err as Error).message,
-      attempt,
+      webhookUrl, error: (err as Error).message, attempt,
     });
   }
 
-  // Log delivery attempt — APPEND-ONLY
+  // Log every attempt — table is APPEND-ONLY, never updated or deleted
   await query(
     `INSERT INTO platform_webhook_deliveries
        (api_key_id, identity_id, platform_user_id, event_type, payload,
-        webhook_url, http_status, response_body, success, attempt_number)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        webhook_url, http_status, response_body, success, attempt_number,
+        correlation_id, is_final_attempt)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
     [
       apiKeyId,
       payload.identity_id,
@@ -89,8 +89,55 @@ async function signAndDeliver(
       responseBody,
       success,
       attempt,
+      correlationId,
+      isFinal,
     ]
-  ).catch((err) => logger.error('Failed to log webhook delivery', { error: err.message }));
+  ).catch((err) =>
+    logger.error('Failed to log webhook delivery attempt', {
+      error: err.message, correlationId, attempt,
+    })
+  );
+
+  return success;
+}
+
+async function deliverWithRetry(
+  webhookUrl: string,
+  secretHash: string | null,
+  payload: WebhookPayload,
+  apiKeyId: string,
+): Promise<void> {
+  const correlationId   = randomUUID();
+  const signingSecret   = secretHash ?? process.env.ORBITVERIFY_DEFAULT_WEBHOOK_SECRET ?? 'no-secret';
+  const body            = JSON.stringify(payload);
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // Wait before retries (not before the first attempt)
+    if (attempt > 1) {
+      const delayMs = RETRY_DELAYS_MS[attempt - 2];
+      logger.info('Retrying webhook delivery', {
+        correlationId, attempt, delayMs, event: payload.event,
+      });
+      await sleep(delayMs);
+    }
+
+    const isFinal = attempt === MAX_ATTEMPTS;
+    const success = await attemptDelivery(
+      webhookUrl, signingSecret, body, payload,
+      apiKeyId, correlationId, attempt, isFinal,
+    );
+
+    if (success) {
+      if (attempt > 1) {
+        logger.info('Webhook delivered after retry', { correlationId, attempt });
+      }
+      return;
+    }
+  }
+
+  logger.error('Webhook delivery exhausted all attempts', {
+    correlationId, maxAttempts: MAX_ATTEMPTS, event: payload.event, webhookUrl,
+  });
 }
 
 export async function pushVerificationUpdate(
@@ -100,7 +147,6 @@ export async function pushVerificationUpdate(
   verificationLevel: number,
   trustScore?: number
 ): Promise<void> {
-  // Get the api_key's webhook config
   const apiKey = await queryOne<{
     webhook_url: string | null;
     webhook_secret_hash: string | null;
@@ -111,25 +157,27 @@ export async function pushVerificationUpdate(
     [apiKeyId]
   );
 
-  if (!apiKey?.webhook_url) return; // Platform has no webhook registered — skip silently
+  if (!apiKey?.webhook_url) return;
 
   const payload: WebhookPayload = {
-    event: 'identity.verification_updated',
-    identity_id: identityId,
-    platform_user_id: platformUserId,
+    event:              'identity.verification_updated',
+    identity_id:        identityId,
+    platform_user_id:   platformUserId,
     verification_level: verificationLevel,
-    level_label: LEVEL_LABELS[verificationLevel] ?? 'none',
-    trust_score: trustScore,
-    timestamp: new Date().toISOString(),
+    level_label:        LEVEL_LABELS[verificationLevel] ?? 'none',
+    trust_score:        trustScore,
+    timestamp:          new Date().toISOString(),
   };
 
-  // Fire and forget — webhook must not block the verification flow
-  signAndDeliver(
+  // Fire and forget — retries run in background, verification flow is unblocked
+  deliverWithRetry(
     apiKey.webhook_url,
     apiKey.webhook_secret_hash,
     payload,
-    apiKeyId
-  ).catch((err) => logger.error('pushVerificationUpdate failed', { error: err.message }));
+    apiKeyId,
+  ).catch((err) =>
+    logger.error('deliverWithRetry threw unexpectedly', { error: err.message })
+  );
 }
 
 export async function createOrUpdatePlatformConnection(
@@ -150,10 +198,10 @@ export async function createOrUpdatePlatformConnection(
        (identity_id, platform_name, platform_api_key_id, platform_user_id, connected_at, last_verified)
      VALUES ($1,$2,$3,$4,NOW(),NOW())
      ON CONFLICT (identity_id, platform_name) DO UPDATE SET
-       platform_user_id = EXCLUDED.platform_user_id,
+       platform_user_id    = EXCLUDED.platform_user_id,
        platform_api_key_id = EXCLUDED.platform_api_key_id,
-       last_verified = NOW(),
-       is_active = true`,
+       last_verified       = NOW(),
+       is_active           = true`,
     [identityId, apiKey.platform_name, apiKeyId, platformUserId]
   );
 }
