@@ -20,6 +20,10 @@ import { sha256, generateSecureToken } from '../utils/crypto';
 import { uploadToS3, downloadFromS3 } from '../utils/s3';
 import logger from '../utils/logger';
 import { VerificationSession } from '../types';
+import {
+  pushVerificationUpdate,
+  createOrUpdatePlatformConnection,
+} from '../services/platform-webhook.service';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -30,6 +34,7 @@ router.use(rateLimitApiKey);
 // ─── POST /verify/initiate ────────────────────────────────────────────────────────────────────────────────
 const initiateSchema = z.object({
   phone: z.string().min(7).max(20).regex(/^\+?[1-9]\d{6,19}$/, 'Invalid phone number'),
+  platform_user_id: z.string().max(255).optional(),
   redirect_url: z.string().url().optional()
 });
 
@@ -38,7 +43,7 @@ router.post(
   rateLimitVerifyInitiate,
   validateBody(initiateSchema),
   async (req: Request, res: Response): Promise<void> => {
-    const { phone } = req.body as { phone: string };
+    const { phone, platform_user_id } = req.body as { phone: string; platform_user_id?: string };
     const apiKey = req.apiKey!;
 
     if (apiKey.tier === 'free' && apiKey.verifications_this_month >= apiKey.monthly_limit) {
@@ -65,15 +70,16 @@ router.post(
 
     await query(
       `INSERT INTO verification_sessions
-         (session_token, phone, step, api_key_id, ip_address, device_id, expires_at)
-       VALUES ($1,$2,'phone',$3,$4,$5,$6)`,
+         (session_token, phone, step, api_key_id, ip_address, device_id, expires_at, platform_user_id)
+       VALUES ($1,$2,'phone',$3,$4,$5,$6,$7)`,
       [
         sessionToken,
         phone,
         apiKey.id,
         req.ip ?? null,
         (req.headers['x-device-id'] as string) ?? null,
-        expiresAt
+        expiresAt,
+        platform_user_id ?? null,
       ]
     );
 
@@ -592,6 +598,15 @@ async function completeLevel1(sessionId: string, identityId: string, req: Reques
     result: 'passed',
     metadata: { level: 1 }
   });
+
+  const sess = await queryOne<{ platform_user_id: string | null; api_key_id: string }>(
+    `SELECT platform_user_id, api_key_id FROM verification_sessions WHERE id = $1`,
+    [sessionId]
+  );
+  if (sess) {
+    await createOrUpdatePlatformConnection(identityId, sess.api_key_id, sess.platform_user_id);
+    pushVerificationUpdate(sess.api_key_id, identityId, sess.platform_user_id, 1).catch(() => {});
+  }
 }
 
 async function completeLevel2(
@@ -621,6 +636,15 @@ async function completeLevel2(
     result: 'passed',
     metadata: { level: 2, confidence }
   });
+
+  const sess = await queryOne<{ platform_user_id: string | null; api_key_id: string }>(
+    `SELECT platform_user_id, api_key_id FROM verification_sessions WHERE id = $1`,
+    [sessionId]
+  );
+  if (sess) {
+    await createOrUpdatePlatformConnection(identityId, sess.api_key_id, sess.platform_user_id);
+    pushVerificationUpdate(sess.api_key_id, identityId, sess.platform_user_id, 2).catch(() => {});
+  }
 }
 
 async function failSession(

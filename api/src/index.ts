@@ -11,6 +11,7 @@ import identityRouter from './routes/identity';
 import trustRouter from './routes/trust';
 import developerRouter from './routes/developer';
 import orbitshieldRouter from './routes/orbitshield';
+import internalRouter from './routes/internal';
 import logger from './utils/logger';
 
 const app = express();
@@ -53,6 +54,7 @@ app.use('/v1/identity', identityRouter);
 app.use('/v1/trust', trustRouter);
 app.use('/v1/developer', developerRouter);
 app.use('/v1/orbitshield', orbitshieldRouter);
+app.use('/v1/internal', internalRouter);
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json({
