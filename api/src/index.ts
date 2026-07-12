@@ -72,20 +72,18 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 async function bootstrap(): Promise<void> {
-  try {
-    await pool.query('SELECT 1');
-    logger.info('PostgreSQL connected');
-  } catch (err) {
-    logger.error('PostgreSQL connection failed', { error: (err as Error).message });
-    process.exit(1);
-  }
-
+  // Redis: non-fatal, rate limiting degrades gracefully if unavailable
   try {
     await connectRedis();
   } catch (err) {
     logger.warn('Redis connection failed — rate limiting degraded, retrying in background', { error: (err as Error).message });
   }
 
+  // Bind the port BEFORE checking Postgres. Railway's healthcheck polls /health
+  // immediately after the container starts; crashing before listen() means
+  // the probe gets "connection refused" on every attempt and the deploy fails.
+  // /health already returns 503 while Postgres is unavailable, then 200 once it
+  // recovers — Railway will wait up to healthcheckTimeout seconds for the 200.
   const server = app.listen(PORT, () => {
     logger.info(`OrbitVerify API running on port ${PORT}`, {
       env: process.env.NODE_ENV,
@@ -104,6 +102,16 @@ async function bootstrap(): Promise<void> {
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+
+  // Log Postgres connectivity without blocking or crashing.
+  // /health will surface the real status on every probe.
+  pool.query('SELECT 1')
+    .then(() => logger.info('PostgreSQL connected'))
+    .catch((err: Error) =>
+      logger.error('PostgreSQL not reachable at startup — /health will report degraded until it recovers', {
+        error: err.message
+      })
+    );
 }
 
 bootstrap();

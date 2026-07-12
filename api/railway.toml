@@ -1,5 +1,6 @@
 [deploy]
-startCommand = "node dist/db/migrate.js; node dist/index.js"
+releaseCommand = "node dist/db/migrate.js"
+startCommand = "node dist/index.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
