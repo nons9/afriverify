@@ -11,6 +11,7 @@ import { rateLimitApiKey } from '../middleware/rateLimit';
 import { writeAuditEvent } from '../middleware/audit';
 import { query, queryOne } from '../db';
 import logger from '../utils/logger';
+import { recordFraudSignal } from '../services/orbitshield/fraud-graph.service';
 
 const router = Router();
 
@@ -208,6 +209,77 @@ router.post('/users/:platformUserId/link', async (req: Request, res: Response): 
   } catch (err) {
     logger.error('Link platform user error', { error: (err as Error).message });
     res.status(500).json({ error: 'internal_error', message: 'Link failed' });
+  }
+});
+
+/**
+ * POST /v1/internal/fraud-signal
+ *
+ * Receives a fraud event from a connected platform (e.g. Kliqa detects a
+ * blacklisted VIT at the withdrawal gate) and feeds it into OrbitShield's
+ * fraud graph so the identity's risk score is updated across all platforms.
+ *
+ * Body: { platformUserId, fraudType, ipAddress?, deviceId? }
+ * fraudType examples: "vit_gate_blocked", "aml_flagged", "account_takeover"
+ */
+router.post('/fraud-signal', async (req: Request, res: Response): Promise<void> => {
+  const { platformUserId, fraudType, ipAddress, deviceId } = req.body as {
+    platformUserId?: string;
+    fraudType?: string;
+    ipAddress?: string;
+    deviceId?: string;
+  };
+  const apiKey = req.apiKey!;
+
+  if (!platformUserId || typeof platformUserId !== 'string') {
+    res.status(400).json({ error: 'validation_error', message: 'platformUserId is required' });
+    return;
+  }
+  if (!fraudType || typeof fraudType !== 'string') {
+    res.status(400).json({ error: 'validation_error', message: 'fraudType is required' });
+    return;
+  }
+
+  try {
+    const row = await queryOne<{ identity_id: string }>(
+      `SELECT vi.id AS identity_id
+       FROM platform_connections pc
+       JOIN verified_identities vi ON vi.id = pc.identity_id
+       WHERE pc.platform_name = $1 AND pc.platform_user_id = $2 AND pc.is_active = true`,
+      [apiKey.platform_name, platformUserId]
+    );
+
+    if (!row) {
+      // No linked identity yet — signal is noted but cannot be attributed
+      res.json({ recorded: false, reason: 'no_identity_linked' });
+      return;
+    }
+
+    await recordFraudSignal({
+      identityId: row.identity_id,
+      fraudType,
+      reportingPlatform: apiKey.platform_name,
+      ...(ipAddress ? { ipAddress } : {}),
+      ...(deviceId  ? { deviceId  } : {}),
+    });
+
+    await writeAuditEvent(req, {
+      event_type: 'fraud_signal',
+      identity_id: row.identity_id,
+      result: 'passed',
+      metadata: { platform_user_id: platformUserId, fraud_type: fraudType },
+    });
+
+    logger.warn('Fraud signal recorded', {
+      identityId: row.identity_id,
+      fraudType,
+      reportingPlatform: apiKey.platform_name,
+    });
+
+    res.json({ recorded: true, identity_id: row.identity_id });
+  } catch (err) {
+    logger.error('Fraud signal error', { error: (err as Error).message });
+    res.status(500).json({ error: 'internal_error', message: 'Failed to record fraud signal' });
   }
 });
 
