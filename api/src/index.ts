@@ -82,8 +82,7 @@ async function bootstrap(): Promise<void> {
   try {
     await connectRedis();
   } catch (err) {
-    logger.error('Redis connection failed', { error: (err as Error).message });
-    process.exit(1);
+    logger.warn('Redis connection failed — rate limiting degraded, retrying in background', { error: (err as Error).message });
   }
 
   const server = app.listen(PORT, () => {

@@ -4,7 +4,8 @@ import logger from './utils/logger';
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
   lazyConnect: true,
   maxRetriesPerRequest: 3,
-  enableReadyCheck: true
+  enableReadyCheck: false,
+  connectTimeout: 10000,
 });
 
 redis.on('error', (err) => logger.error('Redis error', { error: err.message }));
