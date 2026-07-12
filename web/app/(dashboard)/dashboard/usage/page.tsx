@@ -18,17 +18,38 @@ interface Overview {
   active_keys: number;
 }
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const emptyChart = DAYS.map((day) => ({ day, calls: 0 }));
+interface DailyRow {
+  day: string;
+  calls: number;
+}
+
+function buildLast7Days(rows: DailyRow[]): { day: string; calls: number }[] {
+  const map = new Map(rows.map((r) => [r.day, r.calls]));
+  const result: { day: string; calls: number }[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const isoDay = d.toISOString().slice(0, 10);
+    const label = d.toLocaleDateString('en-GB', { weekday: 'short' });
+    result.push({ day: label, calls: map.get(isoDay) ?? 0 });
+  }
+  return result;
+}
 
 export default function UsagePage() {
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [chartData, setChartData] = useState<{ day: string; calls: number }[]>(buildLast7Days([]));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api
-      .get<Overview>('/v1/developer/overview')
-      .then(setOverview)
+    Promise.all([
+      api.get<Overview>('/v1/developer/overview'),
+      api.get<{ daily: DailyRow[] }>('/v1/developer/usage/daily'),
+    ])
+      .then(([ov, daily]) => {
+        setOverview(ov);
+        setChartData(buildLast7Days(daily.daily));
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -36,6 +57,7 @@ export default function UsagePage() {
   const totalVerifs = overview?.total_verifications ?? 0;
   const limit = 100;
   const pct = Math.min(Math.round((totalVerifs / limit) * 100), 100);
+  const hasActivity = chartData.some((d) => d.calls > 0);
 
   return (
     <div className="p-8 max-w-3xl">
@@ -90,37 +112,47 @@ export default function UsagePage() {
       {/* Chart */}
       <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6 mb-6">
         <h3 className="text-sm font-semibold text-white mb-5">API calls — last 7 days</h3>
-        <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={emptyChart} barSize={20}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-            <XAxis
-              dataKey="day"
-              tick={{ fill: '#475569', fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fill: '#475569', fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-              allowDecimals={false}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: '#0f172a',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 8,
-                color: '#fff',
-                fontSize: 12,
-              }}
-              cursor={{ fill: 'rgba(255,255,255,0.02)' }}
-            />
-            <Bar dataKey="calls" fill="#6366f1" radius={[3, 3, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-        <p className="text-xs text-slate-600 text-center mt-3">
-          Timeseries data populates after your first API call
-        </p>
+        {loading ? (
+          <div className="flex items-center justify-center h-[180px]">
+            <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={chartData} barSize={20}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis
+                  dataKey="day"
+                  tick={{ fill: '#475569', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fill: '#475569', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#0f172a',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 8,
+                    color: '#fff',
+                    fontSize: 12,
+                  }}
+                  cursor={{ fill: 'rgba(255,255,255,0.02)' }}
+                />
+                <Bar dataKey="calls" fill="#6366f1" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            {!hasActivity && (
+              <p className="text-xs text-slate-600 text-center mt-3">
+                Timeseries data populates after your first API call
+              </p>
+            )}
+          </>
+        )}
       </div>
 
       {/* Upgrade */}
