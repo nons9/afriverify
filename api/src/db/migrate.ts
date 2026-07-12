@@ -58,7 +58,22 @@ async function migrate(): Promise<void> {
   }
 }
 
-migrate().catch((err) => {
-  logger.error('Migration runner failed', { error: err.message });
+async function migrateWithRetry(maxAttempts = 5, delayMs = 4000): Promise<void> {
+  for (let i = 1; i <= maxAttempts; i++) {
+    try {
+      await migrate();
+      return;
+    } catch (err) {
+      if (i === maxAttempts) throw err;
+      logger.warn(`Migration attempt ${i}/${maxAttempts} failed, retrying in ${delayMs / 1000}s`, {
+        error: (err as Error).message
+      });
+      await new Promise<void>((r) => setTimeout(r, delayMs));
+    }
+  }
+}
+
+migrateWithRetry().catch((err: Error) => {
+  logger.error('Migration runner failed after all retries', { error: err.message });
   process.exit(1);
 });
