@@ -24,4 +24,4 @@ COPY --from=builder /app/dist ./dist
 EXPOSE 3000
 
 # Run migrations then start server — Railway restarts on failure so this is safe
-CMD ["sh", "-c", "node dist/db/migrate.js && node dist/index.js"]
+CMD ["sh", "-c", "node dist/db/migrate.js; node dist/index.js"]
