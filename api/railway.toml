@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm install --include=dev && npm run build"
+buildCommand = "npm run build"
 
 [deploy]
 startCommand = "node dist/db/migrate.js && node dist/index.js"
