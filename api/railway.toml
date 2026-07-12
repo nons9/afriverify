@@ -1,7 +1,3 @@
-[build]
-builder = "nixpacks"
-buildCommand = "npm run build"
-
 [deploy]
 startCommand = "node dist/db/migrate.js && node dist/index.js"
 healthcheckPath = "/health"
