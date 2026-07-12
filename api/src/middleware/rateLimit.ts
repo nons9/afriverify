@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { RateLimiterRedis } from 'rate-limiter-flexible';
 import redis from '../redis';
+import { query } from '../db';
+import logger from '../utils/logger';
 
 const verifyInitiateLimit = new RateLimiterRedis({
   storeClient: redis,
@@ -14,7 +16,17 @@ const apiKeyLimit = new RateLimiterRedis({
   storeClient: redis,
   keyPrefix: 'rl:apikey',
   points: 1000,
-  duration: 60
+  duration: 60,
+});
+
+// Tracks consecutive rate-limit hits per key. 500+ rejections in 1 hour
+// signals automated abuse → auto-suspend the key and fire a warning log.
+const apiKeyAbuseTracker = new RateLimiterRedis({
+  storeClient: redis,
+  keyPrefix: 'rl:abuse',
+  points: 500,
+  duration: 3600,
+  blockDuration: 0, // we handle suspension ourselves
 });
 
 const globalIpLimit = new RateLimiterRedis({
@@ -55,10 +67,27 @@ export async function rateLimitApiKey(
     next();
   } catch (e: unknown) {
     const ms = (e as { msBeforeNext?: number }).msBeforeNext ?? 60000;
+
+    // Count this rejection toward the abuse threshold.
+    // Fire-and-forget — never block the 429 response on DB/Redis ops.
+    apiKeyAbuseTracker.consume(req.apiKey.id).catch(async (abuseErr: unknown) => {
+      if ((abuseErr as { remainingPoints?: number }).remainingPoints !== undefined) {
+        // remainingPoints reached 0 → threshold exceeded → auto-suspend
+        const keyId = req.apiKey!.id;
+        logger.error('API key auto-suspended due to rate-limit abuse', { keyId });
+        await query(
+          `UPDATE api_keys SET is_active = false WHERE id = $1 AND is_active = true`,
+          [keyId]
+        ).catch((dbErr: unknown) => {
+          logger.error('Failed to auto-suspend abusive API key', { keyId, error: (dbErr as Error).message });
+        });
+      }
+    });
+
     res.status(429).json({
       error: 'rate_limit_exceeded',
       message: 'API rate limit: 1000 req/min',
-      retry_after: Math.ceil(ms / 1000)
+      retry_after: Math.ceil(ms / 1000),
     });
   }
 }
