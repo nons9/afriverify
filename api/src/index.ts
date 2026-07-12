@@ -38,7 +38,6 @@ app.use(
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
-app.use(rateLimitGlobal);
 
 app.get('/health', async (_req: Request, res: Response) => {
   try {
@@ -48,6 +47,8 @@ app.get('/health', async (_req: Request, res: Response) => {
     res.status(503).json({ status: 'degraded', service: 'orbitverify-api' });
   }
 });
+
+app.use(rateLimitGlobal);
 
 app.use('/v1/auth', authRouter);
 app.use('/v1/verify', verifyRouter);
