@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { randomBytes, createHmac } from 'crypto';
 import { z } from 'zod';
 import { authenticate } from '../middleware/auth';
 import { sessionAuth } from '../middleware/sessionAuth';
@@ -61,9 +62,11 @@ router.get('/keys', sessionAuth, async (req: Request, res: Response): Promise<vo
     last_used: string | null;
     is_active: boolean;
     created_at: string;
+    webhook_url: string | null;
   }>(
     `SELECT id, platform_name, api_key_prefix, environment, tier, monthly_limit,
-            verifications_this_month, last_used, is_active, created_at
+            verifications_this_month, last_used, is_active, created_at,
+            webhook_url
      FROM api_keys WHERE platform_email = $1 ORDER BY created_at DESC`,
     [req.developer!.email]
   );
@@ -146,6 +149,65 @@ router.get('/usage', authenticate, async (req: Request, res: Response): Promise<
     percentage_used: pct,
     overage_warning: pct >= 80
   });
+});
+
+// GET /developer/usage/daily — last-7-days per-day breakdown (session auth)
+router.get('/usage/daily', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const email = req.developer!.email;
+  const rows = await query<{ day: string; calls: number }>(
+    `SELECT DATE(ve.created_at)::text AS day, COUNT(*)::int AS calls
+     FROM verification_events ve
+     JOIN api_keys ak ON ak.id = ve.api_key_id
+     WHERE ak.platform_email = $1
+       AND ve.created_at >= NOW() - INTERVAL '7 days'
+     GROUP BY DATE(ve.created_at)
+     ORDER BY day ASC`,
+    [email]
+  );
+  res.json({ daily: rows });
+});
+
+// PATCH /developer/keys/:id/webhook — set or clear webhook URL (session auth)
+router.patch('/keys/:id/webhook', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { webhook_url } = req.body as { webhook_url: string | null };
+
+  const result = await query<{ id: string }>(
+    `UPDATE api_keys SET webhook_url = $1
+     WHERE id = $2 AND platform_email = $3 AND is_active = true
+     RETURNING id`,
+    [webhook_url ?? null, id, req.developer!.email]
+  );
+
+  if (result.length === 0) {
+    res.status(404).json({ error: 'not_found', message: 'Key not found' });
+    return;
+  }
+
+  logger.info('Webhook URL updated', { id });
+  res.json({ success: true });
+});
+
+// POST /developer/keys/:id/webhook/secret — regenerate signing secret (session auth)
+router.post('/keys/:id/webhook/secret', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const secret = randomBytes(32).toString('hex');
+
+  const result = await query<{ id: string }>(
+    `UPDATE api_keys SET webhook_secret_hash = $1
+     WHERE id = $2 AND platform_email = $3 AND is_active = true
+     RETURNING id`,
+    [secret, id, req.developer!.email]
+  );
+
+  if (result.length === 0) {
+    res.status(404).json({ error: 'not_found', message: 'Key not found' });
+    return;
+  }
+
+  logger.info('Webhook secret regenerated', { id });
+  // Return the raw secret once — it will not be shown again
+  res.json({ secret });
 });
 
 export default router;

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Shield, LayoutDashboard, Key, CheckCircle, BarChart2, LogOut } from 'lucide-react';
+import { Shield, LayoutDashboard, Key, CheckCircle, BarChart2, Webhook, LogOut } from 'lucide-react';
 import { getSession, clearSession, Developer } from '@/lib/auth';
 
 const nav = [
@@ -11,6 +11,7 @@ const nav = [
   { href: '/dashboard/api-keys', label: 'API Keys', icon: Key },
   { href: '/dashboard/verifications', label: 'Verifications', icon: CheckCircle },
   { href: '/dashboard/usage', label: 'Usage & Billing', icon: BarChart2 },
+  { href: '/dashboard/webhooks', label: 'Webhooks', icon: Webhook },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
