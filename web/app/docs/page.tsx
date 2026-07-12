@@ -110,7 +110,7 @@ const endpoints = [
   {
     method: 'GET',
     path: '/v1/internal/users/:id/status',
-    desc: 'Check a platform user's verification status. Sub-100ms.',
+    desc: "Check a platform user's verification status. Sub-100ms.",
     body: '—',
     returns: 'verified, level, trust_score, aml_status, is_blacklisted',
   },
@@ -131,7 +131,7 @@ const endpoints = [
   {
     method: 'POST',
     path: '/v1/sandbox/reset',
-    desc: 'Wipe a platform user's sandbox state. Re-run the full flow from scratch.',
+    desc: "Wipe a platform user's sandbox state. Re-run the full flow from scratch.",
     body: 'platform_user_id',
     returns: 'reset, identity_deleted',
   },
