@@ -1,4 +1,4 @@
-# OrbitVerify
+# VerifyAfrica
 
 Africa's identity infrastructure layer. One verified African identity — portable across every platform.
 

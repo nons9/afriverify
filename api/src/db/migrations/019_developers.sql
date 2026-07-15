@@ -1,4 +1,4 @@
--- Developer accounts for the OrbitVerify console portal
+-- Developer accounts for the VerifyAfrica console portal
 CREATE TABLE IF NOT EXISTS developers (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email         TEXT NOT NULL UNIQUE,

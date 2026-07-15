@@ -49,7 +49,7 @@ router.post(
     if (apiKey.tier === 'free' && apiKey.verifications_this_month >= apiKey.monthly_limit) {
       res.status(402).json({
         error: 'limit_exceeded',
-        message: 'Monthly verification limit reached. Upgrade at https://console.orbitverify.africa/billing'
+        message: 'Monthly verification limit reached. Upgrade at https://console.verifyafrica.com/billing'
       });
       return;
     }

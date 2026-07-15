@@ -66,7 +66,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="w-7 h-7 rounded-lg bg-indigo-500 flex items-center justify-center">
             <Shield className="w-3.5 h-3.5 text-white" />
           </div>
-          <span className="font-bold text-white text-sm">OrbitVerify</span>
+          <span className="font-bold text-white text-sm">VerifyAfrica</span>
         </Link>
       </div>
 
@@ -149,7 +149,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="w-6 h-6 rounded-lg bg-indigo-500 flex items-center justify-center">
               <Shield className="w-3 h-3 text-white" />
             </div>
-            <span className="font-bold text-white text-sm">OrbitVerify</span>
+            <span className="font-bold text-white text-sm">VerifyAfrica</span>
           </div>
           {sidebarOpen && (
             <button

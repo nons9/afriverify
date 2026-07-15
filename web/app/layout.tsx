@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: "OrbitVerify — Africa's Identity Infrastructure",
+  title: "VerifyAfrica — Africa's Identity Infrastructure",
   description:
     'Verify African identities with a single API call. 54 countries, sub-100ms checks, portable Verified Identity Token.',
 };

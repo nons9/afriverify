@@ -82,7 +82,7 @@ export default function DashboardPage() {
     <div className="p-8 max-w-4xl">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white">Overview</h1>
-        <p className="text-slate-400 text-sm mt-1">Your OrbitVerify platform at a glance</p>
+        <p className="text-slate-400 text-sm mt-1">Your VerifyAfrica platform at a glance</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

@@ -51,7 +51,7 @@ export default function DashboardPage() {
       {seller && seller.kyc_level < 2 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
           <div className="font-semibold text-amber-700 mb-1">Complete KYC to unlock higher limits</div>
-          <p className="text-sm text-amber-600 mb-3">Verify your identity via OrbitVerify to increase your payout limits and boost buyer trust.</p>
+          <p className="text-sm text-amber-600 mb-3">Verify your identity via VerifyAfrica to increase your payout limits and boost buyer trust.</p>
           <button className="bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-600">Start KYC Verification</button>
         </div>
       )}

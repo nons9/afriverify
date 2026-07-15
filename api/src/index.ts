@@ -43,9 +43,9 @@ app.use(rateLimitGlobal);
 app.get('/health', async (_req: Request, res: Response) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ status: 'ok', service: 'orbitverify-api', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', service: 'verifyafrica-api', timestamp: new Date().toISOString() });
   } catch {
-    res.status(503).json({ status: 'degraded', service: 'orbitverify-api' });
+    res.status(503).json({ status: 'degraded', service: 'verifyafrica-api' });
   }
 });
 
@@ -61,7 +61,7 @@ app.use('/v1/sandbox', sandboxRouter);
 app.use((_req: Request, res: Response) => {
   res.status(404).json({
     error: 'not_found',
-    message: 'Endpoint not found. See https://docs.orbitverify.africa'
+    message: 'Endpoint not found. See https://docs.verifyafrica.com'
   });
 });
 
@@ -84,7 +84,7 @@ async function bootstrap(): Promise<void> {
   // /health already returns 503 while Postgres is unavailable, then 200 once it
   // recovers — Railway will wait up to healthcheckTimeout seconds for the 200.
   const server = app.listen(PORT, () => {
-    logger.info(`OrbitVerify API running on port ${PORT}`, {
+    logger.info(`VerifyAfrica API running on port ${PORT}`, {
       env: process.env.NODE_ENV,
       port: PORT
     });

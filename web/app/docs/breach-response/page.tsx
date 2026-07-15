@@ -147,9 +147,9 @@ const phases = [
 const contacts = [
   { role: 'Incident lead (CTO)', contact: 'Page via on-call rotation', note: 'Always first call for P0' },
   { role: 'CEO', contact: 'Direct call', note: 'Notify within 30 min of P0 declaration' },
-  { role: 'Legal / Compliance', contact: 'legal@orbitverify.africa', note: 'Required for regulatory notifications' },
+  { role: 'Legal / Compliance', contact: 'legal@verifyafrica.com', note: 'Required for regulatory notifications' },
   { role: 'NDPC (Nigeria)', contact: 'info@ndpc.gov.ng', note: 'Mandatory within 72h under NDPA 2023' },
-  { role: 'Platform support', contact: 'support@orbitverify.africa', note: 'External escalations from platforms' },
+  { role: 'Platform support', contact: 'support@verifyafrica.com', note: 'External escalations from platforms' },
 ];
 
 export default function BreachResponsePage() {
@@ -162,7 +162,7 @@ export default function BreachResponsePage() {
             <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
               <Shield className="w-4 h-4" />
             </div>
-            <span className="font-bold text-lg tracking-tight">OrbitVerify</span>
+            <span className="font-bold text-lg tracking-tight">VerifyAfrica</span>
           </Link>
           <div className="hidden md:flex items-center gap-8 text-sm text-slate-400">
             <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>

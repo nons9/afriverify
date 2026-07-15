@@ -44,9 +44,9 @@ export function generateVIT(params: VITParams): { token: string; payload: VITPay
   const token = jwt.sign(payload, privateKey, {
     algorithm: 'RS256',
     expiresIn: '365d',
-    issuer: 'orbitverify.africa',
+    issuer: 'verifyafrica.com',
     subject: params.identity_id,
-    keyid: 'orbitverify-vit-v1'
+    keyid: 'verifyafrica-vit-v1'
   });
 
   return { token, payload };
@@ -56,6 +56,6 @@ export function verifyVIT(token: string): VITPayload {
   const publicKey = (process.env.VIT_PUBLIC_KEY ?? '').replace(/\\n/g, '\n');
   return jwt.verify(token, publicKey, {
     algorithms: ['RS256'],
-    issuer: 'orbitverify.africa'
+    issuer: 'verifyafrica.com'
   }) as VITPayload;
 }
