@@ -106,7 +106,7 @@ export default function HomePage() {
       <div className="bg-teal-600 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
           {[['🔒', 'Escrow Protection', 'Funds locked until buyer confirms receipt'],
-            ['✅', 'Identity Verified', 'All sellers KYC-verified via OrbitVerify'],
+            ['✅', 'Identity Verified', 'All sellers KYC-verified via VerifyAfrica'],
             ['⚡', 'Instant Payouts', 'Sellers paid within 24h of confirmation']].map(([icon, title, desc]) => (
             <div key={title as string}>
               <div className="text-3xl mb-1">{icon}</div>

@@ -1,5 +1,5 @@
 {
-  "name": "orbitverify-api",
+  "name": "verifyafrica-api",
   "version": "0.1.0",
   "private": true,
   "engines": { "node": ">=20.0.0" },

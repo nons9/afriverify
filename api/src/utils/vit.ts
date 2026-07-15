@@ -44,9 +44,9 @@ export function generateVIT(params: VITParams): { token: string; payload: VITPay
   const token = jwt.sign(payload, privateKey, {
     algorithm: 'RS256',
     expiresIn: '365d',
-    issuer: 'orbitverify.africa',
+    issuer: 'verifyafrica.com',
     subject: params.identity_id,
-    keyid: 'orbitverify-vit-v1'
+    keyid: 'verifyafrica-vit-v1'
   });
 
   return { token, payload };
@@ -54,8 +54,12 @@ export function generateVIT(params: VITParams): { token: string; payload: VITPay
 
 export function verifyVIT(token: string): VITPayload {
   const publicKey = (process.env.VIT_PUBLIC_KEY ?? '').replace(/\\n/g, '\n');
+  // Accept the legacy issuer during the OrbitVerify → VerifyAfrica transition.
+  // Old tokens (iss: orbitverify.africa) are still cryptographically valid — only the
+  // issuer claim changed. Remove 'orbitverify.africa' after all pre-rename VITs expire
+  // (they have a 365-day TTL, so safe to drop after 2027-07-15).
   return jwt.verify(token, publicKey, {
     algorithms: ['RS256'],
-    issuer: 'orbitverify.africa'
+    issuer: ['verifyafrica.com', 'orbitverify.africa']
   }) as VITPayload;
 }

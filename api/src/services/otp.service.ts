@@ -33,13 +33,13 @@ export async function sendOTP(phone: string): Promise<void> {
         api_key: process.env.TERMII_API_KEY,
         message_type: 'NUMERIC',
         to: phone,
-        from: process.env.TERMII_SENDER_ID ?? 'OrbitVerify',
+        from: process.env.TERMII_SENDER_ID ?? 'VerifyAfrica',
         channel: 'dnd',
         pin_attempts: 3,
         pin_time_to_live: 5,
         pin_length: 6,
         pin_placeholder: '< 1234 >',
-        message_text: 'Your OrbitVerify code is < 1234 >. Valid 5 mins. Do not share.',
+        message_text: 'Your VerifyAfrica code is < 1234 >. Valid 5 mins. Do not share.',
         pin_type: 'NUMERIC'
       },
       { timeout: 10000 }

@@ -47,10 +47,10 @@ async function attemptDelivery(
       method: 'POST',
       headers: {
         'Content-Type':            'application/json',
-        'X-OrbitVerify-Signature': `sha512=${sig}`,
-        'X-OrbitVerify-Event':     payload.event,
-        'X-OrbitVerify-Timestamp': payload.timestamp,
-        'X-OrbitVerify-Attempt':   String(attempt),
+        'X-VerifyAfrica-Signature': `sha512=${sig}`,
+        'X-VerifyAfrica-Event':     payload.event,
+        'X-VerifyAfrica-Timestamp': payload.timestamp,
+        'X-VerifyAfrica-Attempt':   String(attempt),
       },
       body,
       signal: AbortSignal.timeout(10_000),
@@ -108,7 +108,7 @@ async function deliverWithRetry(
   apiKeyId: string,
 ): Promise<void> {
   const correlationId   = randomUUID();
-  const signingSecret   = secretHash ?? process.env.ORBITVERIFY_DEFAULT_WEBHOOK_SECRET ?? 'no-secret';
+  const signingSecret   = secretHash ?? process.env.VERIFYAFRICA_DEFAULT_WEBHOOK_SECRET ?? 'no-secret';
   const body            = JSON.stringify(payload);
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {

@@ -101,7 +101,7 @@ function KeyWebhookCard({ apiKey }: { apiKey: ApiKey }) {
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://your-platform.com/webhooks/orbitverify"
+            placeholder="https://your-platform.com/webhooks/verifyafrica"
             className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
           />
           <button
@@ -174,7 +174,7 @@ export default function WebhooksPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white">Webhooks</h1>
         <p className="text-slate-400 text-sm mt-1">
-          OrbitVerify POSTs a signed event to your endpoint whenever a verification status changes.
+          VerifyAfrica POSTs a signed event to your endpoint whenever a verification status changes.
         </p>
       </div>
 
@@ -184,7 +184,7 @@ export default function WebhooksPage() {
         <ul className="space-y-2 text-sm text-slate-400">
           <li className="flex items-start gap-2">
             <span className="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-            Each POST includes an <code className="text-indigo-300 text-xs">X-OrbitVerify-Signature</code> header
+            Each POST includes an <code className="text-indigo-300 text-xs">X-VerifyAfrica-Signature</code> header
             (HMAC-SHA512 of the body using your signing secret).
           </li>
           <li className="flex items-start gap-2">

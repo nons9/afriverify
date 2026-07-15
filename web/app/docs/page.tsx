@@ -1,14 +1,14 @@
 import Link from 'next/link';
 import { Shield, Code2, Terminal, Book, ArrowRight, Key, Zap, Lock } from 'lucide-react';
 
-const jsQuickStart = `npm install @orbitverify/sdk
+const jsQuickStart = `npm install @verifyafrica/sdk
 # or
-yarn add @orbitverify/sdk`;
+yarn add @verifyafrica/sdk`;
 
-const jsInit = `import OrbitVerify from '@orbitverify/sdk';
+const jsInit = `import VerifyAfrica from '@verifyafrica/sdk';
 
-const ov = new OrbitVerify({
-  apiKey: process.env.ORBITVERIFY_API_KEY, // ov_live_... or ov_sandbox_...
+const ov = new VerifyAfrica({
+  apiKey: process.env.VERIFYAFRICA_API_KEY, // ov_live_... or ov_sandbox_...
 });`;
 
 const jsVerify = `// 1. Initiate a verification session
@@ -47,11 +47,11 @@ if (!payload.verified || payload.flags.blacklisted || payload.flags.aml_flagged)
   throw new Error('Identity verification required');
 }`;
 
-const pyQuickStart = `pip install orbitverify`;
+const pyQuickStart = `pip install verifyafrica`;
 
-const pyInit = `import orbitverify
+const pyInit = `import verifyafrica
 
-ov = orbitverify.Client(api_key=os.environ["ORBITVERIFY_API_KEY"])`;
+ov = verifyafrica.Client(api_key=os.environ["VERIFYAFRICA_API_KEY"])`;
 
 const pyVerify = `# 1. Initiate a verification session
 session = ov.verify.initiate(
@@ -75,7 +75,7 @@ payload = ov.vit.verify(vit_token)
 if not payload["verified"] or payload["flags"]["blacklisted"]:
     raise PermissionError("Identity verification required")`;
 
-const sandboxJs = `const ov = new OrbitVerify({
+const sandboxJs = `const ov = new VerifyAfrica({
   apiKey: 'ov_sandbox_test_key', // get from dashboard → API Keys
 });
 
@@ -184,7 +184,7 @@ export default function DocsPage() {
             <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
               <Shield className="w-4 h-4" />
             </div>
-            <span className="font-bold text-lg tracking-tight">OrbitVerify</span>
+            <span className="font-bold text-lg tracking-tight">VerifyAfrica</span>
           </Link>
           <div className="hidden md:flex items-center gap-8 text-sm text-slate-400">
             <Link href="/#features" className="hover:text-white transition-colors">Features</Link>
@@ -208,7 +208,7 @@ export default function DocsPage() {
             <Book className="w-3.5 h-3.5" />
             Developer Documentation
           </div>
-          <h1 className="text-4xl font-bold mb-4">OrbitVerify API Reference</h1>
+          <h1 className="text-4xl font-bold mb-4">VerifyAfrica API Reference</h1>
           <p className="text-slate-400 text-lg max-w-2xl leading-relaxed">
             Verify African identities, issue portable VITs, and gate high-risk actions —
             all from a single API. Full SDK support for JavaScript and Python.
@@ -216,7 +216,7 @@ export default function DocsPage() {
           <div className="flex items-center gap-4 mt-6 text-sm">
             <span className="text-slate-500">Base URL:</span>
             <code className="bg-white/5 text-indigo-300 px-3 py-1.5 rounded-lg font-mono text-sm">
-              https://api.orbitverify.africa
+              https://api.verifyafrica.com
             </code>
           </div>
         </div>
@@ -259,7 +259,7 @@ export default function DocsPage() {
                 All requests require a bearer token in the <code className="bg-white/5 text-indigo-300 px-1 rounded">Authorization</code> header.
                 Get your API key from the <Link href="/dashboard/api-keys" className="text-indigo-400 hover:underline">dashboard → API Keys</Link>.
               </p>
-              <CodeBlock lang="bash" code={`curl https://api.orbitverify.africa/v1/identity \\
+              <CodeBlock lang="bash" code={`curl https://api.verifyafrica.com/v1/identity \\
   -H "Authorization: Bearer ov_live_YOUR_KEY"`} />
               <div className="mt-5 bg-white/[0.03] border border-white/10 rounded-xl p-5 text-sm space-y-2">
                 <div className="flex gap-3">
@@ -455,8 +455,8 @@ export default function DocsPage() {
             <div className="border-t border-white/10 pt-10 flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Questions? We&apos;re here.</p>
-                <a href="mailto:support@orbitverify.africa" className="text-indigo-400 text-sm hover:underline">
-                  support@orbitverify.africa
+                <a href="mailto:support@verifyafrica.com" className="text-indigo-400 text-sm hover:underline">
+                  support@verifyafrica.com
                 </a>
               </div>
               <div className="flex items-center gap-3">

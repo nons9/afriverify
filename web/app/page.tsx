@@ -72,7 +72,7 @@ const pricing = [
     limit: 'Unlimited verifications',
     features: ['Everything in Starter', 'SLA guarantee', 'Dedicated support', 'Fraud graph access', 'Custom contracts'],
     cta: 'Contact sales',
-    href: 'mailto:sales@orbitverify.africa',
+    href: 'mailto:sales@verifyafrica.com',
     highlight: false,
   },
 ];
@@ -106,7 +106,7 @@ export default function LandingPage() {
             <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
               <Shield className="w-4 h-4" />
             </div>
-            <span className="font-bold text-lg tracking-tight">OrbitVerify</span>
+            <span className="font-bold text-lg tracking-tight">VerifyAfrica</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-slate-400">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -208,7 +208,7 @@ export default function LandingPage() {
             <h2 className="text-3xl font-bold mb-4">Integrate in minutes</h2>
             <p className="text-slate-400 mb-8 leading-relaxed">
               Three API calls to verify any African identity. One token that works on every platform
-              in the OrbitVerify network.
+              in the VerifyAfrica network.
             </p>
             <ol className="space-y-4">
               {[
@@ -315,12 +315,12 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-500">
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-indigo-400" />
-            <span>OrbitVerify — Africa&apos;s identity infrastructure</span>
+            <span>VerifyAfrica — Africa&apos;s identity infrastructure</span>
           </div>
           <div className="flex items-center gap-6">
             <a href="#" className="hover:text-white transition-colors">Privacy</a>
             <a href="#" className="hover:text-white transition-colors">Terms</a>
-            <a href="mailto:hello@orbitverify.africa" className="hover:text-white transition-colors">Contact</a>
+            <a href="mailto:hello@verifyafrica.com" className="hover:text-white transition-colors">Contact</a>
           </div>
         </div>
       </footer>
