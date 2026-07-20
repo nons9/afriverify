@@ -9,6 +9,8 @@ interface Overview {
   active_keys: number;
   total_verifications: number;
   recent_events: { type: string; created_at: string }[];
+  environment: 'sandbox' | 'production';
+  fraud_flags: number;
 }
 
 const EVENT_LABELS: Record<string, string> = {
@@ -76,7 +78,8 @@ export default function DashboardPage() {
     );
   }
 
-  const d = overview ?? { total_keys: 0, active_keys: 0, total_verifications: 0, recent_events: [] };
+  const d = overview ?? { total_keys: 0, active_keys: 0, total_verifications: 0, recent_events: [], environment: 'sandbox' as const, fraud_flags: 0 };
+  const isProd = d.environment === 'production';
 
   return (
     <div className="p-8 max-w-4xl">
@@ -88,8 +91,18 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard icon={Key} label="Active API Keys" value={d.active_keys} sub={`${d.total_keys} total`} />
         <StatCard icon={CheckCircle} label="Verifications (month)" value={d.total_verifications.toLocaleString()} />
-        <StatCard icon={TrendingUp} label="Environment" value="Sandbox" sub="Switch to production" />
-        <StatCard icon={AlertTriangle} label="Fraud flags" value={0} sub="All clear" />
+        <StatCard
+          icon={TrendingUp}
+          label="Environment"
+          value={isProd ? 'Production' : 'Sandbox'}
+          sub={isProd ? 'Live verifications active' : 'Switch to production when ready'}
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="Fraud flags"
+          value={d.fraud_flags}
+          sub={d.fraud_flags === 0 ? 'All clear' : `${d.fraud_flags} flagged identit${d.fraud_flags === 1 ? 'y' : 'ies'}`}
+        />
       </div>
 
       <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden">
