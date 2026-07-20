@@ -98,12 +98,13 @@ router.delete('/keys/:id', sessionAuth, async (req: Request, res: Response): Pro
 router.get('/overview', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const email = req.developer!.email;
 
-  const [keyStats, recentEvents] = await Promise.all([
-    queryOne<{ total_keys: string; active_keys: string; total_verifications: string }>(
+  const [keyStats, recentEvents, fraudStats] = await Promise.all([
+    queryOne<{ total_keys: string; active_keys: string; total_verifications: string; has_production: string }>(
       `SELECT
          COUNT(*) as total_keys,
          COUNT(*) FILTER (WHERE is_active = true) as active_keys,
-         COALESCE(SUM(verifications_this_month), 0) as total_verifications
+         COALESCE(SUM(verifications_this_month), 0) as total_verifications,
+         COUNT(*) FILTER (WHERE environment = 'production') as has_production
        FROM api_keys WHERE platform_email = $1`,
       [email]
     ),
@@ -114,14 +115,24 @@ router.get('/overview', sessionAuth, async (req: Request, res: Response): Promis
        WHERE ak.platform_email = $1
        ORDER BY ve.created_at DESC LIMIT 10`,
       [email]
+    ),
+    queryOne<{ fraud_flags: string }>(
+      `SELECT COUNT(*) as fraud_flags
+       FROM blacklist b
+       JOIN api_keys ak ON ak.platform_name = b.reported_by_platform
+       WHERE ak.platform_email = $1`,
+      [email]
     )
   ]);
 
+  const hasProduction = parseInt(keyStats?.has_production ?? '0') > 0;
   res.json({
     total_keys: parseInt(keyStats?.total_keys ?? '0'),
     active_keys: parseInt(keyStats?.active_keys ?? '0'),
     total_verifications: parseInt(keyStats?.total_verifications ?? '0'),
-    recent_events: recentEvents
+    recent_events: recentEvents,
+    environment: hasProduction ? 'production' : 'sandbox',
+    fraud_flags: parseInt(fraudStats?.fraud_flags ?? '0'),
   });
 });
 
