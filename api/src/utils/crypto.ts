@@ -14,7 +14,7 @@ export function generateApiKey(env: 'sandbox' | 'production'): {
   prefix: string;
 } {
   const segment = env === 'production' ? 'live' : 'test';
-  const key = `ov_${segment}_${crypto.randomBytes(24).toString('hex')}`;
+  const key = `av_${segment}_${crypto.randomBytes(24).toString('hex')}`;
   return { key, hash: sha256(key), prefix: key.substring(0, 16) };
 }
 

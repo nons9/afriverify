@@ -10,7 +10,7 @@ import verifyRouter from './routes/verify';
 import identityRouter from './routes/identity';
 import trustRouter from './routes/trust';
 import developerRouter from './routes/developer';
-import orbitshieldRouter from './routes/orbitshield';
+import afrishieldRouter from './routes/afrishield';
 import internalRouter from './routes/internal';
 import sandboxRouter from './routes/sandbox';
 import logger from './utils/logger';
@@ -42,9 +42,9 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.get('/health', async (_req: Request, res: Response) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ status: 'ok', service: 'verifyafrica-api', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', service: 'afriverify-api', timestamp: new Date().toISOString() });
   } catch {
-    res.status(503).json({ status: 'degraded', service: 'verifyafrica-api' });
+    res.status(503).json({ status: 'degraded', service: 'afriverify-api' });
   }
 });
 
@@ -55,14 +55,14 @@ app.use('/v1/verify', verifyRouter);
 app.use('/v1/identity', identityRouter);
 app.use('/v1/trust', trustRouter);
 app.use('/v1/developer', developerRouter);
-app.use('/v1/orbitshield', orbitshieldRouter);
+app.use('/v1/afrishield', afrishieldRouter);
 app.use('/v1/internal', internalRouter);
 app.use('/v1/sandbox', sandboxRouter);
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json({
     error: 'not_found',
-    message: 'Endpoint not found. See https://docs.verifyafrica.com'
+    message: 'Endpoint not found. See https://docs.afriverify.com'
   });
 });
 
@@ -85,7 +85,7 @@ async function bootstrap(): Promise<void> {
   // /health already returns 503 while Postgres is unavailable, then 200 once it
   // recovers — Railway will wait up to healthcheckTimeout seconds for the 200.
   const server = app.listen(PORT, () => {
-    logger.info(`VerifyAfrica API running on port ${PORT}`, {
+    logger.info(`AfriVerify API running on port ${PORT}`, {
       env: process.env.NODE_ENV,
       port: PORT
     });

@@ -24,7 +24,7 @@ const features = [
   },
   {
     icon: Shield,
-    title: 'OrbitShield Active Defense',
+    title: 'AfriShield Active Defense',
     desc: 'DeepScan blocks AI-generated faces and synthetic documents before they reach identity providers.',
   },
   {
@@ -60,7 +60,7 @@ const pricing = [
     price: '$49',
     priceSub: '/mo',
     limit: '2,000 verifications / month',
-    features: ['Production environment', 'OrbitShield included', 'Usage analytics', 'Webhooks', 'Email support'],
+    features: ['Production environment', 'AfriShield included', 'Usage analytics', 'Webhooks', 'Email support'],
     cta: 'Get started',
     href: '/register',
     highlight: true,
@@ -72,7 +72,7 @@ const pricing = [
     limit: 'Unlimited verifications',
     features: ['Everything in Starter', 'SLA guarantee', 'Dedicated support', 'Fraud graph access', 'Custom contracts'],
     cta: 'Contact sales',
-    href: 'mailto:sales@verifyafrica.com',
+    href: 'mailto:sales@afriverify.com',
     highlight: false,
   },
 ];
@@ -81,7 +81,7 @@ const code = `// 1. Initiate a verification session
 const { token } = await fetch('/v1/verify/initiate', {
   method: 'POST',
   headers: {
-    'Authorization': 'Bearer ov_live_xxxx',
+    'Authorization': 'Bearer av_live_xxxx',
     'X-Platform': 'your-app',
   },
   body: JSON.stringify({ phone: '+2348012345678', country: 'NG' }),
@@ -94,7 +94,7 @@ const { token } = await fetch('/v1/verify/initiate', {
 const { vit, trust_score } = await fetch(
   \`/v1/verify/status/\${token}\`
 ).then(r => r.json());
-// { verified: true, trust_score: 412, vit: "ov_vit_..." }`;
+// { verified: true, trust_score: 412, vit: "av_vit_..." }`;
 
 export default function LandingPage() {
   return (
@@ -106,7 +106,7 @@ export default function LandingPage() {
             <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
               <Shield className="w-4 h-4" />
             </div>
-            <span className="font-bold text-lg tracking-tight">VerifyAfrica</span>
+            <span className="font-bold text-lg tracking-tight">AfriVerify</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-slate-400">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -208,7 +208,7 @@ export default function LandingPage() {
             <h2 className="text-3xl font-bold mb-4">Integrate in minutes</h2>
             <p className="text-slate-400 mb-8 leading-relaxed">
               Three API calls to verify any African identity. One token that works on every platform
-              in the VerifyAfrica network.
+              in the AfriVerify network.
             </p>
             <ol className="space-y-4">
               {[
@@ -315,12 +315,12 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-500">
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-indigo-400" />
-            <span>VerifyAfrica — Africa&apos;s identity infrastructure</span>
+            <span>AfriVerify — Africa&apos;s identity infrastructure</span>
           </div>
           <div className="flex items-center gap-6">
             <a href="#" className="hover:text-white transition-colors">Privacy</a>
             <a href="#" className="hover:text-white transition-colors">Terms</a>
-            <a href="mailto:hello@verifyafrica.com" className="hover:text-white transition-colors">Contact</a>
+            <a href="mailto:hello@afriverify.com" className="hover:text-white transition-colors">Contact</a>
           </div>
         </div>
       </footer>

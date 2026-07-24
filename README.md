@@ -1,4 +1,4 @@
-# VerifyAfrica
+# AfriVerify
 
 Africa's identity infrastructure layer. One verified African identity — portable across every platform.
 
@@ -59,6 +59,11 @@ POST /v1/trust/update             Post a trust event
 POST /v1/developer/keys           Create API key (shown once)
 GET  /v1/developer/usage          Usage stats for current key
 
+GET  /v1/afrishield/continuity/:id   Identity continuity history
+GET  /v1/afrishield/fraud-graph/:id  Network fraud risk
+GET  /v1/afrishield/vouch/:id        Community vouch status
+GET  /v1/afrishield/deepscan/:id     DeepScan history
+
 GET  /health                      Health check
 ```
 
@@ -66,7 +71,7 @@ GET  /health                      Health check
 
 Every request requires:
 ```
-Authorization: Bearer ov_test_<key>
+Authorization: Bearer av_test_<key>
 X-Platform: your-platform-name
 Content-Type: application/json
 ```
@@ -77,7 +82,7 @@ The Verified Identity Token is a signed RS256 JWT. Platforms receive only the VI
 
 ```json
 {
-  "vit": "ov_vit_abc123",
+  "vit": "av_vit_abc123",
   "verified": true,
   "level": 2,
   "name": "Verified Name",
