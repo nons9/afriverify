@@ -13,7 +13,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const res = await fetch(`${kliqaUrl}/internal/vouchers/${encodeURIComponent(code)}`, {
+    const res = await fetch(`${kliqaUrl}/api/internal/vouchers/${encodeURIComponent(code)}`, {
       headers: { Authorization: `Bearer ${secret}` },
     });
     const body = await res.json();
