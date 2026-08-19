@@ -13,7 +13,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const res = await fetch(`${kliqaUrl}/internal/vouchers/${encodeURIComponent(code)}/redeem`, {
+    const res = await fetch(`${kliqaUrl}/api/internal/vouchers/${encodeURIComponent(code)}/redeem`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
