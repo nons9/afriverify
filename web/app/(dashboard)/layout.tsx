@@ -14,6 +14,7 @@ import {
   FlaskConical,
   Menu,
   X,
+  Ticket,
 } from 'lucide-react';
 import { getSession, clearSession, Developer } from '@/lib/auth';
 
@@ -24,6 +25,7 @@ const nav = [
   { href: '/dashboard/usage', label: 'Usage & Billing', icon: BarChart2 },
   { href: '/dashboard/webhooks', label: 'Webhooks', icon: Webhook },
   { href: '/dashboard/sandbox', label: 'Sandbox', icon: FlaskConical },
+  { href: '/dashboard/redeem-voucher', label: 'Redeem Voucher', icon: Ticket },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
