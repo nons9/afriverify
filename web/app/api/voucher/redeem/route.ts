@@ -12,18 +12,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Kliqa API not configured' }, { status: 503 });
   }
 
+  const url = `${kliqaUrl.replace(/\/$/, '')}/api/internal/vouchers/${encodeURIComponent(code)}/redeem`;
   try {
-    const res = await fetch(`${kliqaUrl}/api/internal/vouchers/${encodeURIComponent(code)}/redeem`, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${secret}`,
       },
       body: JSON.stringify({ redeemedBy }),
+      signal: AbortSignal.timeout(10000),
     });
     const body = await res.json();
     return NextResponse.json(body, { status: res.status });
-  } catch {
-    return NextResponse.json({ error: 'Failed to reach Kliqa API' }, { status: 502 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[voucher/redeem] fetch failed', { url, msg });
+    return NextResponse.json({ error: `Failed to reach Kliqa API: ${msg}` }, { status: 502 });
   }
 }
