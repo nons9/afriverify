@@ -12,13 +12,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Kliqa API not configured' }, { status: 503 });
   }
 
+  const url = `${kliqaUrl.replace(/\/$/, '')}/api/internal/vouchers/${encodeURIComponent(code)}`;
   try {
-    const res = await fetch(`${kliqaUrl}/api/internal/vouchers/${encodeURIComponent(code)}`, {
+    const res = await fetch(url, {
       headers: { Authorization: `Bearer ${secret}` },
+      signal: AbortSignal.timeout(10000),
     });
     const body = await res.json();
     return NextResponse.json(body, { status: res.status });
-  } catch {
-    return NextResponse.json({ error: 'Failed to reach Kliqa API' }, { status: 502 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[voucher/check] fetch failed', { url, msg });
+    return NextResponse.json({ error: `Failed to reach Kliqa API: ${msg}` }, { status: 502 });
   }
 }
