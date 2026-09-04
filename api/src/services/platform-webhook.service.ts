@@ -2,6 +2,7 @@ import { createHmac, randomUUID } from 'crypto';
 import { query, queryOne } from '../db';
 import { decryptString, getDataEncryptionKey } from '../utils/crypto';
 import logger from '../utils/logger';
+import { captureError } from '../utils/sentry';
 
 export interface WebhookPayload {
   event: string;
@@ -189,9 +190,10 @@ export async function pushVerificationUpdate(
     apiKey.webhook_secret_hash,
     payload,
     apiKeyId,
-  ).catch((err) =>
-    logger.error('deliverWithRetry threw unexpectedly', { error: err.message })
-  );
+  ).catch((err) => {
+    logger.error('deliverWithRetry threw unexpectedly', { error: err.message });
+    captureError(err, { apiKeyId, event: payload.event, stage: 'webhook_delivery' });
+  });
 }
 
 export async function createOrUpdatePlatformConnection(

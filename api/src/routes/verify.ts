@@ -20,6 +20,7 @@ import { query, queryOne } from '../db';
 import { sha256, generateSecureToken, timingSafeEqualHex } from '../utils/crypto';
 import { uploadToS3, downloadFromS3 } from '../utils/s3';
 import logger from '../utils/logger';
+import { captureError } from '../utils/sentry';
 import { VerificationSession } from '../types';
 import {
   pushVerificationUpdate,
@@ -136,7 +137,14 @@ router.post(
       await writeAuditEvent(req, { event_type: 'otp_sent', result: 'passed' });
       res.json({ sent: true, expires_in: 300 });
     } catch (err) {
-      res.status(503).json({ error: 'otp_send_failed', message: (err as Error).message });
+      const message = (err as Error).message;
+      logger.error('OTP send failed', { session: session.id, error: message });
+      await writeAuditEvent(req, {
+        event_type: 'otp_sent',
+        result: 'failed',
+        metadata: { reason: message }
+      });
+      res.status(503).json({ error: 'otp_send_failed', message });
     }
   }
 );
@@ -476,9 +484,10 @@ router.post(
       metadata: { deepscan_verdict: deepScan.verdict }
     });
 
-    runBiometricProcessing(session, selfieKey, req).catch((err) =>
-      logger.error('Biometric processing failed', { error: err.message, session: session.id })
-    );
+    runBiometricProcessing(session, selfieKey, req).catch((err) => {
+      logger.error('Biometric processing failed', { error: err.message, session: session.id });
+      captureError(err, { session: session.id, stage: 'biometric_processing' });
+    });
 
     res.json({
       processing: true,

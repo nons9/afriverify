@@ -5,6 +5,7 @@ import cors from 'cors';
 import pool from './db';
 import { connectRedis } from './redis';
 import { rateLimitGlobal } from './middleware/rateLimit';
+import { requestId } from './middleware/requestId';
 import authRouter from './routes/auth';
 import verifyRouter from './routes/verify';
 import identityRouter from './routes/identity';
@@ -14,9 +15,15 @@ import afrishieldRouter from './routes/afrishield';
 import internalRouter from './routes/internal';
 import sandboxRouter from './routes/sandbox';
 import logger from './utils/logger';
+import { initSentry, captureError } from './utils/sentry';
+import { startFailureRateMonitor } from './services/alerting.service';
+
+initSentry();
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
+
+app.use(requestId);
 
 app.use(helmet());
 app.set('trust proxy', 1);
@@ -66,9 +73,10 @@ app.use((_req: Request, res: Response) => {
   });
 });
 
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  logger.error('Unhandled error', { error: err.message, stack: err.stack });
-  res.status(500).json({ error: 'internal_error', message: 'An unexpected error occurred' });
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  logger.error('Unhandled error', { error: err.message, stack: err.stack, requestId: req.requestId });
+  captureError(err, { requestId: req.requestId, path: req.path });
+  res.status(500).json({ error: 'internal_error', message: 'An unexpected error occurred', request_id: req.requestId });
 });
 
 async function bootstrap(): Promise<void> {
@@ -102,6 +110,8 @@ async function bootstrap(): Promise<void> {
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+
+  startFailureRateMonitor();
 
   // Log Postgres connectivity without blocking or crashing.
   // /health will surface the real status on every probe.
