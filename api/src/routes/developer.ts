@@ -5,7 +5,7 @@ import { authenticate } from '../middleware/auth';
 import { sessionAuth } from '../middleware/sessionAuth';
 import { validateBody } from '../middleware/validate';
 import { query, queryOne } from '../db';
-import { generateApiKey } from '../utils/crypto';
+import { generateApiKey, encryptString, getDataEncryptionKey } from '../utils/crypto';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -203,12 +203,17 @@ router.patch('/keys/:id/webhook', sessionAuth, async (req: Request, res: Respons
 router.post('/keys/:id/webhook/secret', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const secret = randomBytes(32).toString('hex');
+  // Unlike api_key_hash, this can't be a one-way hash: deliverWithRetry()
+  // needs the plaintext back to compute each webhook's HMAC signature. It's
+  // encrypted at rest instead, so a DB leak alone doesn't hand out every
+  // platform's signing secret.
+  const encrypted = encryptString(secret, getDataEncryptionKey());
 
   const result = await query<{ id: string }>(
     `UPDATE api_keys SET webhook_secret_hash = $1
      WHERE id = $2 AND platform_email = $3 AND is_active = true
      RETURNING id`,
-    [secret, id, req.developer!.email]
+    [encrypted, id, req.developer!.email]
   );
 
   if (result.length === 0) {
@@ -219,6 +224,64 @@ router.post('/keys/:id/webhook/secret', sessionAuth, async (req: Request, res: R
   logger.info('Webhook secret regenerated', { id });
   // Return the raw secret once — it will not be shown again
   res.json({ secret });
+});
+
+// POST /developer/keys/:id/rotate: issue a fresh key, retire the old one immediately (session auth)
+router.post('/keys/:id/rotate', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  const existing = await queryOne<{
+    id: string;
+    platform_name: string;
+    environment: 'sandbox' | 'production';
+    tier: string;
+    monthly_limit: number;
+    permissions: string[];
+    webhook_url: string | null;
+    webhook_secret_hash: string | null;
+  }>(
+    `SELECT id, platform_name, environment, tier, monthly_limit, permissions, webhook_url, webhook_secret_hash
+     FROM api_keys WHERE id = $1 AND platform_email = $2 AND is_active = true`,
+    [id, req.developer!.email]
+  );
+
+  if (!existing) {
+    res.status(404).json({ error: 'not_found', message: 'Key not found or already revoked' });
+    return;
+  }
+
+  const { key, hash, prefix } = generateApiKey(existing.environment);
+
+  const rows = await query<{ id: string }>(
+    `INSERT INTO api_keys
+       (platform_name, platform_email, api_key_hash, api_key_prefix, environment,
+        tier, monthly_limit, permissions, webhook_url, webhook_secret_hash)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+     RETURNING id`,
+    [
+      existing.platform_name, req.developer!.email, hash, prefix, existing.environment,
+      existing.tier, existing.monthly_limit, JSON.stringify(existing.permissions),
+      existing.webhook_url, existing.webhook_secret_hash
+    ]
+  );
+
+  // Old key stops working the moment the new one is issued. Callers using
+  // the old key see the same 401 as a manual revoke, so a rotation should be
+  // announced to the platform team before it's triggered, not silently timed.
+  await query('UPDATE api_keys SET is_active = false WHERE id = $1', [id]);
+
+  logger.info('API key rotated', { old_id: id, new_id: rows[0].id });
+
+  res.status(201).json({
+    api_key: key,
+    prefix,
+    environment: existing.environment,
+    tier: existing.tier,
+    monthly_limit: existing.monthly_limit,
+    id: rows[0].id,
+    replaced_key_id: id,
+    message: 'Store this API key securely. It will NOT be shown again. The rotated key is now inactive.'
+  });
 });
 
 export default router;

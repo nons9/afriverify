@@ -68,3 +68,24 @@ export function decryptBuffer(data: Buffer, keyHex: string): Buffer {
   decipher.setAuthTag(authTag);
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
+
+export function encryptString(value: string, keyHex: string): string {
+  return encryptBuffer(Buffer.from(value, 'utf8'), keyHex).toString('base64');
+}
+
+export function decryptString(value: string, keyHex: string): string {
+  return decryptBuffer(Buffer.from(value, 'base64'), keyHex).toString('utf8');
+}
+
+// Shared master key for at-rest encryption of biometric photos (s3.ts) and
+// stored secrets like webhook signing secrets (platform-webhook.service.ts).
+export function getDataEncryptionKey(): string {
+  const key = process.env.DATA_ENCRYPTION_KEY;
+  if (!key || key.length !== 64) {
+    throw new Error(
+      'DATA_ENCRYPTION_KEY not configured (must be a 64-char hex string / 32 bytes). ' +
+      'Generate one with: openssl rand -hex 32'
+    );
+  }
+  return key;
+}
