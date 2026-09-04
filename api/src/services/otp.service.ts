@@ -56,13 +56,30 @@ async function sendViaAfricasTalking(phone: string, message: string): Promise<vo
   const params = new URLSearchParams({ username, to: phone, message });
   if (process.env.AFRICASTALKING_SENDER_ID) params.set('from', process.env.AFRICASTALKING_SENDER_ID);
 
-  const res = await axios.post(url, params, {
-    headers: { apiKey, 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-    timeout: 10000,
-  });
-  const recipients = res.data?.SMSMessageData?.Recipients as Array<{ status: string }> | undefined;
+  let res;
+  try {
+    res = await axios.post(url, params, {
+      headers: { apiKey, 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      timeout: 10000,
+    });
+  } catch (err) {
+    // A non-2xx (bad API key, wrong username, account not active, etc.) throws
+    // before we ever see a recipients array - the response body here is the
+    // actual reason, not the generic "Request failed with status code 401".
+    const data = (err as { response?: { status?: number; data?: unknown } }).response;
+    throw new Error(
+      `Africa's Talking HTTP ${data?.status ?? '?'}: ${JSON.stringify(data?.data ?? (err as Error).message)}`,
+    );
+  }
+
+  const recipients = res.data?.SMSMessageData?.Recipients as
+    | Array<{ status: string; statusCode?: number; number?: string }>
+    | undefined;
   if (!recipients?.length || !recipients.every((r) => r.status === 'Success')) {
-    throw new Error(`Africa's Talking send failed: ${JSON.stringify(res.data)}`);
+    const reasons = recipients?.length
+      ? recipients.map((r) => `${r.number ?? '?'}: ${r.status}${r.statusCode !== undefined ? ` (code ${r.statusCode})` : ''}`).join('; ')
+      : `no recipients in response: ${JSON.stringify(res.data)}`;
+    throw new Error(`Africa's Talking rejected: ${reasons}`);
   }
 }
 
