@@ -29,7 +29,7 @@ export async function authenticate(
   }
 
   const rawKey = authHeader.substring(7).trim();
-  if (!rawKey.startsWith('ov_')) {
+  if (!rawKey.startsWith('av_')) {
     res.status(401).json({ error: 'unauthorized', message: 'Invalid API key format' });
     return;
   }
