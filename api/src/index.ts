@@ -17,6 +17,7 @@ import sandboxRouter from './routes/sandbox';
 import logger from './utils/logger';
 import { initSentry, captureError } from './utils/sentry';
 import { startFailureRateMonitor } from './services/alerting.service';
+import { startRetentionPurge } from './services/retention.service';
 
 initSentry();
 
@@ -112,6 +113,7 @@ async function bootstrap(): Promise<void> {
   process.on('SIGINT', () => shutdown('SIGINT'));
 
   startFailureRateMonitor();
+  startRetentionPurge();
 
   // Log Postgres connectivity without blocking or crashing.
   // /health will surface the real status on every probe.

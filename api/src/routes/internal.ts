@@ -5,11 +5,13 @@
  *
  * Base path: /v1/internal
  */
+import { randomUUID } from 'crypto';
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
 import { rateLimitApiKey } from '../middleware/rateLimit';
 import { writeAuditEvent } from '../middleware/audit';
 import { query, queryOne } from '../db';
+import { deleteFromS3 } from '../utils/s3';
 import logger from '../utils/logger';
 import { recordFraudSignal } from '../services/orbitshield/fraud-graph.service';
 
@@ -194,7 +196,7 @@ router.post('/users/:platformUserId/link', async (req: Request, res: Response): 
     );
 
     await writeAuditEvent(req, {
-      event_type: 'platform_connection',
+      event_type: 'platform_connected',
       identity_id: identity.id,
       result: 'passed',
       metadata: { platform_user_id: platformUserId, platform: apiKey.platform_name },
@@ -209,6 +211,86 @@ router.post('/users/:platformUserId/link', async (req: Request, res: Response): 
   } catch (err) {
     logger.error('Link platform user error', { error: (err as Error).message });
     res.status(500).json({ error: 'internal_error', message: 'Link failed' });
+  }
+});
+
+/**
+ * DELETE /v1/internal/users/:platformUserId
+ *
+ * Right-to-erasure request (NDPA/GDPR): a platform asks AfriVerify to
+ * delete a user's identifying data. Deletes their stored ID photo/selfie
+ * from the bucket and scrubs identifying fields on verified_identities.
+ *
+ * Fraud-prevention fields (is_blacklisted, blacklist_reason, aml_status,
+ * trust_score) are kept: both NDPA and GDPR recognize fraud prevention as
+ * a legitimate basis to retain a minimal record even after an erasure
+ * request, so this does not let someone erase their way out of a
+ * blacklist and re-register.
+ */
+router.delete('/users/:platformUserId', async (req: Request, res: Response): Promise<void> => {
+  const { platformUserId } = req.params;
+  const apiKey = req.apiKey!;
+
+  try {
+    const row = await queryOne<{ identity_id: string }>(
+      `SELECT vi.id AS identity_id
+       FROM platform_connections pc
+       JOIN verified_identities vi ON vi.id = pc.identity_id
+       WHERE pc.platform_name = $1 AND pc.platform_user_id = $2 AND pc.is_active = true`,
+      [apiKey.platform_name, platformUserId]
+    );
+
+    if (!row) {
+      res.status(404).json({ error: 'not_found', message: 'No identity linked to this platform user' });
+      return;
+    }
+
+    const sessions = await query<{ id_photo_s3_key: string | null; face_photo_s3_key: string | null }>(
+      `SELECT id_photo_s3_key, face_photo_s3_key FROM verification_sessions WHERE identity_id = $1`,
+      [row.identity_id]
+    );
+
+    for (const session of sessions) {
+      for (const key of [session.id_photo_s3_key, session.face_photo_s3_key]) {
+        if (!key) continue;
+        try {
+          await deleteFromS3(key);
+        } catch (err) {
+          logger.error('Erasure: failed to delete stored media', { key, error: (err as Error).message });
+        }
+      }
+    }
+
+    await query(
+      `UPDATE verification_sessions SET id_photo_s3_key = NULL, face_photo_s3_key = NULL WHERE identity_id = $1`,
+      [row.identity_id]
+    );
+
+    await query(
+      `UPDATE verified_identities
+       SET phone = $1, full_name = '', nationality = '', id_number_hash = '',
+           face_embedding = NULL, voice_print = NULL, device_fingerprints = '[]',
+           metadata = '{}', updated_at = NOW()
+       WHERE id = $2`,
+      [`erased:${randomUUID()}`, row.identity_id]
+    );
+
+    await writeAuditEvent(req, {
+      event_type: 'data_erased',
+      identity_id: row.identity_id,
+      result: 'passed',
+      metadata: { platform_user_id: platformUserId, requested_by: apiKey.platform_name },
+    });
+
+    logger.info('Identity data erased on request', {
+      identity_id: row.identity_id,
+      requested_by: apiKey.platform_name,
+    });
+
+    res.json({ erased: true, identity_id: row.identity_id });
+  } catch (err) {
+    logger.error('Erasure request failed', { error: (err as Error).message, platformUserId });
+    res.status(500).json({ error: 'internal_error', message: 'Erasure request failed' });
   }
 });
 
