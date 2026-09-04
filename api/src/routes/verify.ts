@@ -3,7 +3,7 @@ import multer from 'multer';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { randomInt } from 'crypto';
-import { authenticate } from '../middleware/auth';
+import { authenticate, requirePermission } from '../middleware/auth';
 import {
   rateLimitVerifyInitiate,
   rateLimitApiKey
@@ -31,6 +31,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 router.use(authenticate);
 router.use(rateLimitApiKey);
+router.use(requirePermission('verify'));
 
 // ─── POST /verify/initiate ────────────────────────────────────────────────────────────────────────────────
 const initiateSchema = z.object({

@@ -1,5 +1,6 @@
 import { createHmac, randomUUID } from 'crypto';
 import { query, queryOne } from '../db';
+import { decryptString, getDataEncryptionKey } from '../utils/crypto';
 import logger from '../utils/logger';
 
 export interface WebhookPayload {
@@ -101,6 +102,19 @@ async function attemptDelivery(
   return success;
 }
 
+// Secrets minted after the at-rest-encryption change are base64 AES-256-GCM;
+// anything minted before that (if it ever reaches production) is raw hex.
+// Try decrypting first and fall back to the raw value so neither generation
+// breaks delivery.
+function decryptWebhookSecret(stored: string | null): string | null {
+  if (!stored) return null;
+  try {
+    return decryptString(stored, getDataEncryptionKey());
+  } catch {
+    return stored;
+  }
+}
+
 async function deliverWithRetry(
   webhookUrl: string,
   secretHash: string | null,
@@ -108,7 +122,7 @@ async function deliverWithRetry(
   apiKeyId: string,
 ): Promise<void> {
   const correlationId   = randomUUID();
-  const signingSecret   = secretHash ?? process.env.VERIFYAFRICA_DEFAULT_WEBHOOK_SECRET ?? 'no-secret';
+  const signingSecret   = decryptWebhookSecret(secretHash) ?? process.env.AFRIVERIFY_DEFAULT_WEBHOOK_SECRET ?? 'no-secret';
   const body            = JSON.stringify(payload);
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
