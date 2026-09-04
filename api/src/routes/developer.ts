@@ -178,6 +178,30 @@ router.get('/usage/daily', sessionAuth, async (req: Request, res: Response): Pro
   res.json({ daily: rows });
 });
 
+// GET /developer/metrics: event-type success/failure breakdown, last 7 days (session auth)
+router.get('/metrics', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const email = req.developer!.email;
+  const rows = await query<{ event_type: string; result: string; count: number }>(
+    `SELECT ve.event_type::text, ve.result::text, COUNT(*)::int AS count
+     FROM verification_events ve
+     JOIN api_keys ak ON ak.id = ve.api_key_id
+     WHERE ak.platform_email = $1
+       AND ve.created_at >= NOW() - INTERVAL '7 days'
+     GROUP BY ve.event_type, ve.result
+     ORDER BY ve.event_type`,
+    [email]
+  );
+
+  const byEventType: Record<string, { passed: number; failed: number; flagged: number; pending: number; total: number }> = {};
+  for (const row of rows) {
+    const bucket = (byEventType[row.event_type] ??= { passed: 0, failed: 0, flagged: 0, pending: 0, total: 0 });
+    bucket[row.result as 'passed' | 'failed' | 'flagged' | 'pending'] = row.count;
+    bucket.total += row.count;
+  }
+
+  res.json({ window: '7d', metrics: byEventType });
+});
+
 // PATCH /developer/keys/:id/webhook — set or clear webhook URL (session auth)
 router.patch('/keys/:id/webhook', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
