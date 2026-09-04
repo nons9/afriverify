@@ -18,6 +18,16 @@ export function generateApiKey(env: 'sandbox' | 'production'): {
   return { key, hash: sha256(key), prefix: key.substring(0, 16) };
 }
 
+export function timingSafeEqualHex(a: string, b: string): boolean {
+  try {
+    const bufA = Buffer.from(a, 'hex');
+    const bufB = Buffer.from(b, 'hex');
+    return bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
 export function verifyHmacSha512(
   payload: string,
   signature: string,

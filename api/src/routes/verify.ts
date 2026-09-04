@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
+import { randomInt } from 'crypto';
 import { authenticate } from '../middleware/auth';
 import {
   rateLimitVerifyInitiate,
@@ -9,14 +10,14 @@ import {
 } from '../middleware/rateLimit';
 import { validateBody } from '../middleware/validate';
 import { writeAuditEvent } from '../middleware/audit';
-import { sendOTP, verifyOTP } from '../services/otp.service';
+import { sendSms } from '../services/otp.service';
 import { verifyIdWithSmile, biometricKYC } from '../services/smile-identity.service';
 import { applyTrustEvent } from '../services/trust-score.service';
 import { issueVIT } from '../services/vit.service';
 import { checkBlacklist } from '../services/blacklist.service';
 import { scanImage } from '../services/orbitshield/deepscan.service';
 import { query, queryOne } from '../db';
-import { sha256, generateSecureToken } from '../utils/crypto';
+import { sha256, generateSecureToken, timingSafeEqualHex } from '../utils/crypto';
 import { uploadToS3, downloadFromS3 } from '../utils/s3';
 import logger from '../utils/logger';
 import { VerificationSession } from '../types';
@@ -111,7 +112,7 @@ router.post(
 
     const session = await queryOne<VerificationSession>(
       `SELECT * FROM verification_sessions
-       WHERE session_token = $1 AND step = 'phone' AND expires_at > NOW()`,
+       WHERE session_token = $1 AND step IN ('phone', 'otp') AND expires_at > NOW()`,
       [session_token]
     );
 
@@ -120,12 +121,16 @@ router.post(
       return;
     }
 
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    const otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
+
     try {
-      await sendOTP(session.phone);
-      const otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
+      await sendSms(session.phone, `Your AfriVerify code is ${code}. Valid 5 mins. Do not share.`);
       await query(
-        `UPDATE verification_sessions SET step = 'otp', otp_expires_at = $1 WHERE id = $2`,
-        [otpExpiry, session.id]
+        `UPDATE verification_sessions
+         SET step = 'otp', otp_hash = $1, otp_expires_at = $2, otp_attempts = 0
+         WHERE id = $3`,
+        [sha256(code), otpExpiry, session.id]
       );
       await writeAuditEvent(req, { event_type: 'otp_sent', result: 'passed' });
       res.json({ sent: true, expires_in: 300 });
@@ -172,7 +177,7 @@ router.post(
       return;
     }
 
-    const valid = await verifyOTP(session.phone, otp);
+    const valid = !!session.otp_hash && timingSafeEqualHex(sha256(otp), session.otp_hash);
 
     if (!valid) {
       await query(
