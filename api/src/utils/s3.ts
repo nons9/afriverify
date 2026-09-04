@@ -8,8 +8,15 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
 import logger from './logger';
 
+// AWS_ENDPOINT_URL lets this point at any S3-compatible store (e.g.
+// Cloudflare R2) instead of real AWS. R2 needs path-style addressing and
+// doesn't support SSE-KMS (it encrypts at rest by default anyway), so both
+// are gated on whether a custom endpoint is configured.
+const customEndpoint = process.env.AWS_ENDPOINT_URL;
+
 const s3 = new S3Client({
   region: process.env.AWS_REGION || 'af-south-1',
+  ...(customEndpoint ? { endpoint: customEndpoint, forcePathStyle: true } : {}),
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
@@ -29,7 +36,7 @@ export async function uploadToS3(
       Key: key,
       Body: body,
       ContentType: contentType,
-      ServerSideEncryption: 'aws:kms'
+      ...(customEndpoint ? {} : { ServerSideEncryption: 'aws:kms' })
     })
   );
   logger.info('S3 upload complete', { key });
