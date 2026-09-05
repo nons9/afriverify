@@ -7,7 +7,7 @@ const logger = winston.createLogger({
     winston.format.errors({ stack: true }),
     winston.format.json()
   ),
-  defaultMeta: { service: 'verifyafrica-api' },
+  defaultMeta: { service: 'afriverify-api' },
   transports: [
     new winston.transports.Console({
       format:

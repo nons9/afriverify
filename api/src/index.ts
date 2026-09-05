@@ -72,7 +72,7 @@ app.use('/v1/sandbox', sandboxRouter);
 app.use((_req: Request, res: Response) => {
   res.status(404).json({
     error: 'not_found',
-    message: 'Endpoint not found. See https://docs.afriverify.com'
+    message: 'Endpoint not found. See https://afriverify.sankofaapp.com/docs'
   });
 });
 

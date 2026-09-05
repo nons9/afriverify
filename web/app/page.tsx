@@ -72,7 +72,7 @@ const pricing = [
     limit: 'Unlimited verifications',
     features: ['Everything in Starter', 'SLA guarantee', 'Dedicated support', 'Fraud graph access', 'Custom contracts'],
     cta: 'Contact sales',
-    href: 'mailto:sales@afriverify.com',
+    href: 'mailto:sales@sankofaapp.com',
     highlight: false,
   },
 ];

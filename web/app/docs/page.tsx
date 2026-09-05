@@ -1,148 +1,194 @@
 import Link from 'next/link';
-import { Shield, Code2, Terminal, Book, ArrowRight, Key, Zap, Lock } from 'lucide-react';
+import { Shield, Code2, Terminal, Book, ArrowRight, Key, Zap, Lock, Building2 } from 'lucide-react';
 
-const jsQuickStart = `npm install @verifyafrica/sdk
-# or
-yarn add @verifyafrica/sdk`;
+const BASE_URL = 'https://afriverify.sankofaapp.com/v1';
 
-const jsInit = `import VerifyAfrica from '@verifyafrica/sdk';
+const curlInitiate = `curl -X POST ${BASE_URL}/verify/initiate \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -H "Content-Type: application/json" \\
+  -d '{"phone": "+2348012345678", "platform_user_id": "user_abc123"}'
+# { "session_token": "...", "expires_at": "...", "next_step": "otp" }`;
 
-const ov = new VerifyAfrica({
-  apiKey: process.env.VERIFYAFRICA_API_KEY, // ov_live_... or ov_sandbox_...
-});`;
+const curlOtp = `# Send the OTP
+curl -X POST ${BASE_URL}/verify/otp/send \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -H "Content-Type: application/json" \\
+  -d '{"session_token": "SESSION_TOKEN"}'
+# { "sent": true, "expires_in": 300 }
 
-const jsVerify = `// 1. Initiate a verification session
-const session = await ov.verify.initiate({
-  phone: '+2348012345678',
-  country: 'NG',
-  platformUserId: 'user_abc123',
-});
-// { token: 'sess_...', expiresAt: '...' }
+# Confirm it
+curl -X POST ${BASE_URL}/verify/otp/confirm \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -H "Content-Type: application/json" \\
+  -d '{"session_token": "SESSION_TOKEN", "otp": "123456"}'`;
 
-// 2. Poll for completion (typically 30–120s)
-const result = await ov.verify.status(session.token);
-// {
-//   verified: true,
-//   vit: 'ov_vit_...',
-//   trust_score: 0.85,
-//   verification_level: 1
-// }
+const curlIdUpload = `curl -X POST ${BASE_URL}/verify/id/upload \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -F "session_token=SESSION_TOKEN" \\
+  -F "id_type=nin" \\
+  -F "id_number=12345678901" \\
+  -F "nationality=NG" \\
+  -F "first_name=Ada" \\
+  -F "last_name=Obi" \\
+  -F "dob=1995-04-12" \\
+  -F "id_photo=@id-photo.jpg"`;
 
-// 3. Check a user's status anytime (sub-100ms)
-const status = await ov.identity.status('user_abc123');
-// { verified: true, level: 'basic', trust_score: 0.85, aml_status: 'clear' }`;
+const curlFace = `curl -X POST ${BASE_URL}/verify/face/submit \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -F "session_token=SESSION_TOKEN" \\
+  -F "selfie=@selfie.jpg"
+# { "processing": true, "estimated_seconds": 30 }`;
 
-const jsVit = `// Verify a VIT the user presents to your service
-const payload = await ov.vit.verify(vitToken);
-// {
-//   verified: true,
-//   level: 'basic',
-//   trust_score: 0.85,
-//   aml_clear: true,
-//   flags: { blacklisted: false, aml_flagged: false }
-// }
+const curlStatus = `curl ${BASE_URL}/verify/status/SESSION_TOKEN \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName"
+# { "status": "complete", "vit": "...", "verification_level": 2, "identity_id": "..." }`;
 
-// Gate a high-risk action
-if (!payload.verified || payload.flags.blacklisted || payload.flags.aml_flagged) {
-  throw new Error('Identity verification required');
-}`;
+const curlKybRegister = `curl -X POST ${BASE_URL}/kyb/register \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "business_name": "Ada Trading Co",
+    "registration_number": "RC1234567",
+    "registration_country": "NG",
+    "registration_type": "cac_ng"
+  }'
+# { "kyb_entity_id": "...", "verification_status": "pending", "next_steps": [...] }`;
 
-const pyQuickStart = `pip install verifyafrica`;
+const curlKybDocument = `curl -X POST ${BASE_URL}/kyb/KYB_ENTITY_ID/document \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -F "document=@certificate-of-incorporation.pdf"`;
 
-const pyInit = `import verifyafrica
+const curlKybDirector = `# The director completes their own individual verification first
+# (the flow above), then you attach their resulting identity:
+curl -X POST ${BASE_URL}/kyb/KYB_ENTITY_ID/directors \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -H "Content-Type: application/json" \\
+  -d '{"verified_identity_id": "IDENTITY_ID", "role": "director"}'
+# Requires the identity to already have verification_level >= 2 (full biometric)`;
 
-ov = verifyafrica.Client(api_key=os.environ["VERIFYAFRICA_API_KEY"])`;
+const sandboxCurl = `curl -X POST ${BASE_URL}/verify/initiate \\
+  -H "Authorization: Bearer av_test_YOUR_SANDBOX_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -H "Content-Type: application/json" \\
+  -d '{"phone": "+2348000000001"}'
 
-const pyVerify = `# 1. Initiate a verification session
-session = ov.verify.initiate(
-    phone="+2348012345678",
-    country="NG",
-    platform_user_id="user_abc123",
-)
-# {"token": "sess_...", "expires_at": "..."}
+# Then use these test document IDs at the id/upload step:
+# TEST_NG_PASS_001  -> pass (trust_score 0.85)
+# TEST_NG_FAIL_001  -> fail (name mismatch)
+# TEST_NG_AML_001   -> aml_flagged
+# TEST_NG_BL_001    -> blacklisted`;
 
-# 2. Poll for completion
-result = ov.verify.status(session["token"])
-# {"verified": True, "vit": "ov_vit_...", "trust_score": 0.85}
-
-# 3. Check a user's status anytime
-status = ov.identity.status("user_abc123")
-# {"verified": True, "level": "basic", "aml_status": "clear"}`;
-
-const pyVit = `# Verify a VIT presented by the user
-payload = ov.vit.verify(vit_token)
-
-if not payload["verified"] or payload["flags"]["blacklisted"]:
-    raise PermissionError("Identity verification required")`;
-
-const sandboxJs = `const ov = new VerifyAfrica({
-  apiKey: 'ov_sandbox_test_key', // get from dashboard → API Keys
-});
-
-// Use these test document IDs in verify.initiate():
-// TEST_NG_PASS_001  → pass (trust_score 0.85)
-// TEST_NG_FAIL_001  → fail (name mismatch)
-// TEST_NG_AML_001   → aml_flagged
-// TEST_NG_BL_001    → blacklisted
-
-const session = await ov.verify.initiate({
-  phone: '+2348000000001',
-  country: 'NG',
-  documentId: 'TEST_NG_PASS_001',
-  platformUserId: 'test_user_1',
-});`;
-
-const endpoints = [
+const verifyEndpoints = [
   {
     method: 'POST',
-    path: '/v1/verify/initiate',
-    desc: 'Start a verification session. Returns a session token.',
-    body: 'phone, country, platformUserId',
-    returns: 'token, expiresAt',
+    path: '/verify/initiate',
+    desc: 'Start an individual verification session. Returns a session token.',
+    body: 'phone, platform_user_id?, redirect_url?',
+    returns: 'session_token, expires_at, next_step',
+  },
+  {
+    method: 'POST',
+    path: '/verify/otp/send',
+    desc: 'Sends (or resends) a one-time code to the session phone number.',
+    body: 'session_token',
+    returns: 'sent, expires_in',
+  },
+  {
+    method: 'POST',
+    path: '/verify/otp/confirm',
+    desc: 'Confirms the OTP and advances the session to the ID upload step.',
+    body: 'session_token, otp',
+    returns: 'confirmed, identity_id, next_step',
+  },
+  {
+    method: 'POST',
+    path: '/verify/id/upload',
+    desc: 'Multipart. Uploads a government ID photo plus the holder’s declared details.',
+    body: 'session_token, id_type, id_number, nationality, first_name, last_name, dob, id_photo (file)',
+    returns: 'id_verified, next_step',
+  },
+  {
+    method: 'POST',
+    path: '/verify/face/submit',
+    desc: 'Multipart. Uploads a selfie; triggers async biometric face-match processing.',
+    body: 'session_token, selfie (file)',
+    returns: 'processing, estimated_seconds',
   },
   {
     method: 'GET',
-    path: '/v1/verify/status/:token',
-    desc: 'Poll session status. Returns VIT once verification completes.',
-    body: '—',
-    returns: 'verified, vit, trust_score, verification_level',
+    path: '/verify/status/:session_token',
+    desc: 'Poll session status. Returns the VIT once verification completes.',
+    body: 'none',
+    returns: 'status, vit, verification_level, identity_id, rejection_reason',
   },
   {
     method: 'GET',
-    path: '/v1/internal/users/:id/status',
-    desc: "Check a platform user's verification status. Sub-100ms.",
-    body: '—',
+    path: '/internal/users/:platform_user_id/status',
+    desc: 'Check a platform user’s verification status. Sub-100ms.',
+    body: 'none',
     returns: 'verified, level, trust_score, aml_status, is_blacklisted',
   },
   {
     method: 'GET',
-    path: '/v1/internal/users/:id/vit',
+    path: '/internal/users/:platform_user_id/vit',
     desc: 'Issue a fresh VIT for an already-verified platform user.',
-    body: '—',
+    body: 'none',
     returns: 'token, payload',
   },
   {
-    method: 'GET',
-    path: '/v1/sandbox/credentials',
-    desc: 'Retrieve the full table of sandbox test document IDs.',
-    body: '—',
-    returns: 'credentials (grouped by country)',
+    method: 'DELETE',
+    path: '/internal/users/:platform_user_id',
+    desc: 'Right-to-erasure: deletes stored photos and scrubs identifying fields (NDPA/GDPR).',
+    body: 'none',
+    returns: 'erased, identity_id',
+  },
+];
+
+const kybEndpoints = [
+  {
+    method: 'POST',
+    path: '/kyb/register',
+    desc: 'Registers a business for verification. Creates a KYB entity, pending.',
+    body: 'business_name, registration_number, registration_country, registration_type, business_address?',
+    returns: 'kyb_entity_id, verification_status',
   },
   {
     method: 'POST',
-    path: '/v1/sandbox/reset',
-    desc: "Wipe a platform user's sandbox state. Re-run the full flow from scratch.",
-    body: 'platform_user_id',
-    returns: 'reset, identity_deleted',
+    path: '/kyb/:id/document',
+    desc: 'Multipart. Uploads the business’s registration certificate.',
+    body: 'document (file)',
+    returns: 'kyb_entity_id, verification_status',
+  },
+  {
+    method: 'POST',
+    path: '/kyb/:id/directors',
+    desc: 'Attaches a director/beneficial owner by their own verified_identity_id.',
+    body: 'verified_identity_id, role',
+    returns: 'kyb_entity_id, verification_status',
+  },
+  {
+    method: 'GET',
+    path: '/kyb/:id/status',
+    desc: 'Poll KYB progress: document, director count, screening result.',
+    body: 'none',
+    returns: 'verification_status, verification_level, director_count, has_document, rejection_reason',
   },
 ];
 
 const errors = [
   { code: '400', label: 'validation_error', desc: 'Missing or invalid request body field.' },
-  { code: '401', label: 'unauthorized', desc: 'API key missing or revoked.' },
-  { code: '403', label: 'sandbox_only', desc: 'Endpoint requires a sandbox key (ov_sandbox_...).' },
-  { code: '403', label: 'forbidden', desc: 'API key does not have access to this resource.' },
-  { code: '404', label: 'not_found', desc: 'Session token or identity not found.' },
+  { code: '401', label: 'unauthorized', desc: 'API key missing, invalid, or the X-Platform header is missing.' },
+  { code: '403', label: 'forbidden', desc: 'API key does not have the permission required for this endpoint.' },
+  { code: '404', label: 'not_found', desc: 'Session token, identity, or KYB entity not found.' },
   { code: '429', label: 'rate_limit_exceeded', desc: 'Slow down. Retry after retry_after seconds.' },
   { code: '500', label: 'internal_error', desc: 'Something went wrong on our end. Contact support.' },
 ];
@@ -174,6 +220,32 @@ function MethodBadge({ method }: { method: string }) {
   );
 }
 
+function EndpointList({ endpoints }: { endpoints: typeof verifyEndpoints }) {
+  return (
+    <div className="space-y-3">
+      {endpoints.map((ep) => (
+        <div key={ep.path} className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
+          <div className="flex items-center gap-3 mb-2">
+            <MethodBadge method={ep.method} />
+            <code className="text-sm font-mono text-white">{ep.path}</code>
+          </div>
+          <p className="text-sm text-slate-400 mb-3">{ep.desc}</p>
+          <div className="grid sm:grid-cols-2 gap-3 text-xs text-slate-500">
+            <div>
+              <span className="text-slate-600 uppercase tracking-wider text-[10px] font-medium">Body / Params</span>
+              <p className="mt-1 font-mono text-slate-400">{ep.body}</p>
+            </div>
+            <div>
+              <span className="text-slate-600 uppercase tracking-wider text-[10px] font-medium">Returns</span>
+              <p className="mt-1 font-mono text-slate-400">{ep.returns}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function DocsPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -184,7 +256,7 @@ export default function DocsPage() {
             <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
               <Shield className="w-4 h-4" />
             </div>
-            <span className="font-bold text-lg tracking-tight">VerifyAfrica</span>
+            <span className="font-bold text-lg tracking-tight">AfriVerify</span>
           </Link>
           <div className="hidden md:flex items-center gap-8 text-sm text-slate-400">
             <Link href="/#features" className="hover:text-white transition-colors">Features</Link>
@@ -208,15 +280,15 @@ export default function DocsPage() {
             <Book className="w-3.5 h-3.5" />
             Developer Documentation
           </div>
-          <h1 className="text-4xl font-bold mb-4">VerifyAfrica API Reference</h1>
+          <h1 className="text-4xl font-bold mb-4">AfriVerify API Reference</h1>
           <p className="text-slate-400 text-lg max-w-2xl leading-relaxed">
-            Verify African identities, issue portable VITs, and gate high-risk actions —
-            all from a single API. Full SDK support for JavaScript and Python.
+            Verify African identities, verify businesses (KYB), issue portable VITs, and gate
+            high-risk actions. All requests are plain HTTP, no SDK required.
           </p>
           <div className="flex items-center gap-4 mt-6 text-sm">
             <span className="text-slate-500">Base URL:</span>
             <code className="bg-white/5 text-indigo-300 px-3 py-1.5 rounded-lg font-mono text-sm">
-              https://api.verifyafrica.com
+              {BASE_URL}
             </code>
           </div>
         </div>
@@ -228,8 +300,8 @@ export default function DocsPage() {
             <nav className="sticky top-28 space-y-1 text-sm">
               {[
                 { href: '#authentication', label: 'Authentication' },
-                { href: '#javascript', label: 'JavaScript SDK' },
-                { href: '#python', label: 'Python SDK' },
+                { href: '#verify-flow', label: 'Verify a person' },
+                { href: '#kyb-flow', label: 'Verify a business' },
                 { href: '#sandbox', label: 'Sandbox testing' },
                 { href: '#api-reference', label: 'API reference' },
                 { href: '#errors', label: 'Errors' },
@@ -256,75 +328,82 @@ export default function DocsPage() {
                 <Key className="w-5 h-5 text-indigo-400" /> Authentication
               </h2>
               <p className="text-slate-400 text-sm leading-relaxed mb-6">
-                All requests require a bearer token in the <code className="bg-white/5 text-indigo-300 px-1 rounded">Authorization</code> header.
-                Get your API key from the <Link href="/dashboard/api-keys" className="text-indigo-400 hover:underline">dashboard → API Keys</Link>.
+                Every request needs a bearer token in the <code className="bg-white/5 text-indigo-300 px-1 rounded">Authorization</code> header
+                <span className="text-slate-400"> and </span>
+                an <code className="bg-white/5 text-indigo-300 px-1 rounded">X-Platform</code> header naming your platform.
+                Requests missing either are rejected with 401. Get your API key from{' '}
+                <Link href="/dashboard/api-keys" className="text-indigo-400 hover:underline">dashboard &rarr; API Keys</Link>.
               </p>
-              <CodeBlock lang="bash" code={`curl https://api.verifyafrica.com/v1/identity \\
-  -H "Authorization: Bearer ov_live_YOUR_KEY"`} />
+              <CodeBlock lang="bash" code={`curl ${BASE_URL}/internal/users/user_abc123/status \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName"`} />
               <div className="mt-5 bg-white/[0.03] border border-white/10 rounded-xl p-5 text-sm space-y-2">
                 <div className="flex gap-3">
-                  <code className="text-indigo-300 font-mono bg-indigo-500/10 px-2 py-0.5 rounded text-xs">ov_live_</code>
-                  <span className="text-slate-400">Production keys — calls real identity providers. KYC credits consumed.</span>
+                  <code className="text-indigo-300 font-mono bg-indigo-500/10 px-2 py-0.5 rounded text-xs">av_live_</code>
+                  <span className="text-slate-400">Production keys. Calls real identity providers, consumes your monthly verification quota.</span>
                 </div>
                 <div className="flex gap-3">
-                  <code className="text-amber-300 font-mono bg-amber-500/10 px-2 py-0.5 rounded text-xs">ov_sandbox_</code>
-                  <span className="text-slate-400">Sandbox keys — deterministic fake outcomes, no credits, no real data.</span>
+                  <code className="text-amber-300 font-mono bg-amber-500/10 px-2 py-0.5 rounded text-xs">av_test_</code>
+                  <span className="text-slate-400">Sandbox keys. Deterministic fake outcomes, no quota consumed, no real data.</span>
                 </div>
               </div>
             </section>
 
-            {/* JavaScript SDK */}
-            <section id="javascript">
+            {/* Verify a person */}
+            <section id="verify-flow">
               <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
-                <Code2 className="w-5 h-5 text-indigo-400" /> JavaScript / TypeScript SDK
+                <Code2 className="w-5 h-5 text-indigo-400" /> Verify a person
               </h2>
               <p className="text-slate-400 text-sm leading-relaxed mb-6">
-                Works in Node.js, Next.js, and Edge runtimes. Full TypeScript types included.
+                A five-step flow: phone &rarr; OTP &rarr; government ID photo &rarr; selfie &rarr; poll for the result.
+                Each step advances the same session token.
               </p>
               <div className="space-y-5">
                 <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">Install</p>
-                  <CodeBlock lang="bash" code={jsQuickStart} />
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">1. Initiate</p>
+                  <CodeBlock lang="bash" code={curlInitiate} />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">Initialize</p>
-                  <CodeBlock lang="typescript" code={jsInit} />
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">2. Send &amp; confirm OTP</p>
+                  <CodeBlock lang="bash" code={curlOtp} />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">Verify an identity</p>
-                  <CodeBlock lang="typescript" code={jsVerify} />
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">3. Upload the government ID</p>
+                  <CodeBlock lang="bash" code={curlIdUpload} />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">Gate with a VIT</p>
-                  <CodeBlock lang="typescript" code={jsVit} />
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">4. Submit a selfie</p>
+                  <CodeBlock lang="bash" code={curlFace} />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">5. Poll for the result</p>
+                  <CodeBlock lang="bash" code={curlStatus} />
                 </div>
               </div>
             </section>
 
-            {/* Python SDK */}
-            <section id="python">
+            {/* Verify a business */}
+            <section id="kyb-flow">
               <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
-                <Code2 className="w-5 h-5 text-indigo-400" /> Python SDK
+                <Building2 className="w-5 h-5 text-indigo-400" /> Verify a business (KYB)
               </h2>
               <p className="text-slate-400 text-sm leading-relaxed mb-6">
-                Compatible with Python 3.9+. Works in Django, FastAPI, Flask, and serverless runtimes.
+                Business verification requires a registration document plus at least one director who has
+                completed the individual verification flow above to full biometric level. Once both are in
+                place, the business name is screened and the entity auto-verifies or is flagged for review.
               </p>
               <div className="space-y-5">
                 <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">Install</p>
-                  <CodeBlock lang="bash" code={pyQuickStart} />
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">1. Register the business</p>
+                  <CodeBlock lang="bash" code={curlKybRegister} />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">Initialize</p>
-                  <CodeBlock lang="python" code={pyInit} />
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">2. Upload the registration document</p>
+                  <CodeBlock lang="bash" code={curlKybDocument} />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">Verify an identity</p>
-                  <CodeBlock lang="python" code={pyVerify} />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">Gate with a VIT</p>
-                  <CodeBlock lang="python" code={pyVit} />
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">3. Attach a verified director</p>
+                  <CodeBlock lang="bash" code={curlKybDirector} />
                 </div>
               </div>
             </section>
@@ -336,13 +415,13 @@ export default function DocsPage() {
               </h2>
               <p className="text-slate-400 text-sm leading-relaxed mb-4">
                 The sandbox environment returns deterministic outcomes for fixed test document IDs.
-                No real identity providers are called. No KYC credits consumed.
+                No real identity providers are called, no quota consumed.
               </p>
               <div className="mb-5 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-sm text-amber-400">
-                Sandbox keys (prefix <code className="bg-amber-500/10 px-1 rounded font-mono">ov_sandbox_</code>) are required.
-                Switch in the <Link href="/dashboard/api-keys" className="underline">dashboard</Link>.
+                A sandbox key (prefix <code className="bg-amber-500/10 px-1 rounded font-mono">av_test_</code>) is required.
+                Switch environments in the <Link href="/dashboard/api-keys" className="underline">dashboard</Link>.
               </div>
-              <CodeBlock lang="typescript" code={sandboxJs} />
+              <CodeBlock lang="bash" code={sandboxCurl} />
               <div className="mt-5 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -384,7 +463,7 @@ export default function DocsPage() {
                 </table>
               </div>
               <p className="text-xs text-slate-500 mt-4">
-                Full list: <Link href="/dashboard/sandbox" className="text-indigo-400 hover:underline">Dashboard → Sandbox</Link>
+                Full list: <Link href="/dashboard/sandbox" className="text-indigo-400 hover:underline">Dashboard &rarr; Sandbox</Link>
                 {' '}or <code className="bg-white/5 px-1 rounded">GET /v1/sandbox/credentials</code>.
               </p>
             </section>
@@ -395,29 +474,13 @@ export default function DocsPage() {
                 <Lock className="w-5 h-5 text-indigo-400" /> API reference
               </h2>
               <p className="text-slate-400 text-sm leading-relaxed mb-6">
-                All endpoints return JSON. Successful responses use HTTP 2xx status codes.
+                All endpoints return JSON. Successful responses use HTTP 2xx status codes. Paths below
+                are relative to the base URL above.
               </p>
-              <div className="space-y-3">
-                {endpoints.map((ep) => (
-                  <div key={ep.path} className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
-                    <div className="flex items-center gap-3 mb-2">
-                      <MethodBadge method={ep.method} />
-                      <code className="text-sm font-mono text-white">{ep.path}</code>
-                    </div>
-                    <p className="text-sm text-slate-400 mb-3">{ep.desc}</p>
-                    <div className="grid sm:grid-cols-2 gap-3 text-xs text-slate-500">
-                      <div>
-                        <span className="text-slate-600 uppercase tracking-wider text-[10px] font-medium">Body / Params</span>
-                        <p className="mt-1 font-mono text-slate-400">{ep.body}</p>
-                      </div>
-                      <div>
-                        <span className="text-slate-600 uppercase tracking-wider text-[10px] font-medium">Returns</span>
-                        <p className="mt-1 font-mono text-slate-400">{ep.returns}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <h3 className="text-sm font-semibold text-slate-300 mb-3 mt-8">Individual verification</h3>
+              <EndpointList endpoints={verifyEndpoints} />
+              <h3 className="text-sm font-semibold text-slate-300 mb-3 mt-8">Business verification (KYB)</h3>
+              <EndpointList endpoints={kybEndpoints} />
             </section>
 
             {/* Errors */}
@@ -455,8 +518,8 @@ export default function DocsPage() {
             <div className="border-t border-white/10 pt-10 flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Questions? We&apos;re here.</p>
-                <a href="mailto:support@verifyafrica.com" className="text-indigo-400 text-sm hover:underline">
-                  support@verifyafrica.com
+                <a href="mailto:support@sankofaapp.com" className="text-indigo-400 text-sm hover:underline">
+                  support@sankofaapp.com
                 </a>
               </div>
               <div className="flex items-center gap-3">
