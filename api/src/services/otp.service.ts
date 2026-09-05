@@ -99,9 +99,14 @@ export async function sendSms(phone: string, message: string): Promise<void> {
     } catch (err) {
       const msg = (err as Error).message;
       errors.push(`${provider.name}: ${msg}`);
-      logger.warn(`${provider.name} SMS send failed, trying next provider`, { phone: maskPhone(phone), error: msg });
+      // The reason goes in the message string itself, not a metadata field:
+      // some log viewers (Railway's included) render only the message of a
+      // structured log line by default, silently dropping sibling fields
+      // like the `error` one this used to carry, which is exactly what made
+      // this failure look identical and undiagnosable across every provider.
+      logger.warn(`${provider.name} SMS send failed, trying next provider: ${msg}`, { phone: maskPhone(phone) });
     }
   }
-  logger.error('All SMS providers failed or unconfigured', { phone: maskPhone(phone), errors });
+  logger.error(`All SMS providers failed or unconfigured: ${errors.join(' | ')}`, { phone: maskPhone(phone) });
   throw new Error('OTP service unavailable. Please try again shortly.');
 }

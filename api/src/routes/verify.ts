@@ -138,7 +138,7 @@ router.post(
       res.json({ sent: true, expires_in: 300 });
     } catch (err) {
       const message = (err as Error).message;
-      logger.error('OTP send failed', { session: session.id, error: message });
+      logger.error(`OTP send failed: ${message}`, { session: session.id });
       await writeAuditEvent(req, {
         event_type: 'otp_sent',
         result: 'failed',
