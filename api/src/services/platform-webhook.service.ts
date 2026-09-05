@@ -209,18 +209,26 @@ export async function pushVerificationUpdate(
   });
 }
 
+// A kyb_entities row can be shared by several platforms (see kyb_connections)
+// once one platform's KYB reuse links to a business already verified by
+// another, so a status change has to reach every connected platform, not
+// just the one that most recently touched the entity.
 export async function pushKybUpdate(
-  apiKeyId: string,
   kybEntityId: string,
   verificationStatus: 'verified' | 'rejected',
   rejectionReason?: string
 ): Promise<void> {
-  const apiKey = await queryOne<{ webhook_url: string | null; webhook_secret_hash: string | null }>(
-    `SELECT webhook_url, webhook_secret_hash FROM api_keys WHERE id = $1 AND is_active = true`,
-    [apiKeyId]
+  const connectedKeys = await query<{
+    id: string;
+    webhook_url: string | null;
+    webhook_secret_hash: string | null;
+  }>(
+    `SELECT ak.id, ak.webhook_url, ak.webhook_secret_hash
+     FROM kyb_connections kc
+     JOIN api_keys ak ON ak.id = kc.platform_api_key_id
+     WHERE kc.kyb_entity_id = $1 AND kc.is_active = true AND ak.is_active = true`,
+    [kybEntityId]
   );
-
-  if (!apiKey?.webhook_url) return;
 
   const payload: WebhookPayload = {
     event:               'kyb.status_updated',
@@ -230,15 +238,18 @@ export async function pushKybUpdate(
     timestamp:             new Date().toISOString(),
   };
 
-  deliverWithRetry(
-    apiKey.webhook_url,
-    apiKey.webhook_secret_hash,
-    payload,
-    apiKeyId,
-  ).catch((err) => {
-    logger.error('deliverWithRetry threw unexpectedly', { error: err.message });
-    captureError(err, { apiKeyId, event: payload.event, stage: 'webhook_delivery' });
-  });
+  for (const apiKey of connectedKeys) {
+    if (!apiKey.webhook_url) continue;
+    deliverWithRetry(
+      apiKey.webhook_url,
+      apiKey.webhook_secret_hash,
+      payload,
+      apiKey.id,
+    ).catch((err) => {
+      logger.error('deliverWithRetry threw unexpectedly', { error: err.message });
+      captureError(err, { apiKeyId: apiKey.id, event: payload.event, stage: 'webhook_delivery' });
+    });
+  }
 }
 
 export async function createOrUpdatePlatformConnection(

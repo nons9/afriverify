@@ -26,10 +26,22 @@ export interface KybEntity {
   trust_score: number;
   document_s3_key: string | null;
   rejection_reason: string | null;
-  api_key_id: string;
+  // The platform that originally registered this entity. Not an ownership
+  // scope any more - see kyb_connections for which platforms can access it.
+  api_key_id: string | null;
   verified_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface KybConnection {
+  id: string;
+  kyb_entity_id: string;
+  platform_name: string;
+  platform_api_key_id: string;
+  connected_at: string;
+  last_verified: string | null;
+  is_active: boolean;
 }
 
 export interface VerifiedIdentity {

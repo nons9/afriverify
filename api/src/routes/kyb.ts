@@ -5,7 +5,7 @@ import { authenticate, requirePermission } from '../middleware/auth';
 import { rateLimitApiKey } from '../middleware/rateLimit';
 import { validateBody } from '../middleware/validate';
 import { writeAuditEvent } from '../middleware/audit';
-import { registerKybEntity, attachDocument, attachDirector, getKybEntity } from '../services/kyb.service';
+import { registerOrLinkKybEntity, attachDocument, attachDirector, getKybEntity } from '../services/kyb.service';
 import { uploadToS3 } from '../utils/s3';
 import logger from '../utils/logger';
 
@@ -35,7 +35,7 @@ router.post(
       req.body as z.infer<typeof registerSchema>;
     const apiKey = req.apiKey!;
 
-    const entity = await registerKybEntity({
+    const { entity, isNewRegistration } = await registerOrLinkKybEntity({
       apiKeyId: apiKey.id,
       businessName: business_name,
       registrationNumber: registration_number,
@@ -45,15 +45,20 @@ router.post(
     });
 
     await writeAuditEvent(req, {
-      event_type: 'kyb_registered',
-      result: 'pending',
+      event_type: isNewRegistration ? 'kyb_registered' : 'kyb_linked',
+      result: entity.verification_status === 'verified' ? 'passed' : 'pending',
       metadata: { kyb_entity_id: entity.id, business_name }
     });
+
+    const alreadyVerified = !isNewRegistration && entity.verification_status === 'verified';
 
     res.status(201).json({
       kyb_entity_id: entity.id,
       verification_status: entity.verification_status,
-      next_steps: ['upload a registration document via POST /kyb/:id/document', 'attach at least one verified director via POST /kyb/:id/directors']
+      already_verified: alreadyVerified,
+      next_steps: alreadyVerified
+        ? []
+        : ['upload a registration document via POST /kyb/:id/document', 'attach at least one verified director via POST /kyb/:id/directors']
     });
   }
 );
