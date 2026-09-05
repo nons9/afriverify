@@ -1,5 +1,6 @@
 import { query, queryOne } from '../db';
 import { TrustLevel, TrustEventData } from '../types';
+import { pushTrustScoreUpdate } from './platform-webhook.service';
 import logger from '../utils/logger';
 
 export function trustLevelFromScore(score: number): TrustLevel {
@@ -62,6 +63,18 @@ export async function applyTrustEvent(event: TrustEventData): Promise<{
     new_score: newScore,
     new_level: newLevel
   });
+
+  // Fire-and-forget: every platform connected to this identity hears about
+  // the change, not just whichever platform (or automated system) caused
+  // it - see pushTrustScoreUpdate for why that's the point.
+  pushTrustScoreUpdate(
+    event.identity_id,
+    newScore,
+    newLevel,
+    newLevel !== identity.trust_level,
+    delta,
+    event.event_type
+  ).catch((err) => logger.error('Trust score webhook push failed', { error: (err as Error).message }));
 
   return { new_score: newScore, delta, new_level: newLevel };
 }

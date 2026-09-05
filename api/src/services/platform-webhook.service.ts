@@ -29,7 +29,23 @@ export interface ConnectionRevokedWebhookPayload {
   timestamp: string;
 }
 
-export type WebhookPayload = IdentityWebhookPayload | KybWebhookPayload | ConnectionRevokedWebhookPayload;
+export interface TrustScoreWebhookPayload {
+  event: 'trust.score_updated';
+  identity_id: string;
+  platform_user_id: string | null;
+  trust_score: number;
+  trust_level: string;
+  level_changed: boolean;
+  score_delta: number;
+  trust_event_type: string;
+  timestamp: string;
+}
+
+export type WebhookPayload =
+  | IdentityWebhookPayload
+  | KybWebhookPayload
+  | ConnectionRevokedWebhookPayload
+  | TrustScoreWebhookPayload;
 
 const LEVEL_LABELS: Record<number, 'none' | 'basic' | 'biometric'> = {
   0: 'none',
@@ -248,6 +264,60 @@ export async function pushConnectionRevoked(
     logger.error('deliverWithRetry threw unexpectedly', { error: err.message });
     captureError(err, { apiKeyId, event: payload.event, stage: 'webhook_delivery' });
   });
+}
+
+// The whole value of a portable trust score is that it's a shared signal:
+// a lender platform connected to the same identity as a marketplace
+// platform should hear about a trust change the moment it happens on
+// EITHER platform, not just the one that caused it - that's what turns
+// trust_score from a number one platform queries into an actual real-time
+// reputation feed multiple partners can price risk against.
+export async function pushTrustScoreUpdate(
+  identityId: string,
+  trustScore: number,
+  trustLevel: string,
+  levelChanged: boolean,
+  scoreDelta: number,
+  trustEventType: string
+): Promise<void> {
+  const connectedKeys = await query<{
+    id: string;
+    webhook_url: string | null;
+    webhook_secret_hash: string | null;
+    platform_user_id: string | null;
+  }>(
+    `SELECT ak.id, ak.webhook_url, ak.webhook_secret_hash, pc.platform_user_id
+     FROM platform_connections pc
+     JOIN api_keys ak ON ak.id = pc.platform_api_key_id
+     WHERE pc.identity_id = $1 AND pc.is_active = true AND ak.is_active = true`,
+    [identityId]
+  );
+
+  const timestamp = new Date().toISOString();
+
+  for (const apiKey of connectedKeys) {
+    if (!apiKey.webhook_url) continue;
+    const payload: WebhookPayload = {
+      event:            'trust.score_updated',
+      identity_id:       identityId,
+      platform_user_id:  apiKey.platform_user_id,
+      trust_score:       trustScore,
+      trust_level:       trustLevel,
+      level_changed:     levelChanged,
+      score_delta:       scoreDelta,
+      trust_event_type:  trustEventType,
+      timestamp,
+    };
+    deliverWithRetry(
+      apiKey.webhook_url,
+      apiKey.webhook_secret_hash,
+      payload,
+      apiKey.id,
+    ).catch((err) => {
+      logger.error('deliverWithRetry threw unexpectedly', { error: err.message });
+      captureError(err, { apiKeyId: apiKey.id, event: payload.event, stage: 'webhook_delivery' });
+    });
+  }
 }
 
 // A kyb_entities row can be shared by several platforms (see kyb_connections)
