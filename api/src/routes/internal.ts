@@ -27,7 +27,7 @@ router.use(rateLimitApiKey);
  * Looks up the platform_connections table using the calling API key's platform_name
  * and the provided platform_user_id.
  *
- * This is what ScoutAfrika's verifyafrica.service.ts polls.
+ * This is what a connected platform's own AfriVerify client service polls.
  */
 router.get('/users/:platformUserId/status', async (req: Request, res: Response): Promise<void> => {
   const { platformUserId } = req.params;

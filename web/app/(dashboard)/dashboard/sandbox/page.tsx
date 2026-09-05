@@ -92,7 +92,7 @@ export default function SandboxPage() {
 
       <div className="mt-2 mb-8 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 text-xs text-amber-400">
         <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-        Sandbox keys (prefix <code className="bg-amber-500/10 px-1 rounded">ov_sandbox_</code>) only. Real identity providers are never called.
+        Sandbox keys (prefix <code className="bg-amber-500/10 px-1 rounded">av_test_</code>) only. Real identity providers are never called.
       </div>
 
       {/* Test credentials */}
