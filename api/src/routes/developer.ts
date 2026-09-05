@@ -203,9 +203,13 @@ router.get('/metrics', sessionAuth, async (req: Request, res: Response): Promise
 });
 
 // PATCH /developer/keys/:id/webhook — set or clear webhook URL (session auth)
-router.patch('/keys/:id/webhook', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+const webhookUrlSchema = z.object({
+  webhook_url: z.string().url().max(2048).nullable()
+});
+
+router.patch('/keys/:id/webhook', sessionAuth, validateBody(webhookUrlSchema), async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
-  const { webhook_url } = req.body as { webhook_url: string | null };
+  const { webhook_url } = req.body as z.infer<typeof webhookUrlSchema>;
 
   const result = await query<{ id: string }>(
     `UPDATE api_keys SET webhook_url = $1
