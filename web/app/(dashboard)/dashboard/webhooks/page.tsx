@@ -45,7 +45,7 @@ function KeyWebhookCard({ apiKey }: { apiKey: ApiKey }) {
     setSaving(true);
     setSaveError('');
     try {
-      await api.post(`/v1/developer/keys/${apiKey.id}/webhook`, {
+      await api.patch(`/v1/developer/keys/${apiKey.id}/webhook`, {
         webhook_url: url.trim() || null,
       });
       setSaved(true);
