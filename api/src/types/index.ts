@@ -146,12 +146,18 @@ export interface DeveloperSession {
   company: string;
 }
 
+export interface IdentitySession {
+  identityId: string;
+  phone: string;
+}
+
 declare global {
   namespace Express {
     interface Request {
       apiKey?: ApiKey;
       platform?: string;
       developer?: DeveloperSession;
+      identity?: IdentitySession;
     }
   }
 }

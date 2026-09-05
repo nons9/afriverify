@@ -320,7 +320,8 @@ export default function LandingPage() {
           <div className="flex items-center gap-6">
             <a href="#" className="hover:text-white transition-colors">Privacy</a>
             <a href="#" className="hover:text-white transition-colors">Terms</a>
-            <a href="mailto:hello@afriverify.com" className="hover:text-white transition-colors">Contact</a>
+            <Link href="/my-identity/login" className="hover:text-white transition-colors">Manage your identity</Link>
+            <a href="mailto:hello@sankofaapp.com" className="hover:text-white transition-colors">Contact</a>
           </div>
         </div>
       </footer>
