@@ -122,12 +122,19 @@ interface FlutterwaveChargeEvent {
 }
 
 router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
+  // Every branch below logs something - a 401 or a no-op skip used to leave
+  // zero trace, which made "did Flutterwave even reach us" indistinguishable
+  // from "it reached us and we ignored it" when debugging from logs alone.
   if (!verifyWebhookSignature(req.headers['verif-hash'] as string | undefined)) {
+    logger.warn('Billing webhook rejected: signature mismatch', {
+      hasHeader: !!req.headers['verif-hash']
+    });
     res.status(401).json({ error: 'invalid_signature' });
     return;
   }
 
   const event = req.body as FlutterwaveChargeEvent;
+  logger.info('Billing webhook received', { event: event?.event, status: event?.data?.status });
 
   try {
     if (event.event === 'charge.completed' && event.data.status === 'successful') {
@@ -140,6 +147,8 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
           amountCents: Math.round(event.data.amount * 100),
           currency: event.data.currency
         });
+      } else {
+        logger.warn('Billing webhook: charge.completed but not an AfriVerify subscription meta, skipping', { meta });
       }
     }
     res.status(200).json({ received: true });
