@@ -108,7 +108,7 @@ export default function UssdPage() {
             <span className="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
             Register a USSD application with a telco or aggregator (e.g. Africa&apos;s Talking) and point its
             callback URL at{' '}
-            <code className="text-indigo-300 text-xs">https://afriverify.sankofaapp.com/v1/ussd/callback</code>.
+            <code className="text-indigo-300 text-xs">https://api.afriverify.sankofaapp.com/v1/ussd/callback</code>.
           </li>
           <li className="flex items-start gap-2">
             <span className="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />

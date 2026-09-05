@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Shield, Code2, Terminal, Book, ArrowRight, Key, Zap, Lock, Building2 } from 'lucide-react';
 
-const BASE_URL = 'https://afriverify.sankofaapp.com/v1';
+const BASE_URL = 'https://api.afriverify.sankofaapp.com/v1';
 
 const curlInitiate = `curl -X POST ${BASE_URL}/verify/initiate \\
   -H "Authorization: Bearer av_live_YOUR_KEY" \\
