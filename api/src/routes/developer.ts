@@ -110,7 +110,7 @@ router.get('/overview', sessionAuth, async (req: Request, res: Response): Promis
       [email]
     ),
     query<{ type: string; created_at: string }>(
-      `SELECT ve.type, ve.created_at
+      `SELECT ve.event_type AS type, ve.created_at
        FROM verification_events ve
        JOIN api_keys ak ON ak.id = ve.api_key_id
        WHERE ak.platform_email = $1
