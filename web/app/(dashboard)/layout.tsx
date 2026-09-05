@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   Ticket,
+  Smartphone,
 } from 'lucide-react';
 import { getSession, clearSession, Developer } from '@/lib/auth';
 
@@ -24,6 +25,7 @@ const nav = [
   { href: '/dashboard/verifications', label: 'Verifications', icon: CheckCircle },
   { href: '/dashboard/usage', label: 'Usage & Billing', icon: BarChart2 },
   { href: '/dashboard/webhooks', label: 'Webhooks', icon: Webhook },
+  { href: '/dashboard/ussd', label: 'USSD', icon: Smartphone },
   { href: '/dashboard/sandbox', label: 'Sandbox', icon: FlaskConical },
   { href: '/dashboard/redeem-voucher', label: 'Redeem Voucher', icon: Ticket },
 ];

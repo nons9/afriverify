@@ -63,10 +63,11 @@ router.get('/keys', sessionAuth, async (req: Request, res: Response): Promise<vo
     is_active: boolean;
     created_at: string;
     webhook_url: string | null;
+    ussd_service_code: string | null;
   }>(
     `SELECT id, platform_name, api_key_prefix, environment, tier, monthly_limit,
             verifications_this_month, last_used, is_active, created_at,
-            webhook_url
+            webhook_url, ussd_service_code
      FROM api_keys WHERE platform_email = $1 ORDER BY created_at DESC`,
     [req.developer!.email]
   );
@@ -225,6 +226,40 @@ router.patch('/keys/:id/webhook', sessionAuth, validateBody(webhookUrlSchema), a
 
   logger.info('Webhook URL updated', { id });
   res.json({ success: true });
+});
+
+// PATCH /developer/keys/:id/ussd-code: set or clear the USSD short code this key answers on (session auth)
+const ussdCodeSchema = z.object({
+  ussd_service_code: z.string().regex(/^\*\d+(\*\d+)*#$/, 'Must look like a USSD code, e.g. *384*1234#').nullable()
+});
+
+router.patch('/keys/:id/ussd-code', sessionAuth, validateBody(ussdCodeSchema), async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { ussd_service_code } = req.body as z.infer<typeof ussdCodeSchema>;
+
+  try {
+    const result = await query<{ id: string }>(
+      `UPDATE api_keys SET ussd_service_code = $1
+       WHERE id = $2 AND platform_email = $3 AND is_active = true
+       RETURNING id`,
+      [ussd_service_code ?? null, id, req.developer!.email]
+    );
+
+    if (result.length === 0) {
+      res.status(404).json({ error: 'not_found', message: 'Key not found' });
+      return;
+    }
+
+    logger.info('USSD service code updated', { id });
+    res.json({ success: true });
+  } catch (err) {
+    // Unique constraint: another key already claims this code
+    if ((err as { code?: string }).code === '23505') {
+      res.status(409).json({ error: 'conflict', message: 'That USSD code is already in use by another key' });
+      return;
+    }
+    throw err;
+  }
 });
 
 // POST /developer/keys/:id/webhook/secret — regenerate signing secret (session auth)
