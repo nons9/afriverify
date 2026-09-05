@@ -4,8 +4,8 @@ import { decryptString, getDataEncryptionKey } from '../utils/crypto';
 import logger from '../utils/logger';
 import { captureError } from '../utils/sentry';
 
-export interface WebhookPayload {
-  event: string;
+export interface IdentityWebhookPayload {
+  event: 'identity.verification_updated';
   identity_id: string;
   platform_user_id: string | null;
   verification_level: number;
@@ -13,6 +13,16 @@ export interface WebhookPayload {
   trust_score?: number;
   timestamp: string;
 }
+
+export interface KybWebhookPayload {
+  event: 'kyb.status_updated';
+  kyb_entity_id: string;
+  verification_status: 'verified' | 'rejected';
+  rejection_reason?: string;
+  timestamp: string;
+}
+
+export type WebhookPayload = IdentityWebhookPayload | KybWebhookPayload;
 
 const LEVEL_LABELS: Record<number, 'none' | 'basic' | 'biometric'> = {
   0: 'none',
@@ -74,6 +84,9 @@ async function attemptDelivery(
   }
 
   // Log every attempt — table is APPEND-ONLY, never updated or deleted
+  const identityId = 'identity_id' in payload ? payload.identity_id : null;
+  const platformUserId = 'platform_user_id' in payload ? payload.platform_user_id : null;
+
   await query(
     `INSERT INTO platform_webhook_deliveries
        (api_key_id, identity_id, platform_user_id, event_type, payload,
@@ -82,8 +95,8 @@ async function attemptDelivery(
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
     [
       apiKeyId,
-      payload.identity_id,
-      payload.platform_user_id,
+      identityId,
+      platformUserId,
       payload.event,
       JSON.stringify(payload),
       webhookUrl,
@@ -185,6 +198,38 @@ export async function pushVerificationUpdate(
   };
 
   // Fire and forget — retries run in background, verification flow is unblocked
+  deliverWithRetry(
+    apiKey.webhook_url,
+    apiKey.webhook_secret_hash,
+    payload,
+    apiKeyId,
+  ).catch((err) => {
+    logger.error('deliverWithRetry threw unexpectedly', { error: err.message });
+    captureError(err, { apiKeyId, event: payload.event, stage: 'webhook_delivery' });
+  });
+}
+
+export async function pushKybUpdate(
+  apiKeyId: string,
+  kybEntityId: string,
+  verificationStatus: 'verified' | 'rejected',
+  rejectionReason?: string
+): Promise<void> {
+  const apiKey = await queryOne<{ webhook_url: string | null; webhook_secret_hash: string | null }>(
+    `SELECT webhook_url, webhook_secret_hash FROM api_keys WHERE id = $1 AND is_active = true`,
+    [apiKeyId]
+  );
+
+  if (!apiKey?.webhook_url) return;
+
+  const payload: WebhookPayload = {
+    event:               'kyb.status_updated',
+    kyb_entity_id:        kybEntityId,
+    verification_status:  verificationStatus,
+    ...(rejectionReason ? { rejection_reason: rejectionReason } : {}),
+    timestamp:             new Date().toISOString(),
+  };
+
   deliverWithRetry(
     apiKey.webhook_url,
     apiKey.webhook_secret_hash,

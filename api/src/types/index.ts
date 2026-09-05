@@ -4,6 +4,33 @@ export type AmlStatus = 'not_screened' | 'pending' | 'clear' | 'flagged' | 'bloc
 export type Environment = 'sandbox' | 'production';
 export type ApiTier = 'free' | 'starter' | 'growth' | 'enterprise';
 export type VerificationStep = 'phone' | 'otp' | 'id_upload' | 'face_scan' | 'processing' | 'complete' | 'failed';
+export type KybRegistrationType = 'cac_ng' | 'brs_ke' | 'cipc_za' | 'cimc_gh' | 'other';
+export type KybVerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspended';
+
+export interface KybDirectorLink {
+  identity_id: string;
+  role: string;
+  linked_at: string;
+}
+
+export interface KybEntity {
+  id: string;
+  business_name: string;
+  registration_number: string;
+  registration_country: string;
+  registration_type: KybRegistrationType;
+  director_identity_ids: KybDirectorLink[];
+  business_address: Record<string, unknown> | null;
+  verification_status: KybVerificationStatus;
+  verification_level: number;
+  trust_score: number;
+  document_s3_key: string | null;
+  rejection_reason: string | null;
+  api_key_id: string;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface VerifiedIdentity {
   id: string;
