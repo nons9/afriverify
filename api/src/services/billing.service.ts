@@ -1,0 +1,258 @@
+import { randomUUID } from 'crypto';
+import { query, queryOne } from '../db';
+import { createCheckout } from './flutterwave.service';
+import { ApiTier } from '../types';
+import logger from '../utils/logger';
+
+// Only 'starter' is self-serve today - it's the only paid tier actually
+// marketed on the landing page. 'growth' exists in the schema for future use
+// and 'enterprise' stays a manual/sales-driven upgrade (custom pricing).
+export const SELF_SERVE_PLANS = ['starter'] as const;
+export type SelfServePlan = (typeof SELF_SERVE_PLANS)[number];
+
+interface PlanDefinition {
+  amountCents: number;
+  currency: string;
+  monthlyLimit: number;
+}
+
+export const PLAN_PRICING: Record<SelfServePlan, PlanDefinition> = {
+  starter: { amountCents: 4900, currency: 'USD', monthlyLimit: 2000 }
+};
+
+// Applied when a subscription lapses without renewal - matches the tier a
+// brand-new key gets (see developer.ts's POST /keys).
+const FREE_TIER_LIMIT = 100;
+
+// How long an expired subscription keeps working before it's downgraded,
+// so a developer whose card needs re-entering doesn't lose access mid-day.
+const GRACE_PERIOD_DAYS = 3;
+
+// Per-verification price for usage past the plan's monthly_limit.
+const OVERAGE_RATE_CENTS = 3;
+
+export function isSelfServePlan(plan: string): plan is SelfServePlan {
+  return (SELF_SERVE_PLANS as readonly string[]).includes(plan);
+}
+
+export type UsageVerificationType = 'level1' | 'level2' | 'level3' | 'kyb' | 'aml';
+
+// usage_records existed with nothing ever writing to it - overage billing
+// has no data to sum without this. billing_period is the calendar month a
+// verification counts toward, independent of when a subscription's own
+// current_period_start/end happen to fall.
+export async function recordUsage(apiKeyId: string, verificationType: UsageVerificationType): Promise<void> {
+  const billingPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM
+  await query(
+    `INSERT INTO usage_records (api_key_id, verification_type, billing_period) VALUES ($1, $2, $3)`,
+    [apiKeyId, verificationType, billingPeriod]
+  ).catch((err) => logger.error('Failed to record usage', { apiKeyId, verificationType, error: (err as Error).message }));
+}
+
+export async function createSubscriptionCheckout(params: {
+  apiKeyId: string;
+  plan: SelfServePlan;
+  email: string;
+  redirectUrl: string;
+}): Promise<{ paymentLink: string; reference: string }> {
+  const pricing = PLAN_PRICING[params.plan];
+  const reference = `av-sub-${randomUUID()}`;
+
+  const checkout = await createCheckout({
+    email: params.email,
+    amount: pricing.amountCents / 100,
+    currency: pricing.currency,
+    reference,
+    redirectUrl: params.redirectUrl,
+    metadata: {
+      type: 'afriverify_subscription',
+      api_key_id: params.apiKeyId,
+      plan: params.plan
+    }
+  });
+
+  return checkout;
+}
+
+/**
+ * Called from the Flutterwave webhook once a subscription checkout charge
+ * succeeds. Idempotent on provider_reference so a retried webhook delivery
+ * can't double-activate or double-invoice.
+ */
+export async function activateSubscription(params: {
+  apiKeyId: string;
+  plan: SelfServePlan;
+  reference: string;
+  amountCents: number;
+  currency: string;
+}): Promise<void> {
+  const alreadyProcessed = await queryOne<{ id: string }>(
+    `SELECT id FROM invoices WHERE payment_tx_ref = $1`,
+    [params.reference]
+  );
+  if (alreadyProcessed) {
+    logger.info('Subscription webhook already processed, skipping', { reference: params.reference });
+    return;
+  }
+
+  const pricing = PLAN_PRICING[params.plan];
+  const periodStart = new Date();
+  const periodEnd = new Date(periodStart);
+  periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+  const existing = await queryOne<{ id: string }>(`SELECT id FROM subscriptions WHERE api_key_id = $1`, [
+    params.apiKeyId
+  ]);
+
+  let subscriptionId: string;
+  if (existing) {
+    subscriptionId = existing.id;
+    await query(
+      `UPDATE subscriptions SET
+         plan = $1, status = 'active', payment_provider = 'flutterwave', provider_reference = $2,
+         current_period_start = $3, current_period_end = $4, amount_cents = $5, currency = $6,
+         cancel_at_period_end = false, cancelled_at = NULL
+       WHERE id = $7`,
+      [params.plan, params.reference, periodStart, periodEnd, params.amountCents, params.currency, subscriptionId]
+    );
+  } else {
+    const rows = await query<{ id: string }>(
+      `INSERT INTO subscriptions
+         (api_key_id, plan, status, payment_provider, provider_reference,
+          current_period_start, current_period_end, amount_cents, currency)
+       VALUES ($1, $2, 'active', 'flutterwave', $3, $4, $5, $6, $7)
+       RETURNING id`,
+      [params.apiKeyId, params.plan, params.reference, periodStart, periodEnd, params.amountCents, params.currency]
+    );
+    subscriptionId = rows[0].id;
+  }
+
+  await query(`UPDATE api_keys SET tier = $1, monthly_limit = $2 WHERE id = $3`, [
+    params.plan,
+    pricing.monthlyLimit,
+    params.apiKeyId
+  ]);
+
+  await query(
+    `INSERT INTO invoices
+       (subscription_id, api_key_id, status, amount_cents, currency, verifications_included,
+        total_amount_cents, payment_tx_ref, paid_at, period_start, period_end)
+     VALUES ($1, $2, 'paid', $3, $4, $5, $3, $6, NOW(), $7, $8)`,
+    [
+      subscriptionId,
+      params.apiKeyId,
+      params.amountCents,
+      params.currency,
+      pricing.monthlyLimit,
+      params.reference,
+      periodStart,
+      periodEnd
+    ]
+  );
+
+  await query(
+    `INSERT INTO billing_events (api_key_id, event_type, amount_cents, currency, metadata)
+     VALUES ($1, 'subscription_activated', $2, $3, $4)`,
+    [params.apiKeyId, params.amountCents, params.currency, JSON.stringify({ plan: params.plan, reference: params.reference })]
+  );
+
+  logger.info('Subscription activated', { apiKeyId: params.apiKeyId, plan: params.plan });
+}
+
+interface DueSubscription {
+  id: string;
+  api_key_id: string;
+  plan: ApiTier;
+  status: 'active' | 'past_due';
+  current_period_start: string;
+  current_period_end: string;
+  monthly_limit: number;
+}
+
+async function closeOutOverage(sub: DueSubscription): Promise<void> {
+  const billingPeriod = new Date(sub.current_period_start).toISOString().slice(0, 7); // YYYY-MM
+
+  const usage = await queryOne<{ total: string }>(
+    `SELECT COALESCE(SUM(count), 0) as total FROM usage_records
+     WHERE api_key_id = $1 AND billing_period = $2`,
+    [sub.api_key_id, billingPeriod]
+  );
+  const total = parseInt(usage?.total ?? '0', 10);
+  const overage = Math.max(0, total - sub.monthly_limit);
+  if (overage === 0) return;
+
+  const overageAmountCents = overage * OVERAGE_RATE_CENTS;
+  await query(
+    `INSERT INTO invoices
+       (subscription_id, api_key_id, status, amount_cents, currency, overage_verifications,
+        overage_amount_cents, total_amount_cents, period_start, period_end)
+     VALUES ($1, $2, 'open', 0, 'USD', $3, $4, $4, $5, $6)`,
+    [sub.id, sub.api_key_id, overage, overageAmountCents, sub.current_period_start, sub.current_period_end]
+  );
+
+  await query(
+    `INSERT INTO billing_events (api_key_id, event_type, amount_cents, currency, metadata)
+     VALUES ($1, 'overage_invoiced', $2, 'USD', $3)`,
+    [sub.api_key_id, overageAmountCents, JSON.stringify({ subscription_id: sub.id, overage_verifications: overage })]
+  );
+}
+
+/**
+ * Daily cycle: expires subscriptions past their period end (with a grace
+ * window before actually downgrading), closes out usage overage for
+ * newly-expired periods, and rolls over each active key's monthly counter.
+ * There is no auto-renew charge - matches how subscriptions already work
+ * elsewhere in this project (paid upfront, manually renewed), which avoids
+ * storing card data or building a separate tokenized-charge/retry path.
+ */
+export async function runBillingCycle(): Promise<void> {
+  const expiring = await query<DueSubscription>(
+    `SELECT s.id, s.api_key_id, s.plan, s.status, s.current_period_start, s.current_period_end, ak.monthly_limit
+     FROM subscriptions s
+     JOIN api_keys ak ON ak.id = s.api_key_id
+     WHERE s.status = 'active' AND s.current_period_end < NOW()`
+  );
+
+  for (const sub of expiring) {
+    await closeOutOverage(sub);
+    await query(`UPDATE subscriptions SET status = 'past_due' WHERE id = $1`, [sub.id]);
+    await query(
+      `INSERT INTO billing_events (api_key_id, event_type, metadata) VALUES ($1, 'subscription_past_due', $2)`,
+      [sub.api_key_id, JSON.stringify({ subscription_id: sub.id })]
+    );
+    logger.info('Subscription past due', { apiKeyId: sub.api_key_id, subscriptionId: sub.id });
+  }
+
+  const overdue = await query<{ id: string; api_key_id: string }>(
+    `SELECT id, api_key_id FROM subscriptions
+     WHERE status = 'past_due' AND current_period_end < NOW() - ($1 || ' days')::interval`,
+    [GRACE_PERIOD_DAYS]
+  );
+
+  for (const sub of overdue) {
+    await query(`UPDATE subscriptions SET status = 'cancelled', cancelled_at = NOW() WHERE id = $1`, [sub.id]);
+    await query(`UPDATE api_keys SET tier = 'free', monthly_limit = $1 WHERE id = $2`, [FREE_TIER_LIMIT, sub.api_key_id]);
+    await query(
+      `INSERT INTO billing_events (api_key_id, event_type, metadata) VALUES ($1, 'subscription_cancelled', $2)`,
+      [sub.api_key_id, JSON.stringify({ subscription_id: sub.id, reason: 'grace_period_expired' })]
+    );
+    logger.info('Subscription cancelled after grace period, downgraded to free', { apiKeyId: sub.api_key_id });
+  }
+
+  // Free-tier keys (and any key with no active subscription) had no reset
+  // mechanism at all before this - a key that hit its limit once stayed
+  // blocked forever. Roll the counter over once a month has passed.
+  await query(
+    `UPDATE api_keys
+     SET verifications_this_month = 0, usage_period_start = NOW()
+     WHERE usage_period_start < NOW() - INTERVAL '1 month'`
+  );
+}
+
+export function startBillingCron(): void {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  setInterval(() => {
+    runBillingCycle().catch((err) => logger.error('Billing cycle errored', { error: (err as Error).message }));
+  }, DAY_MS);
+  logger.info('Billing cron scheduled', { intervalHours: 24 });
+}

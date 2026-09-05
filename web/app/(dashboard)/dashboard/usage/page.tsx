@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BarChart2, TrendingUp, AlertTriangle } from 'lucide-react';
+import { BarChart2, TrendingUp, AlertTriangle, CreditCard, CheckCircle2 } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -16,6 +16,50 @@ import { api } from '@/lib/api';
 interface Overview {
   total_verifications: number;
   active_keys: number;
+}
+
+interface BillingKey {
+  id: string;
+  platform_name: string;
+  environment: string;
+  tier: string;
+  monthly_limit: number;
+}
+
+interface Subscription {
+  api_key_id: string;
+  plan: string;
+  status: string;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+}
+
+interface Invoice {
+  id: string;
+  invoice_number: string;
+  status: string;
+  total_amount_cents: number;
+  currency: string;
+  period_start: string;
+  period_end: string;
+  created_at: string;
+}
+
+interface PlanPricing {
+  amountCents: number;
+  currency: string;
+  monthlyLimit: number;
+}
+
+interface BillingData {
+  keys: BillingKey[];
+  subscriptions: Subscription[];
+  invoices: Invoice[];
+  plans: Record<string, PlanPricing>;
+}
+
+function formatMoney(cents: number, currency: string): string {
+  return `${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
 }
 
 interface DailyRow {
@@ -40,19 +84,40 @@ export default function UsagePage() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [chartData, setChartData] = useState<{ day: string; calls: number }[]>(buildLast7Days([]));
   const [loading, setLoading] = useState(true);
+  const [billing, setBilling] = useState<BillingData | null>(null);
+  const [subscribingKeyId, setSubscribingKeyId] = useState<string | null>(null);
+  const [subscribeError, setSubscribeError] = useState('');
 
   useEffect(() => {
     Promise.all([
       api.get<Overview>('/v1/developer/overview'),
       api.get<{ daily: DailyRow[] }>('/v1/developer/usage/daily'),
+      api.get<BillingData>('/v1/developer/billing'),
     ])
-      .then(([ov, daily]) => {
+      .then(([ov, daily, bill]) => {
         setOverview(ov);
         setChartData(buildLast7Days(daily.daily));
+        setBilling(bill);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleSubscribe(apiKeyId: string) {
+    setSubscribingKeyId(apiKeyId);
+    setSubscribeError('');
+    try {
+      const { payment_link } = await api.post<{ payment_link: string }>('/v1/developer/billing/subscribe', {
+        api_key_id: apiKeyId,
+        plan: 'starter',
+        redirect_url: window.location.href,
+      });
+      window.location.href = payment_link;
+    } catch (err) {
+      setSubscribeError((err as Error).message ?? 'Could not start checkout');
+      setSubscribingKeyId(null);
+    }
+  }
 
   const totalVerifs = overview?.total_verifications ?? 0;
   const limit = 100;
@@ -155,18 +220,130 @@ export default function UsagePage() {
         )}
       </div>
 
-      {/* Upgrade */}
-      <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-xl p-6">
-        <h3 className="font-semibold text-white mb-1">Need more verifications?</h3>
-        <p className="text-slate-400 text-sm mb-4">
-          Upgrade to Starter for 2,000/month — or contact us for custom limits.
+      {/* Plans per key */}
+      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6 mb-6">
+        <h3 className="text-sm font-semibold text-white mb-1">Plans</h3>
+        <p className="text-slate-500 text-xs mb-5">Each API key is billed and metered independently.</p>
+
+        {subscribeError && (
+          <p className="text-xs text-red-400 mb-4 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" /> {subscribeError}
+          </p>
+        )}
+
+        {!billing || billing.keys.length === 0 ? (
+          <p className="text-slate-500 text-sm">No active API keys yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {billing.keys.map((key) => {
+              const sub = billing.subscriptions.find((s) => s.api_key_id === key.id);
+              const isStarter = key.tier === 'starter' && sub?.status === 'active';
+              const starterPricing = billing.plans.starter;
+
+              return (
+                <div
+                  key={key.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/[0.02] border border-white/10 rounded-lg px-5 py-4"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-white">{key.platform_name}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-slate-400 capitalize">
+                        {key.environment}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {key.tier === 'free' ? 'Sandbox' : key.tier.charAt(0).toUpperCase() + key.tier.slice(1)} plan
+                      {' '}&middot; {key.monthly_limit.toLocaleString()} verifications/month
+                      {sub?.status === 'active' && (
+                        <> &middot; renews {new Date(sub.current_period_end).toLocaleDateString()}</>
+                      )}
+                      {sub?.status === 'past_due' && (
+                        <span className="text-amber-400"> &middot; payment due, renew soon</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {isStarter ? (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-400">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Starter active
+                    </span>
+                  ) : starterPricing ? (
+                    <button
+                      onClick={() => handleSubscribe(key.id)}
+                      disabled={subscribingKeyId === key.id}
+                      className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors shrink-0"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      {subscribingKeyId === key.id
+                        ? 'Redirecting…'
+                        : `Upgrade to Starter (${formatMoney(starterPricing.amountCents, starterPricing.currency)}/mo)`}
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <p className="text-slate-500 text-xs mt-5">
+          Need more than Starter&apos;s {billing?.plans.starter?.monthlyLimit.toLocaleString() ?? '2,000'}/month?{' '}
+          <a href="mailto:sales@sankofaapp.com" className="text-indigo-400 hover:text-indigo-300">
+            Contact sales
+          </a>{' '}
+          for Enterprise pricing.
         </p>
-        <a
-          href="mailto:sales@sankofaapp.com"
-          className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
-        >
-          Upgrade plan
-        </a>
+      </div>
+
+      {/* Invoice history */}
+      <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-white/10">
+          <h3 className="text-sm font-semibold text-white">Invoices</h3>
+        </div>
+        {!billing || billing.invoices.length === 0 ? (
+          <div className="px-6 py-10 text-center">
+            <p className="text-slate-500 text-sm">No invoices yet.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-slate-500 border-b border-white/5">
+                  <th className="px-6 py-3 font-medium">Invoice</th>
+                  <th className="px-6 py-3 font-medium">Period</th>
+                  <th className="px-6 py-3 font-medium">Amount</th>
+                  <th className="px-6 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {billing.invoices.map((inv) => (
+                  <tr key={inv.id}>
+                    <td className="px-6 py-3 text-slate-300 font-mono text-xs">{inv.invoice_number}</td>
+                    <td className="px-6 py-3 text-slate-400 text-xs">
+                      {new Date(inv.period_start).toLocaleDateString()} - {new Date(inv.period_end).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-3 text-slate-300 font-mono text-xs tabular-nums">
+                      {formatMoney(inv.total_amount_cents, inv.currency)}
+                    </td>
+                    <td className="px-6 py-3">
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
+                          inv.status === 'paid'
+                            ? 'bg-green-500/10 text-green-400'
+                            : inv.status === 'open'
+                              ? 'bg-amber-500/10 text-amber-400'
+                              : 'bg-white/5 text-slate-400'
+                        }`}
+                      >
+                        {inv.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

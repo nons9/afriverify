@@ -15,6 +15,7 @@ import { verifyIdWithSmile, biometricKYC } from '../services/smile-identity.serv
 import { applyTrustEvent } from '../services/trust-score.service';
 import { issueVIT } from '../services/vit.service';
 import { checkBlacklist } from '../services/blacklist.service';
+import { recordUsage } from '../services/billing.service';
 import { scanImage } from '../services/orbitshield/deepscan.service';
 import { query, queryOne } from '../db';
 import { sha256, generateSecureToken, timingSafeEqualHex } from '../utils/crypto';
@@ -90,6 +91,7 @@ router.post(
       'UPDATE api_keys SET verifications_this_month = verifications_this_month + 1 WHERE id = $1',
       [apiKey.id]
     );
+    await recordUsage(apiKey.id, 'level1');
 
     await writeAuditEvent(req, {
       event_type: 'registration_attempt',

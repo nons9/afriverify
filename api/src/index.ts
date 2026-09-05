@@ -12,6 +12,7 @@ import identityRouter from './routes/identity';
 import kybRouter from './routes/kyb';
 import trustRouter from './routes/trust';
 import developerRouter from './routes/developer';
+import billingRouter from './routes/billing';
 import afrishieldRouter from './routes/afrishield';
 import internalRouter from './routes/internal';
 import sandboxRouter from './routes/sandbox';
@@ -19,6 +20,7 @@ import logger from './utils/logger';
 import { initSentry, captureError } from './utils/sentry';
 import { startFailureRateMonitor } from './services/alerting.service';
 import { startRetentionPurge } from './services/retention.service';
+import { startBillingCron } from './services/billing.service';
 
 initSentry();
 
@@ -65,6 +67,7 @@ app.use('/v1/identity', identityRouter);
 app.use('/v1/kyb', kybRouter);
 app.use('/v1/trust', trustRouter);
 app.use('/v1/developer', developerRouter);
+app.use('/v1/developer/billing', billingRouter);
 app.use('/v1/afrishield', afrishieldRouter);
 app.use('/v1/internal', internalRouter);
 app.use('/v1/sandbox', sandboxRouter);
@@ -116,6 +119,7 @@ async function bootstrap(): Promise<void> {
 
   startFailureRateMonitor();
   startRetentionPurge();
+  startBillingCron();
 
   // Log Postgres connectivity without blocking or crashing.
   // /health will surface the real status on every probe.
