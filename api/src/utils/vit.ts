@@ -23,7 +23,7 @@ export function generateVIT(params: VITParams): { token: string; payload: VITPay
   const expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
 
   const payload: VITPayload = {
-    vit: `ov_vit_${uuidv4().replace(/-/g, '')}`,
+    vit: `av_vit_${uuidv4().replace(/-/g, '')}`,
     verified: params.verification_level >= 1,
     level: params.verification_level,
     name: params.full_name,
@@ -44,9 +44,13 @@ export function generateVIT(params: VITParams): { token: string; payload: VITPay
   const token = jwt.sign(payload, privateKey, {
     algorithm: 'RS256',
     expiresIn: '365d',
-    issuer: 'verifyafrica.com',
+    // afriverify.sankofaapp.com is the permanent issuer going forward: it's
+    // the owned production domain, not a product codename - unlike
+    // "OrbitVerify" and "VerifyAfrica" before it, there's no reason for this
+    // one to ever need to change again.
+    issuer: 'afriverify.sankofaapp.com',
     subject: params.identity_id,
-    keyid: 'verifyafrica-vit-v1'
+    keyid: 'afriverify-vit-v1'
   });
 
   return { token, payload };
@@ -54,12 +58,13 @@ export function generateVIT(params: VITParams): { token: string; payload: VITPay
 
 export function verifyVIT(token: string): VITPayload {
   const publicKey = (process.env.VIT_PUBLIC_KEY ?? '').replace(/\\n/g, '\n');
-  // Accept the legacy issuer during the OrbitVerify → VerifyAfrica transition.
-  // Old tokens (iss: orbitverify.africa) are still cryptographically valid — only the
-  // issuer claim changed. Remove 'orbitverify.africa' after all pre-rename VITs expire
-  // (they have a 365-day TTL, so safe to drop after 2027-07-15).
+  // Accept legacy issuers during each rename's 365-day transition window - a
+  // VIT's TTL is 365 days, so once that window closes every token minted
+  // under the old issuer has expired and it's safe to drop from this list.
+  // orbitverify.africa -> verifyafrica.com: safe to drop after 2027-07-15.
+  // verifyafrica.com -> afriverify.sankofaapp.com: safe to drop after 2027-09-05.
   return jwt.verify(token, publicKey, {
     algorithms: ['RS256'],
-    issuer: ['verifyafrica.com', 'orbitverify.africa']
+    issuer: ['afriverify.sankofaapp.com', 'verifyafrica.com', 'orbitverify.africa']
   }) as VITPayload;
 }
