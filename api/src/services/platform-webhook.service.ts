@@ -22,7 +22,14 @@ export interface KybWebhookPayload {
   timestamp: string;
 }
 
-export type WebhookPayload = IdentityWebhookPayload | KybWebhookPayload;
+export interface ConnectionRevokedWebhookPayload {
+  event: 'identity.connection_revoked';
+  identity_id: string;
+  platform_user_id: string | null;
+  timestamp: string;
+}
+
+export type WebhookPayload = IdentityWebhookPayload | KybWebhookPayload | ConnectionRevokedWebhookPayload;
 
 const LEVEL_LABELS: Record<number, 'none' | 'basic' | 'biometric'> = {
   0: 'none',
@@ -198,6 +205,40 @@ export async function pushVerificationUpdate(
   };
 
   // Fire and forget — retries run in background, verification flow is unblocked
+  deliverWithRetry(
+    apiKey.webhook_url,
+    apiKey.webhook_secret_hash,
+    payload,
+    apiKeyId,
+  ).catch((err) => {
+    logger.error('deliverWithRetry threw unexpectedly', { error: err.message });
+    captureError(err, { apiKeyId, event: payload.event, stage: 'webhook_delivery' });
+  });
+}
+
+// Fires when the identity owner themselves revokes a platform's access from
+// the identity portal - the platform should stop treating this person as
+// connected/verified for their own purposes even though the underlying VIT
+// and verified_identities row are untouched.
+export async function pushConnectionRevoked(
+  apiKeyId: string,
+  identityId: string,
+  platformUserId: string | null
+): Promise<void> {
+  const apiKey = await queryOne<{ webhook_url: string | null; webhook_secret_hash: string | null }>(
+    `SELECT webhook_url, webhook_secret_hash FROM api_keys WHERE id = $1 AND is_active = true`,
+    [apiKeyId]
+  );
+
+  if (!apiKey?.webhook_url) return;
+
+  const payload: WebhookPayload = {
+    event:             'identity.connection_revoked',
+    identity_id:        identityId,
+    platform_user_id:   platformUserId,
+    timestamp:           new Date().toISOString(),
+  };
+
   deliverWithRetry(
     apiKey.webhook_url,
     apiKey.webhook_secret_hash,
