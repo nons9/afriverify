@@ -17,6 +17,7 @@ import { issueVIT } from '../services/vit.service';
 import { checkBlacklist } from '../services/blacklist.service';
 import { recordUsage } from '../services/billing.service';
 import { scanImage } from '../services/orbitshield/deepscan.service';
+import { evaluateNetworkRisk } from '../services/orbitshield/fraud-graph.service';
 import { query, queryOne } from '../db';
 import { sha256, generateSecureToken, timingSafeEqualHex } from '../utils/crypto';
 import { uploadToS3, downloadFromS3 } from '../utils/s3';
@@ -30,6 +31,12 @@ import {
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+// Device gets 70% weight and IP-subnet 30% inside evaluateNetworkRisk's own
+// scoring, and the subnet check already requires 3+ reports before it counts
+// at all - so a score this high means a real, corroborated link to fraud,
+// not a single coincidental IP match.
+const NETWORK_RISK_BLOCK_THRESHOLD = 70;
 
 router.use(authenticate);
 router.use(rateLimitApiKey);
@@ -64,6 +71,26 @@ router.post(
         event_type: 'registration_attempt',
         result: 'failed',
         metadata: { reason: 'globally_blacklisted' }
+      });
+      res.status(403).json({ error: 'identity_blocked', message: 'This number is not eligible for verification.' });
+      return;
+    }
+
+    // This phone hasn't been matched to an identity yet, so there's no
+    // identity node to check - but the device/IP the request is coming from
+    // might already be linked to fraud reported against a DIFFERENT identity
+    // on a DIFFERENT platform (see fraud-graph.service.ts). Catching that
+    // here, before a session even exists, is what makes the fraud graph a
+    // shared cross-platform signal instead of something each platform only
+    // ever gets to check after the fact.
+    const deviceId = (req.headers['x-device-id'] as string) ?? undefined;
+    const networkRisk = await evaluateNetworkRisk(undefined, deviceId, req.ip ?? undefined);
+    if (networkRisk.networkRiskScore >= NETWORK_RISK_BLOCK_THRESHOLD) {
+      await writeAuditEvent(req, {
+        event_type: 'network_risk_blocked',
+        result: 'failed',
+        risk_score: networkRisk.networkRiskScore,
+        metadata: { risk_factors: networkRisk.riskFactors, connected_fraud_reports: networkRisk.connectedFraudReports }
       });
       res.status(403).json({ error: 'identity_blocked', message: 'This number is not eligible for verification.' });
       return;

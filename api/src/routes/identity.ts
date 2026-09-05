@@ -10,6 +10,7 @@ import { issueVIT } from '../services/vit.service';
 import { recordContinuity } from '../services/orbitshield/live-ledger.service';
 import { recordFraudSignal, evaluateNetworkRisk } from '../services/orbitshield/fraud-graph.service';
 import { addVouch, getVouchStatus, applyFraudPenalties } from '../services/orbitshield/community-vouch.service';
+import { addToBlacklist } from '../services/blacklist.service';
 import { VerifiedIdentity } from '../types';
 import logger from '../utils/logger';
 
@@ -255,6 +256,31 @@ router.post(
       applyFraudPenalties(identity_id, platform).catch((err) =>
         logger.error('CommunityVouch: penalty propagation failed', { error: err.message })
       );
+
+      // A report at this confidence is treated as confirmed fraud (same bar
+      // the vouch-penalty propagation above uses). Without this, a platform
+      // could flag someone at 100% confidence and that person could still go
+      // re-verify - on the same platform or any other - completely
+      // unimpeded, since nothing before this ever called addToBlacklist().
+      // scope: 'global' means every platform's /verify/initiate blocks them,
+      // not just the one that reported it - this is what actually makes the
+      // fraud graph a shared, cross-platform signal instead of a purely
+      // advisory score each platform has to remember to check itself.
+      const identityPhone = await queryOne<{ phone: string }>(
+        `SELECT phone FROM verified_identities WHERE id = $1`,
+        [identity_id]
+      );
+      if (identityPhone) {
+        addToBlacklist({
+          identity_id,
+          type: 'phone',
+          value: identityPhone.phone,
+          reason: `${fraud_type}: ${evidence_summary}`.slice(0, 500),
+          scope: 'global',
+          reported_by_platform: platform,
+          added_by: 'automated:fraud_flag'
+        }).catch((err) => logger.error('Blacklist: auto-block from fraud flag failed', { error: err.message }));
+      }
     }
 
     logger.warn('Fraud flag received', { identity_id, fraud_type, platform, confidence_score });

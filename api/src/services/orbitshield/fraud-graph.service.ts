@@ -82,7 +82,7 @@ export async function recordFraudSignal(signal: FraudSignal): Promise<void> {
 }
 
 export async function evaluateNetworkRisk(
-  identityId: string,
+  identityId?: string,
   deviceId?: string,
   ipAddress?: string
 ): Promise<NetworkRiskResult> {
@@ -91,16 +91,22 @@ export async function evaluateNetworkRisk(
   let connectedFraudReports = 0;
 
   try {
-    // Check identity node
-    const identityHash = sha256(`identity:${identityId}`);
-    const identityNode = await queryOne<{ risk_score: number; fraud_reports_count: number }>(
-      `SELECT risk_score, fraud_reports_count FROM fraud_graph_nodes WHERE node_hash = $1`,
-      [identityHash]
-    );
-    if (identityNode) {
-      networkRiskScore = Math.max(networkRiskScore, identityNode.risk_score);
-      connectedFraudReports += identityNode.fraud_reports_count;
-      if (identityNode.fraud_reports_count > 0) riskFactors.push('direct_fraud_reports');
+    // Check identity node - skipped when there's no identity yet (a brand
+    // new verification attempt, before any phone has been matched to one).
+    // Device/IP checks below still run and are the whole point of checking
+    // risk this early: they catch a known-fraudulent device or subnet
+    // reusing itself under a fresh identity, before that identity exists.
+    if (identityId) {
+      const identityHash = sha256(`identity:${identityId}`);
+      const identityNode = await queryOne<{ risk_score: number; fraud_reports_count: number }>(
+        `SELECT risk_score, fraud_reports_count FROM fraud_graph_nodes WHERE node_hash = $1`,
+        [identityHash]
+      );
+      if (identityNode) {
+        networkRiskScore = Math.max(networkRiskScore, identityNode.risk_score);
+        connectedFraudReports += identityNode.fraud_reports_count;
+        if (identityNode.fraud_reports_count > 0) riskFactors.push('direct_fraud_reports');
+      }
     }
 
     // Check device node (70% weight — device is a strong linking signal)
