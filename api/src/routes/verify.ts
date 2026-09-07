@@ -11,6 +11,7 @@ import {
 import { validateBody } from '../middleware/validate';
 import { writeAuditEvent } from '../middleware/audit';
 import { sendSms } from '../services/otp.service';
+import { sendOtpEmail } from '../services/email-otp.service';
 import { verifyIdWithSmile, biometricKYC } from '../services/smile-identity.service';
 import { applyTrustEvent } from '../services/trust-score.service';
 import { issueVIT } from '../services/vit.service';
@@ -43,18 +44,33 @@ router.use(rateLimitApiKey);
 router.use(requirePermission('verify'));
 
 // ─── POST /verify/initiate ────────────────────────────────────────────────────────────────────────────────
-const initiateSchema = z.object({
-  phone: z.string().min(7).max(20).regex(/^\+?[1-9]\d{6,19}$/, 'Invalid phone number'),
-  platform_user_id: z.string().max(255).optional(),
-  redirect_url: z.string().url().optional()
-});
+const initiateSchema = z
+  .object({
+    phone: z.string().min(7).max(20).regex(/^\+?[1-9]\d{6,19}$/, 'Invalid phone number'),
+    email: z.string().email().max(255).optional(),
+    // Which channel the OTP code itself goes to. Phone stays required
+    // either way (see migration 030) - this only picks where the code is
+    // delivered, not whether phone ownership is what's ultimately verified.
+    otp_channel: z.enum(['sms', 'email']).optional().default('sms'),
+    platform_user_id: z.string().max(255).optional(),
+    redirect_url: z.string().url().optional()
+  })
+  .refine((data) => data.otp_channel !== 'email' || !!data.email, {
+    message: 'email is required when otp_channel is "email"',
+    path: ['email']
+  });
 
 router.post(
   '/initiate',
   rateLimitVerifyInitiate,
   validateBody(initiateSchema),
   async (req: Request, res: Response): Promise<void> => {
-    const { phone, platform_user_id } = req.body as { phone: string; platform_user_id?: string };
+    const { phone, email, otp_channel, platform_user_id } = req.body as {
+      phone: string;
+      email?: string;
+      otp_channel: 'sms' | 'email';
+      platform_user_id?: string;
+    };
     const apiKey = req.apiKey!;
 
     if (apiKey.tier === 'free' && apiKey.verifications_this_month >= apiKey.monthly_limit) {
@@ -101,11 +117,13 @@ router.post(
 
     await query(
       `INSERT INTO verification_sessions
-         (session_token, phone, step, api_key_id, ip_address, device_id, expires_at, platform_user_id)
-       VALUES ($1,$2,'phone',$3,$4,$5,$6,$7)`,
+         (session_token, phone, email, otp_channel, step, api_key_id, ip_address, device_id, expires_at, platform_user_id)
+       VALUES ($1,$2,$3,$4,'phone',$5,$6,$7,$8,$9)`,
       [
         sessionToken,
         phone,
+        email ?? null,
+        otp_channel,
         apiKey.id,
         req.ip ?? null,
         (req.headers['x-device-id'] as string) ?? null,
@@ -156,7 +174,12 @@ router.post(
     const otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
 
     try {
-      await sendSms(session.phone, `Your AfriVerify code is ${code}. Valid 5 mins. Do not share.`);
+      if (session.otp_channel === 'email') {
+        if (!session.email) throw new Error('No email on this session');
+        await sendOtpEmail(session.email, code);
+      } else {
+        await sendSms(session.phone, `Your AfriVerify code is ${code}. Valid 5 mins. Do not share.`);
+      }
       await query(
         `UPDATE verification_sessions
          SET step = 'otp', otp_hash = $1, otp_expires_at = $2, otp_attempts = 0
@@ -164,7 +187,7 @@ router.post(
         [sha256(code), otpExpiry, session.id]
       );
       await writeAuditEvent(req, { event_type: 'otp_sent', result: 'passed' });
-      res.json({ sent: true, expires_in: 300 });
+      res.json({ sent: true, expires_in: 300, channel: session.otp_channel });
     } catch (err) {
       const message = (err as Error).message;
       logger.error(`OTP send failed: ${message}`, { session: session.id });

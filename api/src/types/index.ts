@@ -91,6 +91,8 @@ export interface VerificationSession {
   id: string;
   session_token: string;
   phone: string;
+  email: string | null;
+  otp_channel: 'sms' | 'email';
   otp_hash: string | null;
   otp_attempts: number;
   otp_expires_at: Date | null;
