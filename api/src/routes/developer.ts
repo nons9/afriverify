@@ -5,7 +5,8 @@ import { authenticate } from '../middleware/auth';
 import { sessionAuth } from '../middleware/sessionAuth';
 import { validateBody } from '../middleware/validate';
 import { query, queryOne } from '../db';
-import { generateApiKey, encryptString, getDataEncryptionKey } from '../utils/crypto';
+import { generateApiKey, encryptString, getDataEncryptionKey, sha256 } from '../utils/crypto';
+import { verifyAfriAppKey } from '../services/afriapp-verify.service';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -345,6 +346,86 @@ router.post('/keys/:id/rotate', sessionAuth, async (req: Request, res: Response)
     replaced_key_id: id,
     message: 'Store this API key securely. It will NOT be shown again. The rotated key is now inactive.'
   });
+});
+
+// ─── AfriApp Store connection ────────────────────────────────────────────────
+
+const connectAfriAppSchema = z.object({
+  key: z.string().regex(/^averify_live_[0-9a-f]{48}$/, 'Key must be an AfriApp-issued averify_live_ key')
+});
+
+// POST /developer/afriapp-key — connect or replace an AfriApp key (session auth)
+router.post('/afriapp-key', sessionAuth, validateBody(connectAfriAppSchema), async (req: Request, res: Response): Promise<void> => {
+  const { key } = req.body as z.infer<typeof connectAfriAppSchema>;
+  const email = req.developer!.email;
+
+  let result;
+  try {
+    result = await verifyAfriAppKey(key);
+  } catch {
+    res.status(502).json({ error: 'upstream_unavailable', message: 'AfriApp verification service is currently unavailable' });
+    return;
+  }
+
+  if (!result.valid) {
+    res.status(422).json({ error: 'invalid_key', message: 'AfriApp returned invalid for this key — check it was copied correctly and is still active' });
+    return;
+  }
+
+  const keyHash = sha256(key);
+
+  await query(
+    `INSERT INTO afriapp_connections (developer_email, afriapp_key_hash, afriapp_owner_id, last_verified_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (developer_email) DO UPDATE
+       SET afriapp_key_hash = EXCLUDED.afriapp_key_hash,
+           afriapp_owner_id = EXCLUDED.afriapp_owner_id,
+           last_verified_at = NOW(),
+           is_active        = true`,
+    [email, keyHash, result.ownerId]
+  );
+
+  logger.info('AfriApp key connected', { email, ownerId: result.ownerId });
+  res.json({ connected: true, ownerId: result.ownerId });
+});
+
+// GET /developer/afriapp-key — connection status (session auth)
+router.get('/afriapp-key', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const row = await queryOne<{ afriapp_owner_id: string; connected_at: string; last_verified_at: string | null; is_active: boolean }>(
+    `SELECT afriapp_owner_id, connected_at, last_verified_at, is_active
+     FROM afriapp_connections WHERE developer_email = $1`,
+    [req.developer!.email]
+  );
+
+  if (!row || !row.is_active) {
+    res.json({ connected: false });
+    return;
+  }
+
+  res.json({
+    connected: true,
+    ownerId: row.afriapp_owner_id,
+    connectedAt: row.connected_at,
+    lastVerifiedAt: row.last_verified_at,
+  });
+});
+
+// DELETE /developer/afriapp-key — disconnect (session auth)
+router.delete('/afriapp-key', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const result = await query<{ id: string }>(
+    `UPDATE afriapp_connections SET is_active = false
+     WHERE developer_email = $1 AND is_active = true
+     RETURNING id`,
+    [req.developer!.email]
+  );
+
+  if (result.length === 0) {
+    res.status(404).json({ error: 'not_found', message: 'No active AfriApp connection found' });
+    return;
+  }
+
+  logger.info('AfriApp key disconnected', { email: req.developer!.email });
+  res.json({ disconnected: true });
 });
 
 export default router;
