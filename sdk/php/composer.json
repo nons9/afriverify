@@ -1,0 +1,23 @@
+{
+    "name": "afriverify/afriverify-php",
+    "description": "Official PHP SDK for the AfriVerify identity platform",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.1",
+        "guzzlehttp/guzzle": "^7.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "AfriVerify\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AfriVerify\\Tests\\": "tests/"
+        }
+    }
+}
