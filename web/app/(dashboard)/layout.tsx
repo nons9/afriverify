@@ -19,6 +19,7 @@ import {
   Store,
   Link2,
   ShieldCheck,
+  GitBranch,
 } from 'lucide-react';
 import { getSession, clearSession, Developer } from '@/lib/auth';
 
@@ -27,6 +28,7 @@ const nav = [
   { href: '/dashboard/api-keys', label: 'API Keys', icon: Key },
   { href: '/dashboard/verifications', label: 'Verifications', icon: CheckCircle },
   { href: '/dashboard/usage', label: 'Usage & Billing', icon: BarChart2 },
+  { href: '/dashboard/flows', label: 'Verification Flows', icon: GitBranch },
   { href: '/dashboard/webhooks', label: 'Webhooks', icon: Webhook },
   { href: '/dashboard/ussd', label: 'USSD', icon: Smartphone },
   { href: '/dashboard/sandbox', label: 'Sandbox', icon: FlaskConical },
