@@ -668,4 +668,67 @@ router.delete('/afriapp-key', sessionAuth, async (req: Request, res: Response): 
   res.json({ disconnected: true });
 });
 
+// ─── White-label branding ─────────────────────────────────────────────────────
+
+const whiteLabelSchema = z.object({
+  company_name: z.string().min(1).max(100),
+  logo_url: z.string().url().max(1000).nullable().optional(),
+  primary_color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Must be a hex color e.g. #4F46E5').optional(),
+  button_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+});
+
+// GET /developer/white-label — fetch current developer's branding config
+router.get('/white-label', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const row = await queryOne<{
+    company_name: string;
+    logo_url: string | null;
+    primary_color: string;
+    button_color: string | null;
+    updated_at: string;
+  }>(
+    `SELECT company_name, logo_url, primary_color, button_color, updated_at
+     FROM white_label_configs WHERE developer_email = $1`,
+    [req.developer!.email]
+  );
+
+  res.json(row ?? {
+    company_name: '',
+    logo_url: null,
+    primary_color: '#4F46E5',
+    button_color: null,
+  });
+});
+
+// PUT /developer/white-label — upsert branding config
+router.put(
+  '/white-label',
+  sessionAuth,
+  validateBody(whiteLabelSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    const { company_name, logo_url, primary_color, button_color } = req.body as z.infer<typeof whiteLabelSchema>;
+
+    await query(
+      `INSERT INTO white_label_configs
+         (developer_email, company_name, logo_url, primary_color, button_color, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (developer_email) DO UPDATE
+         SET company_name   = EXCLUDED.company_name,
+             logo_url       = EXCLUDED.logo_url,
+             primary_color  = EXCLUDED.primary_color,
+             button_color   = EXCLUDED.button_color,
+             updated_at     = NOW()`,
+      [
+        req.developer!.email,
+        company_name,
+        logo_url ?? null,
+        primary_color ?? '#4F46E5',
+        button_color ?? null,
+      ]
+    );
+
+    logger.info('White-label config updated', { email: req.developer!.email });
+    res.json({ updated: true });
+  }
+);
+
 export default router;

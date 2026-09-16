@@ -20,6 +20,7 @@ import {
   Link2,
   ShieldCheck,
   GitBranch,
+  Paintbrush,
 } from 'lucide-react';
 import { getSession, clearSession, Developer } from '@/lib/auth';
 
@@ -36,6 +37,7 @@ const nav = [
   { href: '/dashboard/afriapp', label: 'AfriApp Store', icon: Store },
   { href: '/dashboard/inquiries', label: 'Inquiries', icon: Link2 },
   { href: '/dashboard/compliance', label: 'Compliance', icon: ShieldCheck },
+  { href: '/dashboard/white-label', label: 'White Label', icon: Paintbrush },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
