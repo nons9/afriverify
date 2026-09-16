@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, LogOut, Link2Off, BadgeCheck } from 'lucide-react';
+import { ShieldCheck, LogOut, Link2Off, BadgeCheck, Key, RotateCcw, Trash2, Activity, ExternalLink } from 'lucide-react';
 import { identityApi, clearIdentitySession } from '@/lib/identity-auth';
 
 interface Me {
@@ -22,6 +22,16 @@ interface Connection {
   is_active: boolean;
 }
 
+interface VIT {
+  id: string;
+  token_prefix: string;
+  usage_count: number;
+  last_used_at: string | null;
+  last_used_by: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
 const LEVEL_LABELS: Record<number, string> = {
   0: 'Not verified',
   1: 'Phone verified',
@@ -33,19 +43,38 @@ function maskPhone(phone: string): string {
   return `${phone.slice(0, 4)}${'•'.repeat(phone.length - 7)}${phone.slice(-3)}`;
 }
 
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}yr ago`;
+}
+
 export default function IdentityPortalPage() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [vits, setVits] = useState<VIT[]>([]);
   const [loading, setLoading] = useState(true);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [revokingVit, setRevokingVit] = useState<string | null>(null);
+  const [refreshingVit, setRefreshingVit] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([identityApi.get<Me>('/v1/identity-portal/me'), identityApi.get<{ connections: Connection[] }>('/v1/identity-portal/connections')])
-      .then(([meData, connData]) => {
+    Promise.all([
+      identityApi.get<Me>('/v1/identity-portal/me'),
+      identityApi.get<{ connections: Connection[] }>('/v1/identity-portal/connections'),
+      identityApi.get<{ vits: VIT[] }>('/v1/identity-portal/vit'),
+    ])
+      .then(([meData, connData, vitData]) => {
         setMe(meData);
         setConnections(connData.connections);
+        setVits(vitData.vits);
       })
       .catch((err) => setError((err as Error).message || 'Could not load your identity'))
       .finally(() => setLoading(false));
@@ -61,6 +90,35 @@ export default function IdentityPortalPage() {
       setError((err as Error).message || 'Could not disconnect');
     } finally {
       setRevoking(null);
+    }
+  }
+
+  async function handleRevokeVIT(vitId: string) {
+    if (!confirm('Revoke this token? Any platform holding it will no longer be able to verify you with it.')) return;
+    setRevokingVit(vitId);
+    try {
+      await identityApi.delete(`/v1/identity-portal/vit/${vitId}`);
+      setVits((prev) => prev.filter((v) => v.id !== vitId));
+    } catch (err) {
+      setError((err as Error).message || 'Could not revoke token');
+    } finally {
+      setRevokingVit(null);
+    }
+  }
+
+  async function handleRefreshVIT() {
+    if (!confirm('Refresh your Verified Identity Token? All existing tokens will be revoked and a new one issued.')) return;
+    setRefreshingVit(true);
+    try {
+      const result = await identityApi.post<{ token: string; payload: Record<string, unknown> }>('/v1/identity-portal/vit/refresh', {});
+      // Re-fetch the VIT list so we show the new token
+      const vitData = await identityApi.get<{ vits: VIT[] }>('/v1/identity-portal/vit');
+      setVits(vitData.vits);
+      router.push(`/my-identity/vit?token=${encodeURIComponent(result.token)}`);
+    } catch (err) {
+      setError((err as Error).message || 'Could not refresh token');
+    } finally {
+      setRefreshingVit(false);
     }
   }
 
@@ -134,6 +192,83 @@ export default function IdentityPortalPage() {
           </div>
         )}
 
+        {/* Verified Identity Token section */}
+        <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden mb-6">
+          <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                <Key className="w-4 h-4 text-indigo-400" />
+                Verified Identity Token
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Share your token with platforms to prove your verification — they can&apos;t see your personal details.
+              </p>
+            </div>
+            <button
+              onClick={handleRefreshVIT}
+              disabled={refreshingVit}
+              className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50 transition-colors shrink-0 ml-4"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${refreshingVit ? 'animate-spin' : ''}`} />
+              {refreshingVit ? 'Refreshing...' : 'Refresh all'}
+            </button>
+          </div>
+
+          {vits.length === 0 ? (
+            <div className="px-6 py-8 text-center">
+              <p className="text-slate-500 text-sm mb-3">No active tokens.</p>
+              <button
+                onClick={handleRefreshVIT}
+                disabled={refreshingVit}
+                className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50 transition-colors"
+              >
+                Generate your first token
+              </button>
+            </div>
+          ) : (
+            <ul className="divide-y divide-white/5">
+              {vits.map((vit) => (
+                <li key={vit.id} className="px-6 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs font-mono text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded">
+                          {vit.token_prefix}…
+                        </code>
+                        <a
+                          href={`/my-identity/vit?id=${vit.id}`}
+                          className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-400 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" /> View
+                        </a>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1.5 space-y-0.5">
+                        <div>
+                          Used <span className="text-slate-300 tabular-nums">{vit.usage_count}</span> times
+                          {vit.last_used_by && <> &middot; last by <span className="text-slate-300">{vit.last_used_by}</span></>}
+                          {vit.last_used_at && <> {timeAgo(vit.last_used_at)}</>}
+                        </div>
+                        <div>
+                          Expires {new Date(vit.expires_at).toLocaleDateString()}
+                          &middot; issued {timeAgo(vit.created_at)}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRevokeVIT(vit.id)}
+                      disabled={revokingVit === vit.id}
+                      className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 disabled:opacity-50 transition-colors shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {revokingVit === vit.id ? 'Revoking...' : 'Revoke'}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
         <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden mb-6">
           <div className="px-6 py-4 border-b border-white/10">
             <h2 className="text-sm font-semibold text-white">Connected platforms</h2>
@@ -182,6 +317,19 @@ export default function IdentityPortalPage() {
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* Usage log link */}
+        {vits.length > 0 && (
+          <div className="mt-4 text-center">
+            <a
+              href="/my-identity/vit"
+              className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              View full token usage history
+            </a>
           </div>
         )}
       </div>
