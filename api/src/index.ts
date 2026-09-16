@@ -24,6 +24,7 @@ import adminRouter from './routes/admin';
 import vitRouter from './routes/vit';
 import flowsRouter from './routes/flows';
 import countriesRouter from './routes/countries';
+import hostedRouter from './routes/hosted';
 import logger from './utils/logger';
 import { initSentry, captureError } from './utils/sentry';
 import { startFailureRateMonitor } from './services/alerting.service';
@@ -88,6 +89,7 @@ app.use('/v1/admin', adminRouter);
 app.use('/v1/vit', vitRouter);
 app.use('/v1/developer/flows', flowsRouter);
 app.use('/v1/countries', countriesRouter);
+app.use('/v1/hosted', hostedRouter);
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json({
