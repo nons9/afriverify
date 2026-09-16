@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import { validateBody } from '../middleware/validate';
 import { query, queryOne } from '../db';
 import logger from '../utils/logger';
+import { sendWelcomeEmail } from '../services/email-billing.service';
 
 const router = Router();
 const scryptAsync = promisify(scrypt);
@@ -68,6 +69,9 @@ router.post(
 
     const token = signToken(rows[0].id, normalizedEmail, company_name);
     logger.info('Developer registered', { id: rows[0].id, email: normalizedEmail });
+
+    sendWelcomeEmail({ email: normalizedEmail, fullName: full_name, companyName: company_name })
+      .catch((err) => logger.error('Failed to send welcome email', { error: (err as Error).message }));
 
     res.status(201).json({
       token,

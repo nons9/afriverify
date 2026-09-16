@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import { query, queryOne } from '../db';
 import { createCheckout } from './flutterwave.service';
-import { sendUsageAlertEmail, sendOverageInvoiceEmail, sendSubscriptionPastDueEmail } from './email-billing.service';
+import { sendUsageAlertEmail, sendOverageInvoiceEmail, sendSubscriptionPastDueEmail, sendPurchaseConfirmationEmail } from './email-billing.service';
+import { generateInvoicePdf } from './pdf-invoice.service';
 import { ApiTier } from '../types';
 import logger from '../utils/logger';
 
@@ -159,6 +160,44 @@ export async function activateSubscription(params: {
   );
 
   logger.info('Subscription activated', { apiKeyId: params.apiKeyId, plan: params.plan });
+
+  // Send purchase confirmation email with PDF invoice attachment (fire-and-forget).
+  const keyInfo = await queryOne<{
+    platform_name: string;
+    platform_email: string;
+    invoice_number: string;
+    invoice_id: string;
+    verifications_included: string;
+  }>(
+    `SELECT ak.platform_name, ak.platform_email,
+            i.invoice_number, i.id AS invoice_id, i.verifications_included
+     FROM api_keys ak
+     JOIN invoices i ON i.api_key_id = ak.id AND i.payment_tx_ref = $1`,
+    [params.reference]
+  );
+
+  if (keyInfo) {
+    const invData = {
+      invoiceNumber: keyInfo.invoice_number,
+      status: 'paid',
+      createdAt: new Date(),
+      paidAt: new Date(),
+      periodStart,
+      periodEnd,
+      developerEmail: keyInfo.platform_email,
+      platformName: keyInfo.platform_name,
+      plan: params.plan,
+      currency: params.currency,
+      amountCents: params.amountCents,
+      overageVerifications: 0,
+      overageAmountCents: 0,
+      totalAmountCents: params.amountCents,
+      verificationsIncluded: parseInt(keyInfo.verifications_included, 10),
+    };
+    generateInvoicePdf(invData)
+      .then((pdf) => sendPurchaseConfirmationEmail({ inv: invData, pdfBuffer: pdf }))
+      .catch((err) => logger.error('Failed to send purchase confirmation email', { error: (err as Error).message }));
+  }
 }
 
 interface DueSubscription {
