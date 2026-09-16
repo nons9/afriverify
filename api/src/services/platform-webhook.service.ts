@@ -3,65 +3,20 @@ import { query, queryOne } from '../db';
 import { decryptString, getDataEncryptionKey } from '../utils/crypto';
 import logger from '../utils/logger';
 import { captureError } from '../utils/sentry';
+import {
+  WebhookEvent,
+  buildEvent,
+  type AmlStatus,
+  type TrustLevel,
+  type PlanName,
+} from './webhook-events';
 
-export interface IdentityWebhookPayload {
-  event: 'identity.verification_updated';
-  identity_id: string;
-  platform_user_id: string | null;
-  verification_level: number;
-  level_label: 'none' | 'basic' | 'biometric';
-  trust_score?: number;
-  timestamp: string;
-}
+// Re-export the full catalog type and builder for callers
+export type { WebhookEvent } from './webhook-events';
+export { buildEvent, WEBHOOK_EVENT_TYPES } from './webhook-events';
 
-export interface KybWebhookPayload {
-  event: 'kyb.status_updated';
-  kyb_entity_id: string;
-  verification_status: 'verified' | 'rejected';
-  rejection_reason?: string;
-  timestamp: string;
-}
-
-export interface ConnectionRevokedWebhookPayload {
-  event: 'identity.connection_revoked';
-  identity_id: string;
-  platform_user_id: string | null;
-  timestamp: string;
-}
-
-export interface TrustScoreWebhookPayload {
-  event: 'trust.score_updated';
-  identity_id: string;
-  platform_user_id: string | null;
-  trust_score: number;
-  trust_level: string;
-  level_changed: boolean;
-  score_delta: number;
-  trust_event_type: string;
-  timestamp: string;
-}
-
-export interface AmlWebhookPayload {
-  event: 'identity.aml_updated';
-  identity_id: string;
-  platform_user_id: string | null;
-  aml_status: 'clear' | 'flagged' | 'blocked';
-  previous_status: string;
-  timestamp: string;
-}
-
-export type WebhookPayload =
-  | IdentityWebhookPayload
-  | KybWebhookPayload
-  | ConnectionRevokedWebhookPayload
-  | TrustScoreWebhookPayload
-  | AmlWebhookPayload;
-
-const LEVEL_LABELS: Record<number, 'none' | 'basic' | 'biometric'> = {
-  0: 'none',
-  1: 'basic',
-  2: 'biometric',
-};
+// Legacy type alias kept so existing callers don't break
+export type WebhookPayload = WebhookEvent;
 
 // Exponential backoff delays before attempt 2 and 3 (ms)
 const RETRY_DELAYS_MS = [2_000, 4_000];
@@ -220,12 +175,14 @@ export async function pushVerificationUpdate(
 
   if (!apiKey?.webhook_url) return;
 
+  const labels: Record<number, 'none' | 'basic' | 'biometric'> = { 0: 'none', 1: 'basic', 2: 'biometric' };
   const payload: WebhookPayload = {
+    schema_version:     'v1',
     event:              'identity.verification_updated',
     identity_id:        identityId,
     platform_user_id:   platformUserId,
     verification_level: verificationLevel,
-    level_label:        LEVEL_LABELS[verificationLevel] ?? 'none',
+    level_label:        labels[verificationLevel] ?? 'none',
     trust_score:        trustScore,
     timestamp:          new Date().toISOString(),
   };
@@ -259,6 +216,7 @@ export async function pushConnectionRevoked(
   if (!apiKey?.webhook_url) return;
 
   const payload: WebhookPayload = {
+    schema_version:    'v1',
     event:             'identity.connection_revoked',
     identity_id:        identityId,
     platform_user_id:   platformUserId,
@@ -308,11 +266,12 @@ export async function pushTrustScoreUpdate(
   for (const apiKey of connectedKeys) {
     if (!apiKey.webhook_url) continue;
     const payload: WebhookPayload = {
+      schema_version:   'v1',
       event:            'trust.score_updated',
       identity_id:       identityId,
       platform_user_id:  apiKey.platform_user_id,
       trust_score:       trustScore,
-      trust_level:       trustLevel,
+      trust_level:       trustLevel as TrustLevel,
       level_changed:     levelChanged,
       score_delta:       scoreDelta,
       trust_event_type:  trustEventType,
@@ -352,6 +311,7 @@ export async function pushKybUpdate(
   );
 
   const payload: WebhookPayload = {
+    schema_version:      'v1',
     event:               'kyb.status_updated',
     kyb_entity_id:        kybEntityId,
     verification_status:  verificationStatus,
@@ -399,6 +359,7 @@ export async function pushAmlUpdate(
   for (const apiKey of connectedKeys) {
     if (!apiKey.webhook_url) continue;
     const payload: WebhookPayload = {
+      schema_version:   'v1',
       event:            'identity.aml_updated',
       identity_id:       identityId,
       platform_user_id:  apiKey.platform_user_id,
@@ -416,6 +377,151 @@ export async function pushAmlUpdate(
       captureError(err, { apiKeyId: apiKey.id, event: payload.event, stage: 'webhook_delivery' });
     });
   }
+}
+
+// ─── New catalog push helpers ─────────────────────────────────────────────────
+
+/** Shared query: all API keys connected to an identity that have a webhook URL */
+async function connectedKeys(identityId: string) {
+  return query<{
+    id: string;
+    webhook_url: string | null;
+    webhook_secret_hash: string | null;
+    platform_user_id: string | null;
+  }>(
+    `SELECT ak.id, ak.webhook_url, ak.webhook_secret_hash, pc.platform_user_id
+     FROM platform_connections pc
+     JOIN api_keys ak ON ak.id = pc.platform_api_key_id
+     WHERE pc.identity_id = $1 AND pc.is_active = true AND ak.is_active = true`,
+    [identityId]
+  );
+}
+
+function fire(
+  webhookUrl: string,
+  secretHash: string | null,
+  apiKeyId: string,
+  payload: WebhookPayload,
+) {
+  deliverWithRetry(webhookUrl, secretHash, payload, apiKeyId).catch((err) => {
+    logger.error('deliverWithRetry threw unexpectedly', { error: err.message });
+    captureError(err, { apiKeyId, event: payload.event, stage: 'webhook_delivery' });
+  });
+}
+
+export async function pushVerificationCompleted(
+  apiKeyId: string,
+  sessionToken: string,
+  identityId: string,
+  platformUserId: string | null,
+  result: 'pass' | 'fail' | 'review',
+  level: number,
+  trustScore: number,
+  checks: { otp: boolean; id_document: boolean | null; face_match: boolean | null; aml: boolean | null },
+): Promise<void> {
+  const apiKey = await queryOne<{ webhook_url: string | null; webhook_secret_hash: string | null }>(
+    `SELECT webhook_url, webhook_secret_hash FROM api_keys WHERE id = $1 AND is_active = true`,
+    [apiKeyId]
+  );
+  if (!apiKey?.webhook_url) return;
+  fire(apiKey.webhook_url, apiKey.webhook_secret_hash, apiKeyId,
+    buildEvent.verificationCompleted(sessionToken, identityId, platformUserId, result, level, trustScore, checks));
+}
+
+export async function pushAmlScreened(
+  identityId: string,
+  status: AmlStatus,
+  previousStatus: AmlStatus | null,
+  matchCount: number,
+): Promise<void> {
+  const keys = await connectedKeys(identityId);
+  for (const ak of keys) {
+    if (!ak.webhook_url) continue;
+    fire(ak.webhook_url, ak.webhook_secret_hash, ak.id,
+      buildEvent.amlScreened(identityId, ak.platform_user_id, status, previousStatus, matchCount));
+  }
+}
+
+export async function pushAmlAlertCreated(
+  identityId: string,
+  alertId: string,
+  matchName: string,
+  matchScore: number,
+  listSource: string,
+): Promise<void> {
+  const keys = await connectedKeys(identityId);
+  for (const ak of keys) {
+    if (!ak.webhook_url) continue;
+    fire(ak.webhook_url, ak.webhook_secret_hash, ak.id,
+      buildEvent.amlAlertCreated(identityId, ak.platform_user_id, alertId, matchName, matchScore, listSource));
+  }
+}
+
+export async function pushRiskFlagCreated(
+  apiKeyId: string,
+  identityId: string,
+  platformUserId: string | null,
+  flagId: string,
+  ruleId: string,
+  ruleName: string,
+  actionTaken: string,
+  trustDelta: number | null,
+): Promise<void> {
+  const apiKey = await queryOne<{ webhook_url: string | null; webhook_secret_hash: string | null }>(
+    `SELECT webhook_url, webhook_secret_hash FROM api_keys WHERE id = $1 AND is_active = true`,
+    [apiKeyId]
+  );
+  if (!apiKey?.webhook_url) return;
+  fire(apiKey.webhook_url, apiKey.webhook_secret_hash, apiKeyId,
+    buildEvent.riskFlagCreated(identityId, platformUserId, flagId, ruleId, ruleName, actionTaken, trustDelta));
+}
+
+export async function pushTrustThresholdCrossed(
+  identityId: string,
+  trustScore: number,
+  newLevel: TrustLevel,
+  previousLevel: TrustLevel,
+): Promise<void> {
+  const keys = await connectedKeys(identityId);
+  for (const ak of keys) {
+    if (!ak.webhook_url) continue;
+    fire(ak.webhook_url, ak.webhook_secret_hash, ak.id,
+      buildEvent.trustThresholdCrossed(identityId, ak.platform_user_id, trustScore, newLevel, previousLevel));
+  }
+}
+
+export async function pushSubscriptionActivated(
+  apiKeyId: string,
+  plan: PlanName,
+  previousPlan: PlanName | null,
+  verificationsIncluded: number,
+  periodStart: string,
+  periodEnd: string,
+): Promise<void> {
+  const apiKey = await queryOne<{ webhook_url: string | null; webhook_secret_hash: string | null }>(
+    `SELECT webhook_url, webhook_secret_hash FROM api_keys WHERE id = $1 AND is_active = true`,
+    [apiKeyId]
+  );
+  if (!apiKey?.webhook_url) return;
+  fire(apiKey.webhook_url, apiKey.webhook_secret_hash, apiKeyId,
+    buildEvent.subscriptionActivated(plan, previousPlan, verificationsIncluded, periodStart, periodEnd));
+}
+
+export async function pushUsageThresholdReached(
+  apiKeyId: string,
+  plan: PlanName,
+  thresholdPercent: 80 | 100,
+  verificationsUsed: number,
+  verificationsIncluded: number,
+  periodEnd: string,
+): Promise<void> {
+  const apiKey = await queryOne<{ webhook_url: string | null; webhook_secret_hash: string | null }>(
+    `SELECT webhook_url, webhook_secret_hash FROM api_keys WHERE id = $1 AND is_active = true`,
+    [apiKeyId]
+  );
+  if (!apiKey?.webhook_url) return;
+  fire(apiKey.webhook_url, apiKey.webhook_secret_hash, apiKeyId,
+    buildEvent.usageThresholdReached(plan, thresholdPercent, verificationsUsed, verificationsIncluded, periodEnd));
 }
 
 export async function createOrUpdatePlatformConnection(

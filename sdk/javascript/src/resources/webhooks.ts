@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { WebhookSignatureError } from '../errors.js';
 import type { WebhookEvent, WebhookEventType } from '../types.js';
+import { WEBHOOK_EVENT_TYPES } from '../types.js';
 
 export class WebhooksResource {
   /**
@@ -10,13 +11,13 @@ export class WebhooksResource {
    * @param signature The value of the `X-VerifyAfrica-Signature` header
    * @param secret    Your webhook signing secret (from the AfriVerify dashboard)
    */
-  constructEvent<T = unknown>(
+  constructEvent(
     payload: string | Buffer,
     signature: string,
     secret: string,
-  ): WebhookEvent<T> {
+  ): WebhookEvent {
     this.verifySignature(payload, signature, secret);
-    return JSON.parse(typeof payload === 'string' ? payload : payload.toString('utf8')) as WebhookEvent<T>;
+    return JSON.parse(typeof payload === 'string' ? payload : payload.toString('utf8')) as WebhookEvent;
   }
 
   /**
@@ -46,11 +47,14 @@ export class WebhooksResource {
     }
   }
 
-  /** Type-narrowing helper for event handlers */
-  isEventType<T = unknown>(
-    event: WebhookEvent<unknown>,
-    type: WebhookEventType,
-  ): event is WebhookEvent<T> {
+  /** Type-narrowing helper — narrows to the specific event shape */
+  isEventType<E extends WebhookEvent>(
+    event: WebhookEvent,
+    type: E['event'],
+  ): event is E {
     return event.event === type;
   }
+
+  /** All known event type strings */
+  readonly eventTypes = WEBHOOK_EVENT_TYPES;
 }
