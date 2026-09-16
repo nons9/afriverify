@@ -128,7 +128,7 @@ router.get('/developers/:email', adminAuth, async (req: Request, res: Response) 
        LEFT JOIN subscriptions sub ON sub.api_key_id = ak.id AND sub.status IN ('active','trialing')
        WHERE d.email = $1
        LIMIT 1`,
-      [req.params.email.toLowerCase()]
+      [String(req.params.email).toLowerCase()]
     );
     if (!rows[0]) { res.status(404).json({ error: 'not_found' }); return; }
 
@@ -185,7 +185,7 @@ router.patch(
     const { is_verified, plan } = req.body as z.infer<typeof patchDeveloperSchema>;
     try {
       if (is_verified !== undefined) {
-        await pool.query('UPDATE developers SET is_verified = $1 WHERE email = $2', [is_verified, req.params.email]);
+        await pool.query('UPDATE developers SET is_verified = $1 WHERE email = $2', [is_verified, String(req.params.email)]);
       }
       if (plan) {
         await pool.query(
@@ -195,7 +195,7 @@ router.patch(
              JOIN developers d ON d.id = ak.developer_id
              WHERE d.email = $2
            )`,
-          [plan, req.params.email]
+          [plan, String(req.params.email)]
         );
       }
       res.json({ ok: true });
