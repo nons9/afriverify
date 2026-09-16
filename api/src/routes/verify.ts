@@ -24,6 +24,8 @@ import { sha256, generateSecureToken, timingSafeEqualHex } from '../utils/crypto
 import { uploadToS3, downloadFromS3 } from '../utils/s3';
 import logger from '../utils/logger';
 import { captureError } from '../utils/sentry';
+import { stepMessage } from '../utils/i18n';
+import { SupportedLang } from '../types';
 import { VerificationSession } from '../types';
 import {
   pushVerificationUpdate,
@@ -55,6 +57,7 @@ const initiateSchema = z
     platform_user_id: z.string().max(255).optional(),
     redirect_url: z.string().url().optional(),
     flow_id: z.string().uuid().optional(),
+    lang: z.enum(['en', 'fr']).optional().default('en'),
   })
   .refine((data) => data.otp_channel !== 'email' || !!data.email, {
     message: 'email is required when otp_channel is "email"',
@@ -66,12 +69,13 @@ router.post(
   rateLimitVerifyInitiate,
   validateBody(initiateSchema),
   async (req: Request, res: Response): Promise<void> => {
-    const { phone, email, otp_channel, platform_user_id, flow_id } = req.body as {
+    const { phone, email, otp_channel, platform_user_id, flow_id, lang } = req.body as {
       phone: string;
       email?: string;
       otp_channel: 'sms' | 'email';
       platform_user_id?: string;
       flow_id?: string;
+      lang: 'en' | 'fr';
     };
     const apiKey = req.apiKey!;
 
@@ -133,8 +137,8 @@ router.post(
 
     await query(
       `INSERT INTO verification_sessions
-         (session_token, phone, email, otp_channel, step, api_key_id, ip_address, device_id, expires_at, platform_user_id, flow_id)
-       VALUES ($1,$2,$3,$4,'phone',$5,$6,$7,$8,$9,$10)`,
+         (session_token, phone, email, otp_channel, step, api_key_id, ip_address, device_id, expires_at, platform_user_id, flow_id, lang)
+       VALUES ($1,$2,$3,$4,'phone',$5,$6,$7,$8,$9,$10,$11)`,
       [
         sessionToken,
         phone,
@@ -146,6 +150,7 @@ router.post(
         expiresAt,
         platform_user_id ?? null,
         resolvedFlowId,
+        lang ?? 'en',
       ]
     );
 
@@ -612,7 +617,13 @@ router.get(
       return;
     }
 
-    const out: Record<string, unknown> = { status: row.step, session_token };
+    const sessionLang = (row.lang as SupportedLang) ?? 'en';
+    const out: Record<string, unknown> = {
+      status: row.step,
+      session_token,
+      lang: sessionLang,
+      message: stepMessage(row.step, sessionLang),
+    };
 
     if (row.flow_id) {
       out.flow_config = {

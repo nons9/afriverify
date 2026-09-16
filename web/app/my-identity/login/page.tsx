@@ -5,6 +5,35 @@ import { useRouter } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
 import { identityApi, setIdentitySession } from '@/lib/identity-auth';
 
+const i18n = {
+  en: {
+    title: 'Your identity',
+    subtitle: 'See which platforms trust your AfriVerify verification, and disconnect any you no longer use.',
+    phoneLabel: 'Phone number',
+    phoneHint: 'The phone number you verified with, including country code.',
+    sendCode: 'Send code',
+    sending: 'Sending code…',
+    otpLabel: 'Enter the 6-digit code',
+    continueBtn: 'Continue',
+    verifying: 'Verifying…',
+    differentNumber: 'Use a different number',
+  },
+  fr: {
+    title: 'Votre identité',
+    subtitle: 'Découvrez quelles plateformes font confiance à votre vérification AfriVerify, et déconnectez celles que vous n\'utilisez plus.',
+    phoneLabel: 'Numéro de téléphone',
+    phoneHint: 'Le numéro avec lequel vous avez effectué la vérification, avec l\'indicatif pays.',
+    sendCode: 'Envoyer le code',
+    sending: 'Envoi en cours…',
+    otpLabel: 'Saisissez le code à 6 chiffres',
+    continueBtn: 'Continuer',
+    verifying: 'Vérification…',
+    differentNumber: 'Utiliser un autre numéro',
+  },
+} as const;
+
+type Lang = keyof typeof i18n;
+
 export default function IdentityPortalLoginPage() {
   const router = useRouter();
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
@@ -12,6 +41,8 @@ export default function IdentityPortalLoginPage() {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [lang, setLang] = useState<Lang>('en');
+  const t = i18n[lang];
 
   async function handleSendOtp(e: FormEvent) {
     e.preventDefault();
@@ -48,14 +79,31 @@ export default function IdentityPortalLoginPage() {
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
+        {/* Language toggle */}
+        <div className="flex justify-end mb-4">
+          <div className="inline-flex rounded-lg overflow-hidden border border-white/10 text-xs">
+            {(['en', 'fr'] as Lang[]).map((l) => (
+              <button
+                key={l}
+                onClick={() => setLang(l)}
+                className={`px-3 py-1.5 font-medium transition-colors ${
+                  lang === l
+                    ? 'bg-indigo-500 text-white'
+                    : 'bg-white/5 text-slate-400 hover:text-white'
+                }`}
+              >
+                {l.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-500/10 mb-4">
             <ShieldCheck className="w-6 h-6 text-indigo-400" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Your identity</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            See which platforms trust your AfriVerify verification, and disconnect any you no longer use.
-          </p>
+          <h1 className="text-2xl font-bold text-white">{t.title}</h1>
+          <p className="text-slate-400 text-sm mt-1">{t.subtitle}</p>
         </div>
 
         {step === 'phone' ? (
@@ -66,7 +114,7 @@ export default function IdentityPortalLoginPage() {
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">Phone number</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">{t.phoneLabel}</label>
               <input
                 type="tel"
                 required
@@ -75,14 +123,14 @@ export default function IdentityPortalLoginPage() {
                 placeholder="+234..."
                 className="w-full bg-white/5 border border-white/10 text-white placeholder-slate-500 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-colors"
               />
-              <p className="text-xs text-slate-500 mt-1.5">The phone number you verified with, including country code.</p>
+              <p className="text-xs text-slate-500 mt-1.5">{t.phoneHint}</p>
             </div>
             <button
               type="submit"
               disabled={loading}
               className="w-full bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg text-sm transition-colors"
             >
-              {loading ? 'Sending code...' : 'Send code'}
+              {loading ? t.sending : t.sendCode}
             </button>
           </form>
         ) : (
@@ -93,7 +141,7 @@ export default function IdentityPortalLoginPage() {
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">Enter the 6-digit code</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">{t.otpLabel}</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -110,14 +158,14 @@ export default function IdentityPortalLoginPage() {
               disabled={loading || otp.length !== 6}
               className="w-full bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg text-sm transition-colors"
             >
-              {loading ? 'Verifying...' : 'Continue'}
+              {loading ? t.verifying : t.continueBtn}
             </button>
             <button
               type="button"
               onClick={() => setStep('phone')}
               className="w-full text-slate-500 hover:text-slate-300 text-xs transition-colors"
             >
-              Use a different number
+              {t.differentNumber}
             </button>
           </form>
         )}
