@@ -75,36 +75,42 @@ const CURL_VERIFY = `curl -X POST https://api.afriverify.sankofaapp.com/v1/verif
     "country": "NG"
   }'`;
 
-const NODE_EXAMPLE = `import AfriVerify from '@afriverify/node';
+const NODE_EXAMPLE = `import { AfriVerify } from 'afriverify';
+import { readFileSync } from 'fs';
 
 const client = new AfriVerify({
-  apiKey: process.env.AFRIVERIFY_API_KEY,
-  environment: 'sandbox',
+  apiKey: process.env.AFRIVERIFY_API_KEY!, // sandbox key = sandbox mode
 });
 
-// 1. Initiate verification
+// 1. Initiate verification session
 const { session_token } = await client.verify.initiate({
   phone: '+2348000000001',
+  lang: 'en',
 });
 
 // 2. Confirm OTP (sandbox always accepts '123456')
 await client.verify.confirmOtp({
   session_token,
-  otp: '123456',
+  code: '123456',
 });
 
-// 3. Submit ID
-const result = await client.verify.submitId({
+// 3. Upload identity document image
+await client.verify.uploadId({
   session_token,
-  id_type: 'nin',
-  id_number: '00000000001',
-  first_name: 'Adaeze',
-  last_name: 'Obi',
-  country: 'NG',
+  front: readFileSync('./id-front.jpg'), // Buffer, Blob, or base64 string
 });
 
-console.log(result.verified); // true
-console.log(result.vit);      // signed Verified Identity Token`;
+// 4. Submit selfie for face match
+await client.verify.submitFace({
+  session_token,
+  selfie: readFileSync('./selfie.jpg'),
+});
+
+// 5. Poll for result
+const status = await client.verify.getStatus(session_token);
+console.log(status.result);      // 'pass'
+console.log(status.trust_score); // e.g. 412
+console.log(status.identity_id); // reusable identity reference`;
 
 const WEBHOOK_EXAMPLE = `import crypto from 'crypto';
 
@@ -221,9 +227,9 @@ export default function OnboardingPage() {
 
         <Step n={5} title="Use the Node.js SDK (optional)">
           <p className="text-sm text-slate-400 mb-3">
-            Install our official SDK for a cleaner integration.
+            Install the official SDK for full TypeScript types and cleaner integration.
           </p>
-          <CopyBlock code="npm install @afriverify/node" />
+          <CopyBlock code="npm install afriverify" />
           <div className="mt-3">
             <CopyBlock code={NODE_EXAMPLE} lang="ts" />
           </div>

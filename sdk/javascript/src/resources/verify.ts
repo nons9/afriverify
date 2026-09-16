@@ -47,8 +47,8 @@ export class VerifyResource {
 
 async function toBlob(src: Buffer | Blob | string): Promise<Blob> {
   if (src instanceof Blob) return src;
-  if (Buffer.isBuffer(src)) return new Blob([src], { type: 'image/jpeg' });
+  if (Buffer.isBuffer(src)) return new Blob([new Uint8Array(src)], { type: 'image/jpeg' });
   // base64 string
   const binary = Buffer.from(src, 'base64');
-  return new Blob([binary], { type: 'image/jpeg' });
+  return new Blob([new Uint8Array(binary)], { type: 'image/jpeg' });
 }
