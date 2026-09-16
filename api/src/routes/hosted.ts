@@ -13,7 +13,10 @@ import { query, queryOne } from '../db';
 import { sha256, timingSafeEqualHex } from '../utils/crypto';
 import { sendSms } from '../services/otp.service';
 import { sendOtpEmail } from '../services/email-otp.service';
-import { verifyIdWithSmile, biometricKYC } from '../services/smile-identity.service';
+import {
+  verifyId as verifyIdWithProvider,
+  biometricKYC as biometricKYCWithProvider
+} from '../services/identity-provider.service';
 import { applyTrustEvent } from '../services/trust-score.service';
 import { issueVIT } from '../services/vit.service';
 import { uploadToS3, downloadFromS3 } from '../utils/s3';
@@ -256,7 +259,7 @@ router.post(
     let smileCode = 'skipped';
 
     try {
-      const result = await verifyIdWithSmile({
+      const result = await verifyIdWithProvider({
         id_type: id_type.toUpperCase(),
         id_number,
         country: nationality.toUpperCase().substring(0, 2),
@@ -264,6 +267,7 @@ router.post(
         last_name,
         dob,
         phone: session.phone,
+        id_photo_buffer: file.buffer
       });
       if (result.rejected) {
         await query(`UPDATE verification_sessions SET step = 'failed' WHERE id = $1`, [session.id]);
@@ -273,7 +277,7 @@ router.post(
       idVerified = result.success;
       smileCode = result.result_code;
     } catch (err) {
-      logger.warn('Smile ID unavailable in hosted flow', { error: (err as Error).message });
+      logger.warn('Identity provider unavailable in hosted flow', { error: (err as Error).message });
     }
 
     await query(
@@ -413,12 +417,12 @@ async function runHostedBiometric(session: VerificationSession, selfieKey: strin
       ? await downloadFromS3(session.id_photo_s3_key)
       : undefined;
 
-    const result = await biometricKYC({
+    const result = await biometricKYCWithProvider({
       country: (identity?.nationality ?? 'NG').toUpperCase().substring(0, 2),
       id_type: (identity?.id_type ?? 'NIN').toUpperCase(),
       partner_user_id: identityId,
       selfie_buffer: selfieBuffer,
-      id_photo_buffer: idPhotoBuffer,
+      id_photo_buffer: idPhotoBuffer
     });
 
     if (result.success && (result.face_match_confidence ?? 0) >= 70) {
