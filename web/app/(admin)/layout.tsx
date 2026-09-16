@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
   Shield, LayoutDashboard, Users, Fingerprint,
-  Ban, BarChart2, Activity, Key, LogOut, UserCog, Menu, X,
+  Ban, BarChart2, Activity, Key, LogOut, UserCog, Menu, X, Zap,
 } from 'lucide-react';
 import { getAdminSession, clearAdminSession, AdminUser } from '@/lib/admin-auth';
 
@@ -17,6 +17,7 @@ const nav = [
   { href: '/admin/api-keys', label: 'API Keys', icon: Key },
   { href: '/admin/revenue', label: 'Revenue', icon: BarChart2 },
   { href: '/admin/health', label: 'System Health', icon: Activity },
+  { href: '/admin/risk-rules', label: 'Risk Rules', icon: Zap },
   { href: '/admin/users', label: 'Admin Users', icon: UserCog },
 ];
 

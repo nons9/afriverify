@@ -722,7 +722,7 @@ async function completeLevel1(sessionId: string, identityId: string, req: Reques
      WHERE id = $1`,
     [identityId]
   );
-  await query(`UPDATE verification_sessions SET step = 'complete' WHERE id = $1`, [sessionId]);
+  await query(`UPDATE verification_sessions SET step = 'complete', completed_at = NOW() WHERE id = $1`, [sessionId]);
   await writeAuditEvent(req, {
     event_type: 'liveness_passed',
     identity_id: identityId,
@@ -755,7 +755,7 @@ async function completeLevel2(
      WHERE id = $1`,
     [identityId]
   );
-  await query(`UPDATE verification_sessions SET step = 'complete' WHERE id = $1`, [sessionId]);
+  await query(`UPDATE verification_sessions SET step = 'complete', completed_at = NOW() WHERE id = $1`, [sessionId]);
   await applyTrustEvent({
     identity_id: identityId,
     event_type: 'initial_verification',
@@ -784,7 +784,7 @@ async function failSession(
   reason: string,
   req: Request
 ): Promise<void> {
-  await query(`UPDATE verification_sessions SET step = 'failed' WHERE id = $1`, [sessionId]);
+  await query(`UPDATE verification_sessions SET step = 'failed', completed_at = NOW() WHERE id = $1`, [sessionId]);
   await writeAuditEvent(req, {
     event_type: 'liveness_failed',
     identity_id: identityId,
