@@ -41,11 +41,21 @@ export interface TrustScoreWebhookPayload {
   timestamp: string;
 }
 
+export interface AmlWebhookPayload {
+  event: 'identity.aml_updated';
+  identity_id: string;
+  platform_user_id: string | null;
+  aml_status: 'clear' | 'flagged' | 'blocked';
+  previous_status: string;
+  timestamp: string;
+}
+
 export type WebhookPayload =
   | IdentityWebhookPayload
   | KybWebhookPayload
   | ConnectionRevokedWebhookPayload
-  | TrustScoreWebhookPayload;
+  | TrustScoreWebhookPayload
+  | AmlWebhookPayload;
 
 const LEVEL_LABELS: Record<number, 'none' | 'basic' | 'biometric'> = {
   0: 'none',
@@ -351,6 +361,51 @@ export async function pushKybUpdate(
 
   for (const apiKey of connectedKeys) {
     if (!apiKey.webhook_url) continue;
+    deliverWithRetry(
+      apiKey.webhook_url,
+      apiKey.webhook_secret_hash,
+      payload,
+      apiKey.id,
+    ).catch((err) => {
+      logger.error('deliverWithRetry threw unexpectedly', { error: err.message });
+      captureError(err, { apiKeyId: apiKey.id, event: payload.event, stage: 'webhook_delivery' });
+    });
+  }
+}
+
+// Fires to all platforms connected to the identity when AML status changes —
+// flagged/blocked statuses need to reach every partner in real time so they
+// can act on them (freeze accounts, trigger manual review, etc.).
+export async function pushAmlUpdate(
+  identityId: string,
+  amlStatus: 'clear' | 'flagged' | 'blocked',
+  previousStatus: string
+): Promise<void> {
+  const connectedKeys = await query<{
+    id: string;
+    webhook_url: string | null;
+    webhook_secret_hash: string | null;
+    platform_user_id: string | null;
+  }>(
+    `SELECT ak.id, ak.webhook_url, ak.webhook_secret_hash, pc.platform_user_id
+     FROM platform_connections pc
+     JOIN api_keys ak ON ak.id = pc.platform_api_key_id
+     WHERE pc.identity_id = $1 AND pc.is_active = true AND ak.is_active = true`,
+    [identityId]
+  );
+
+  const timestamp = new Date().toISOString();
+
+  for (const apiKey of connectedKeys) {
+    if (!apiKey.webhook_url) continue;
+    const payload: WebhookPayload = {
+      event:            'identity.aml_updated',
+      identity_id:       identityId,
+      platform_user_id:  apiKey.platform_user_id,
+      aml_status:        amlStatus,
+      previous_status:   previousStatus,
+      timestamp,
+    };
     deliverWithRetry(
       apiKey.webhook_url,
       apiKey.webhook_secret_hash,

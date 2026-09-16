@@ -29,6 +29,7 @@ import { initSentry, captureError } from './utils/sentry';
 import { startFailureRateMonitor } from './services/alerting.service';
 import { startRetentionPurge } from './services/retention.service';
 import { startBillingCron } from './services/billing.service';
+import { startAmlRescreenWorker } from './workers/aml-rescreen.worker';
 
 initSentry();
 
@@ -136,6 +137,7 @@ async function bootstrap(): Promise<void> {
   startFailureRateMonitor();
   startRetentionPurge();
   startBillingCron();
+  startAmlRescreenWorker();
 
   // Log Postgres connectivity without blocking or crashing.
   // /health will surface the real status on every probe.

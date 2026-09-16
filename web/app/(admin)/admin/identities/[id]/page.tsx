@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Fingerprint, ArrowLeft, Shield, AlertOctagon, Clock,
-  CheckCircle2, XCircle, Loader2, Ban,
+  CheckCircle2, XCircle, Loader2, Ban, RefreshCw,
 } from 'lucide-react';
 import { adminApi } from '@/lib/admin-api';
 
@@ -82,13 +82,32 @@ export default function IdentityDetailPage() {
   const [data, setData] = useState<DetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [rescreening, setRescreening] = useState(false);
+  const [rescreenMsg, setRescreenMsg] = useState('');
 
-  useEffect(() => {
+  function load() {
     adminApi.get<DetailResponse>(`/v1/admin/identities/${id}`)
       .then(setData)
       .catch((err) => setError((err as Error).message))
       .finally(() => setLoading(false));
-  }, [id]);
+  }
+
+  useEffect(() => { load(); }, [id]);
+
+  async function handleRescreen() {
+    setRescreening(true);
+    setRescreenMsg('');
+    try {
+      await adminApi.post(`/v1/admin/identities/${id}/rescreen`, {});
+      setRescreenMsg('Re-screened. Refreshing…');
+      setLoading(true);
+      load();
+    } catch (err) {
+      setRescreenMsg((err as Error).message);
+    } finally {
+      setRescreening(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -125,12 +144,25 @@ export default function IdentityDetailPage() {
             <p className="text-sm text-slate-400">{i.phone}</p>
           </div>
         </div>
-        {i.is_blacklisted && (
-          <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-full px-3 py-1">
-            <Ban className="w-3.5 h-3.5" /> Blacklisted
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {i.is_blacklisted && (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-full px-3 py-1">
+              <Ban className="w-3.5 h-3.5" /> Blacklisted
+            </span>
+          )}
+          <button
+            onClick={handleRescreen}
+            disabled={rescreening}
+            className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-40"
+          >
+            {rescreening ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Re-screen AML
+          </button>
+        </div>
       </div>
+      {rescreenMsg && (
+        <p className="text-xs text-slate-400">{rescreenMsg}</p>
+      )}
 
       {/* Identity info */}
       <div className="bg-zinc-900 border border-white/10 rounded-xl p-5">
