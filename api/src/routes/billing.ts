@@ -10,7 +10,6 @@ import logger from '../utils/logger';
 const router = Router();
 
 // ─── GET /developer/billing ─────────────────────────────────────────────────────────────────────────
-// Every key the developer owns, its current plan, and recent invoices.
 router.get('/', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const email = req.developer!.email;
 
@@ -20,8 +19,10 @@ router.get('/', sessionAuth, async (req: Request, res: Response): Promise<void> 
     environment: string;
     tier: string;
     monthly_limit: string;
+    verifications_this_month: string;
   }>(
-    `SELECT id, platform_name, environment, tier, monthly_limit FROM api_keys
+    `SELECT id, platform_name, environment, tier, monthly_limit, verifications_this_month
+     FROM api_keys
      WHERE platform_email = $1 AND is_active = true`,
     [email]
   );
@@ -45,14 +46,21 @@ router.get('/', sessionAuth, async (req: Request, res: Response): Promise<void> 
     api_key_id: string;
     invoice_number: string;
     status: string;
+    amount_cents: string;
+    overage_verifications: string;
+    overage_amount_cents: string;
     total_amount_cents: string;
+    verifications_included: string;
     currency: string;
     period_start: string;
     period_end: string;
+    paid_at: string | null;
     created_at: string;
   }>(
-    `SELECT i.id, i.api_key_id, i.invoice_number, i.status, i.total_amount_cents, i.currency,
-            i.period_start, i.period_end, i.created_at
+    `SELECT i.id, i.api_key_id, i.invoice_number, i.status,
+            i.amount_cents, i.overage_verifications, i.overage_amount_cents,
+            i.total_amount_cents, i.verifications_included, i.currency,
+            i.period_start, i.period_end, i.paid_at, i.created_at
      FROM invoices i
      JOIN api_keys ak ON ak.id = i.api_key_id
      WHERE ak.platform_email = $1
@@ -61,10 +69,21 @@ router.get('/', sessionAuth, async (req: Request, res: Response): Promise<void> 
   );
 
   res.json({
-    keys: keys.map((k) => ({ ...k, monthly_limit: parseInt(k.monthly_limit, 10) })),
+    keys: keys.map((k) => ({
+      ...k,
+      monthly_limit: parseInt(k.monthly_limit, 10),
+      verifications_this_month: parseInt(k.verifications_this_month, 10),
+    })),
     subscriptions,
-    invoices: invoices.map((i) => ({ ...i, total_amount_cents: parseInt(i.total_amount_cents, 10) })),
-    plans: PLAN_PRICING
+    invoices: invoices.map((i) => ({
+      ...i,
+      amount_cents: parseInt(i.amount_cents, 10),
+      overage_verifications: parseInt(i.overage_verifications, 10),
+      overage_amount_cents: parseInt(i.overage_amount_cents, 10),
+      total_amount_cents: parseInt(i.total_amount_cents, 10),
+      verifications_included: parseInt(i.verifications_included, 10),
+    })),
+    plans: PLAN_PRICING,
   });
 });
 
@@ -104,6 +123,148 @@ router.post('/subscribe', sessionAuth, validateBody(subscribeSchema), async (req
   });
 
   res.json({ payment_link: checkout.paymentLink });
+});
+
+// ─── GET /developer/billing/invoices/:id ────────────────────────────────────────────────────────────
+// Returns a print-ready HTML invoice the developer can save as PDF via browser print.
+router.get('/invoices/:id', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const email = req.developer!.email;
+
+  const inv = await queryOne<{
+    id: string;
+    invoice_number: string;
+    status: string;
+    amount_cents: number;
+    overage_verifications: number;
+    overage_amount_cents: number;
+    total_amount_cents: number;
+    verifications_included: number;
+    currency: string;
+    period_start: string;
+    period_end: string;
+    paid_at: string | null;
+    created_at: string;
+    platform_name: string;
+    plan: string;
+  }>(
+    `SELECT i.id, i.invoice_number, i.status,
+            i.amount_cents, i.overage_verifications, i.overage_amount_cents,
+            i.total_amount_cents, i.verifications_included, i.currency,
+            i.period_start, i.period_end, i.paid_at, i.created_at,
+            ak.platform_name, COALESCE(s.plan, ak.tier) AS plan
+     FROM invoices i
+     JOIN api_keys ak ON ak.id = i.api_key_id
+     LEFT JOIN subscriptions s ON s.id = i.subscription_id
+     WHERE i.id = $1 AND ak.platform_email = $2`,
+    [req.params.id, email]
+  );
+
+  if (!inv) {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
+
+  const fmt = (cents: number) =>
+    `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtDate = (d: string) =>
+    new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const rows: string[] = [];
+  if (inv.verifications_included > 0 || inv.amount_cents > 0) {
+    rows.push(`<tr>
+      <td>Subscription — ${inv.plan.charAt(0).toUpperCase() + inv.plan.slice(1)} plan</td>
+      <td>${inv.verifications_included.toLocaleString()} verifications included</td>
+      <td style="text-align:right">${fmt(inv.amount_cents)}</td>
+    </tr>`);
+  }
+  if (inv.overage_verifications > 0) {
+    rows.push(`<tr>
+      <td>Usage overage</td>
+      <td>${inv.overage_verifications.toLocaleString()} × $0.03</td>
+      <td style="text-align:right">${fmt(inv.overage_amount_cents)}</td>
+    </tr>`);
+  }
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Invoice ${inv.invoice_number}</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #111; margin: 0; padding: 40px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
+  .brand { font-size: 22px; font-weight: bold; letter-spacing: -0.5px; }
+  .brand span { color: #c9960e; }
+  .meta { text-align: right; color: #555; font-size: 12px; line-height: 1.8; }
+  h2 { font-size: 28px; margin: 0 0 4px; }
+  .status { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; background: ${inv.status === 'paid' ? '#d1fae5' : '#fef3c7'}; color: ${inv.status === 'paid' ? '#065f46' : '#92400e'}; }
+  .block { margin-bottom: 28px; }
+  .block label { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #999; display: block; margin-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+  thead tr { background: #f5f5f5; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 13px; }
+  tfoot tr td { font-weight: bold; font-size: 14px; border-top: 2px solid #111; border-bottom: none; }
+  .note { font-size: 11px; color: #999; margin-top: 32px; }
+  @media print { body { padding: 20px; } }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">Afri<span>Verify</span></div>
+      <div style="color:#777;font-size:11px;margin-top:4px;">afriverify.sankofaapp.com</div>
+    </div>
+    <div class="meta">
+      <div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:1px;">Invoice</div>
+      <div style="font-size:20px;font-weight:bold;">${inv.invoice_number}</div>
+      <div>Issued: ${fmtDate(inv.created_at)}</div>
+      ${inv.paid_at ? `<div>Paid: ${fmtDate(inv.paid_at)}</div>` : ''}
+    </div>
+  </div>
+
+  <div style="display:flex;gap:48px;margin-bottom:32px;">
+    <div class="block">
+      <label>Billed to</label>
+      <div>${email}</div>
+      <div style="color:#777;">${inv.platform_name}</div>
+    </div>
+    <div class="block">
+      <label>Billing period</label>
+      <div>${fmtDate(inv.period_start)} – ${fmtDate(inv.period_end)}</div>
+    </div>
+    <div class="block">
+      <label>Status</label>
+      <span class="status">${inv.status}</span>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th>Details</th>
+        <th style="text-align:right">Amount (${inv.currency})</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.join('')}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="2">Total</td>
+        <td style="text-align:right">${fmt(inv.total_amount_cents)}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <p class="note">Thank you for using AfriVerify. For questions about this invoice, contact billing@sankofaapp.com.</p>
+</body>
+</html>`;
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Content-Disposition', `inline; filename="${inv.invoice_number}.html"`);
+  res.send(html);
 });
 
 // ─── POST /developer/billing/webhook ────────────────────────────────────────────────────────────────
