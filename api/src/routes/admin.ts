@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import pool from '../db';
 import { adminAuth, requireRole } from '../middleware/adminAuth';
 import { validateBody } from '../middleware/validate';
+import { screenIdentity } from '../services/aml-rescreen.service';
 
 const router = Router();
 
@@ -264,6 +265,15 @@ router.get('/identities/:id', adminAuth, async (req: Request, res: Response) => 
     });
   } catch (err) {
     res.status(500).json({ error: 'internal_error', message: (err as Error).message });
+  }
+});
+
+router.post('/identities/:id/rescreen', adminAuth, async (req: Request, res: Response) => {
+  try {
+    await screenIdentity(req.params.id as string);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'rescreen_failed', message: (err as Error).message });
   }
 });
 
