@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { Shield } from 'lucide-react';
 import type { Metadata } from 'next';
+import { AfriVerifyLogo } from '@/components/logo';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy - AfriVerify',
@@ -18,12 +18,7 @@ export default function PrivacyPage() {
       {/* Nav */}
       <header className="border-b border-white/10 px-6 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-indigo-500 flex items-center justify-center">
-              <Shield className="w-3.5 h-3.5 text-white" />
-            </div>
-            <span className="font-bold text-white text-sm">AfriVerify</span>
-          </Link>
+          <AfriVerifyLogo size={26} textSize="text-sm" />
           <Link href="/terms" className="text-sm text-slate-400 hover:text-white transition-colors">
             Terms of Service
           </Link>
