@@ -53,7 +53,8 @@ const initiateSchema = z
     // delivered, not whether phone ownership is what's ultimately verified.
     otp_channel: z.enum(['sms', 'email']).optional().default('sms'),
     platform_user_id: z.string().max(255).optional(),
-    redirect_url: z.string().url().optional()
+    redirect_url: z.string().url().optional(),
+    flow_id: z.string().uuid().optional(),
   })
   .refine((data) => data.otp_channel !== 'email' || !!data.email, {
     message: 'email is required when otp_channel is "email"',
@@ -65,11 +66,12 @@ router.post(
   rateLimitVerifyInitiate,
   validateBody(initiateSchema),
   async (req: Request, res: Response): Promise<void> => {
-    const { phone, email, otp_channel, platform_user_id } = req.body as {
+    const { phone, email, otp_channel, platform_user_id, flow_id } = req.body as {
       phone: string;
       email?: string;
       otp_channel: 'sms' | 'email';
       platform_user_id?: string;
+      flow_id?: string;
     };
     const apiKey = req.apiKey!;
 
@@ -112,13 +114,27 @@ router.post(
       return;
     }
 
+    // Validate flow if provided — must belong to this developer's account.
+    let resolvedFlowId: string | null = null;
+    if (flow_id) {
+      const flow = await queryOne<{ id: string }>(
+        `SELECT id FROM verification_flows WHERE id = $1 AND developer_email = $2 AND is_active = true`,
+        [flow_id, apiKey.platform_email]
+      );
+      if (!flow) {
+        res.status(400).json({ error: 'invalid_flow', message: 'Flow not found or does not belong to this API key.' });
+        return;
+      }
+      resolvedFlowId = flow.id;
+    }
+
     const sessionToken = generateSecureToken(32);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     await query(
       `INSERT INTO verification_sessions
-         (session_token, phone, email, otp_channel, step, api_key_id, ip_address, device_id, expires_at, platform_user_id)
-       VALUES ($1,$2,$3,$4,'phone',$5,$6,$7,$8,$9)`,
+         (session_token, phone, email, otp_channel, step, api_key_id, ip_address, device_id, expires_at, platform_user_id, flow_id)
+       VALUES ($1,$2,$3,$4,'phone',$5,$6,$7,$8,$9,$10)`,
       [
         sessionToken,
         phone,
@@ -129,6 +145,7 @@ router.post(
         (req.headers['x-device-id'] as string) ?? null,
         expiresAt,
         platform_user_id ?? null,
+        resolvedFlowId,
       ]
     );
 
@@ -560,11 +577,32 @@ router.get(
         verification_level?: number;
         trust_score?: number;
         trust_level?: string;
+        flow_required_steps?: string[];
+        flow_optional_steps?: string[];
+        flow_allowed_id_types?: string[];
+        flow_allowed_countries?: string[] | null;
+        flow_min_verification_level?: number;
+        flow_success_url?: string | null;
+        flow_failure_url?: string | null;
+        flow_brand_name?: string | null;
+        flow_brand_color?: string | null;
+        flow_welcome_message?: string | null;
       }
     >(
-      `SELECT vs.*, vi.verification_level, vi.trust_score, vi.trust_level
+      `SELECT vs.*, vi.verification_level, vi.trust_score, vi.trust_level,
+              vf.required_steps    AS flow_required_steps,
+              vf.optional_steps    AS flow_optional_steps,
+              vf.allowed_id_types  AS flow_allowed_id_types,
+              vf.allowed_countries AS flow_allowed_countries,
+              vf.min_verification_level AS flow_min_verification_level,
+              vf.success_url       AS flow_success_url,
+              vf.failure_url       AS flow_failure_url,
+              vf.brand_name        AS flow_brand_name,
+              vf.brand_color       AS flow_brand_color,
+              vf.welcome_message   AS flow_welcome_message
        FROM verification_sessions vs
        LEFT JOIN verified_identities vi ON vs.identity_id = vi.id
+       LEFT JOIN verification_flows  vf ON vs.flow_id = vf.id
        WHERE vs.session_token = $1`,
       [session_token]
     );
@@ -575,6 +613,21 @@ router.get(
     }
 
     const out: Record<string, unknown> = { status: row.step, session_token };
+
+    if (row.flow_id) {
+      out.flow_config = {
+        required_steps:         row.flow_required_steps         ?? null,
+        optional_steps:         row.flow_optional_steps         ?? null,
+        allowed_id_types:       row.flow_allowed_id_types       ?? null,
+        allowed_countries:      row.flow_allowed_countries      ?? null,
+        min_verification_level: row.flow_min_verification_level ?? null,
+        success_url:            row.flow_success_url            ?? null,
+        failure_url:            row.flow_failure_url            ?? null,
+        brand_name:             row.flow_brand_name             ?? null,
+        brand_color:            row.flow_brand_color            ?? null,
+        welcome_message:        row.flow_welcome_message        ?? null,
+      };
+    }
 
     if (row.step === 'complete' && row.identity_id) {
       try {

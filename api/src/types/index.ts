@@ -103,6 +103,7 @@ export interface VerificationSession {
   identity_id: string | null;
   ip_address: string | null;
   device_id: string | null;
+  flow_id: string | null;
   expires_at: Date;
   created_at: Date;
 }
