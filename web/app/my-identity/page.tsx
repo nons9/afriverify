@@ -5,6 +5,77 @@ import { useRouter } from 'next/navigation';
 import { ShieldCheck, LogOut, Link2Off, BadgeCheck, Key, RotateCcw, Trash2, Activity, ExternalLink } from 'lucide-react';
 import { identityApi, clearIdentitySession } from '@/lib/identity-auth';
 
+const i18n = {
+  en: {
+    signOut: 'Sign out',
+    trustLevel: 'Trust level',
+    trustScore: 'Trust score',
+    nationality: 'Nationality',
+    notSet: 'Not set',
+    vitTitle: 'Verified Identity Token',
+    vitSubtitle: 'Share your token with platforms to prove your verification — they can\'t see your personal details.',
+    refreshAll: 'Refresh all',
+    refreshing: 'Refreshing…',
+    noTokens: 'No active tokens.',
+    generateFirst: 'Generate your first token',
+    viewToken: 'View',
+    usedTimes: (n: number) => `Used ${n} time${n === 1 ? '' : 's'}`,
+    lastBy: 'last by',
+    expires: (d: string) => `Expires ${d}`,
+    issued: 'issued',
+    revoke: 'Revoke',
+    revoking: 'Revoking…',
+    connectedTitle: 'Connected platforms',
+    connectedSubtitle: 'These apps trust your AfriVerify verification instead of asking you to verify again.',
+    noConnections: 'No platforms connected yet.',
+    connected: 'Connected',
+    lastVerified: 'last verified',
+    disconnect: 'Disconnect',
+    disconnecting: 'Disconnecting…',
+    disconnectedTitle: 'Disconnected',
+    viewUsage: 'View full token usage history',
+    confirmRevoke: (name: string) => `Disconnect ${name}? They will stop being able to treat you as AfriVerify-verified.`,
+    confirmRevokeVit: 'Revoke this token? Any platform holding it will no longer be able to verify you with it.',
+    confirmRefresh: 'Refresh your Verified Identity Token? All existing tokens will be revoked and a new one issued.',
+    levelLabels: { 0: 'Not verified', 1: 'Phone verified', 2: 'Biometric verified' } as Record<number, string>,
+  },
+  fr: {
+    signOut: 'Se déconnecter',
+    trustLevel: 'Niveau de confiance',
+    trustScore: 'Score de confiance',
+    nationality: 'Nationalité',
+    notSet: 'Non renseigné',
+    vitTitle: 'Jeton d\'identité vérifiée',
+    vitSubtitle: 'Partagez votre jeton avec les plateformes pour prouver votre vérification — elles ne voient jamais vos données personnelles.',
+    refreshAll: 'Tout renouveler',
+    refreshing: 'Renouvellement…',
+    noTokens: 'Aucun jeton actif.',
+    generateFirst: 'Générer votre premier jeton',
+    viewToken: 'Voir',
+    usedTimes: (n: number) => `Utilisé ${n} fois`,
+    lastBy: 'dernière fois par',
+    expires: (d: string) => `Expire le ${d}`,
+    issued: 'émis',
+    revoke: 'Révoquer',
+    revoking: 'Révocation…',
+    connectedTitle: 'Plateformes connectées',
+    connectedSubtitle: 'Ces applications font confiance à votre vérification AfriVerify au lieu de vous demander de re-vérifier.',
+    noConnections: 'Aucune plateforme connectée pour l\'instant.',
+    connected: 'Connecté le',
+    lastVerified: 'dernière vérif.',
+    disconnect: 'Déconnecter',
+    disconnecting: 'Déconnexion…',
+    disconnectedTitle: 'Déconnectées',
+    viewUsage: 'Voir l\'historique complet d\'utilisation des jetons',
+    confirmRevoke: (name: string) => `Déconnecter ${name} ? Cette plateforme ne pourra plus vous considérer comme vérifié par AfriVerify.`,
+    confirmRevokeVit: 'Révoquer ce jeton ? Toute plateforme qui le détient ne pourra plus vous vérifier avec.',
+    confirmRefresh: 'Renouveler votre Jeton d\'identité vérifiée ? Tous les jetons existants seront révoqués et un nouveau sera émis.',
+    levelLabels: { 0: 'Non vérifié', 1: 'Téléphone vérifié', 2: 'Biométrie vérifiée' } as Record<number, string>,
+  },
+} as const;
+
+type Lang = keyof typeof i18n;
+
 interface Me {
   phone: string;
   full_name: string;
@@ -32,12 +103,6 @@ interface VIT {
   created_at: string;
 }
 
-const LEVEL_LABELS: Record<number, string> = {
-  0: 'Not verified',
-  1: 'Phone verified',
-  2: 'Biometric verified'
-};
-
 function maskPhone(phone: string): string {
   if (phone.length < 6) return phone;
   return `${phone.slice(0, 4)}${'•'.repeat(phone.length - 7)}${phone.slice(-3)}`;
@@ -64,6 +129,8 @@ export default function IdentityPortalPage() {
   const [revokingVit, setRevokingVit] = useState<string | null>(null);
   const [refreshingVit, setRefreshingVit] = useState(false);
   const [error, setError] = useState('');
+  const [lang, setLang] = useState<Lang>('en');
+  const t = i18n[lang];
 
   useEffect(() => {
     Promise.all([
@@ -81,7 +148,7 @@ export default function IdentityPortalPage() {
   }, []);
 
   async function handleRevoke(platformName: string) {
-    if (!confirm(`Disconnect ${platformName}? They will stop being able to treat you as AfriVerify-verified.`)) return;
+    if (!confirm(t.confirmRevoke(platformName))) return;
     setRevoking(platformName);
     try {
       await identityApi.post(`/v1/identity-portal/connections/${encodeURIComponent(platformName)}/revoke`, {});
@@ -94,7 +161,7 @@ export default function IdentityPortalPage() {
   }
 
   async function handleRevokeVIT(vitId: string) {
-    if (!confirm('Revoke this token? Any platform holding it will no longer be able to verify you with it.')) return;
+    if (!confirm(t.confirmRevokeVit)) return;
     setRevokingVit(vitId);
     try {
       await identityApi.delete(`/v1/identity-portal/vit/${vitId}`);
@@ -107,7 +174,7 @@ export default function IdentityPortalPage() {
   }
 
   async function handleRefreshVIT() {
-    if (!confirm('Refresh your Verified Identity Token? All existing tokens will be revoked and a new one issued.')) return;
+    if (!confirm(t.confirmRefresh)) return;
     setRefreshingVit(true);
     try {
       const result = await identityApi.post<{ token: string; payload: Record<string, unknown> }>('/v1/identity-portal/vit/refresh', {});
@@ -148,12 +215,29 @@ export default function IdentityPortalPage() {
             </div>
             <span className="font-bold text-white">AfriVerify</span>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-400 transition-colors"
-          >
-            <LogOut className="w-3.5 h-3.5" /> Sign out
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="inline-flex rounded-lg overflow-hidden border border-white/10 text-xs">
+              {(['en', 'fr'] as Lang[]).map((l) => (
+                <button
+                  key={l}
+                  onClick={() => setLang(l)}
+                  className={`px-3 py-1.5 font-medium transition-colors ${
+                    lang === l
+                      ? 'bg-indigo-500 text-white'
+                      : 'bg-white/5 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {l.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-400 transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" /> {t.signOut}
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -171,22 +255,22 @@ export default function IdentityPortalPage() {
               </div>
               {me.verification_level >= 1 && (
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-400 bg-green-500/10 px-3 py-1.5 rounded-full">
-                  <BadgeCheck className="w-3.5 h-3.5" /> {LEVEL_LABELS[me.verification_level] ?? 'Verified'}
+                  <BadgeCheck className="w-3.5 h-3.5" /> {t.levelLabels[me.verification_level] ?? 'Verified'}
                 </span>
               )}
             </div>
             <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/5">
               <div>
-                <div className="text-xs text-slate-500 mb-1">Trust level</div>
+                <div className="text-xs text-slate-500 mb-1">{t.trustLevel}</div>
                 <div className="text-sm text-white font-medium capitalize">{me.trust_level}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-500 mb-1">Trust score</div>
+                <div className="text-xs text-slate-500 mb-1">{t.trustScore}</div>
                 <div className="text-sm text-white font-medium tabular-nums">{me.trust_score}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-500 mb-1">Nationality</div>
-                <div className="text-sm text-white font-medium">{me.nationality || 'Not set'}</div>
+                <div className="text-xs text-slate-500 mb-1">{t.nationality}</div>
+                <div className="text-sm text-white font-medium">{me.nationality || t.notSet}</div>
               </div>
             </div>
           </div>
@@ -198,11 +282,9 @@ export default function IdentityPortalPage() {
             <div>
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
                 <Key className="w-4 h-4 text-indigo-400" />
-                Verified Identity Token
+                {t.vitTitle}
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Share your token with platforms to prove your verification — they can&apos;t see your personal details.
-              </p>
+              <p className="text-xs text-slate-500 mt-0.5">{t.vitSubtitle}</p>
             </div>
             <button
               onClick={handleRefreshVIT}
@@ -210,19 +292,19 @@ export default function IdentityPortalPage() {
               className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50 transition-colors shrink-0 ml-4"
             >
               <RotateCcw className={`w-3.5 h-3.5 ${refreshingVit ? 'animate-spin' : ''}`} />
-              {refreshingVit ? 'Refreshing...' : 'Refresh all'}
+              {refreshingVit ? t.refreshing : t.refreshAll}
             </button>
           </div>
 
           {vits.length === 0 ? (
             <div className="px-6 py-8 text-center">
-              <p className="text-slate-500 text-sm mb-3">No active tokens.</p>
+              <p className="text-slate-500 text-sm mb-3">{t.noTokens}</p>
               <button
                 onClick={handleRefreshVIT}
                 disabled={refreshingVit}
                 className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50 transition-colors"
               >
-                Generate your first token
+                {t.generateFirst}
               </button>
             </div>
           ) : (
@@ -239,18 +321,18 @@ export default function IdentityPortalPage() {
                           href={`/my-identity/vit?id=${vit.id}`}
                           className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-400 transition-colors"
                         >
-                          <ExternalLink className="w-3 h-3" /> View
+                          <ExternalLink className="w-3 h-3" /> {t.viewToken}
                         </a>
                       </div>
                       <div className="text-xs text-slate-500 mt-1.5 space-y-0.5">
                         <div>
-                          Used <span className="text-slate-300 tabular-nums">{vit.usage_count}</span> times
-                          {vit.last_used_by && <> &middot; last by <span className="text-slate-300">{vit.last_used_by}</span></>}
+                          {t.usedTimes(vit.usage_count)}
+                          {vit.last_used_by && <> &middot; {t.lastBy} <span className="text-slate-300">{vit.last_used_by}</span></>}
                           {vit.last_used_at && <> {timeAgo(vit.last_used_at)}</>}
                         </div>
                         <div>
-                          Expires {new Date(vit.expires_at).toLocaleDateString()}
-                          &middot; issued {timeAgo(vit.created_at)}
+                          {t.expires(new Date(vit.expires_at).toLocaleDateString())}
+                          &middot; {t.issued} {timeAgo(vit.created_at)}
                         </div>
                       </div>
                     </div>
@@ -260,7 +342,7 @@ export default function IdentityPortalPage() {
                       className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 disabled:opacity-50 transition-colors shrink-0"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      {revokingVit === vit.id ? 'Revoking...' : 'Revoke'}
+                      {revokingVit === vit.id ? t.revoking : t.revoke}
                     </button>
                   </div>
                 </li>
@@ -271,14 +353,12 @@ export default function IdentityPortalPage() {
 
         <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden mb-6">
           <div className="px-6 py-4 border-b border-white/10">
-            <h2 className="text-sm font-semibold text-white">Connected platforms</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              These apps trust your AfriVerify verification instead of asking you to verify again.
-            </p>
+            <h2 className="text-sm font-semibold text-white">{t.connectedTitle}</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{t.connectedSubtitle}</p>
           </div>
           {activeConnections.length === 0 ? (
             <div className="px-6 py-10 text-center">
-              <p className="text-slate-500 text-sm">No platforms connected yet.</p>
+              <p className="text-slate-500 text-sm">{t.noConnections}</p>
             </div>
           ) : (
             <ul className="divide-y divide-white/5">
@@ -287,8 +367,8 @@ export default function IdentityPortalPage() {
                   <div>
                     <div className="text-sm font-medium text-white">{c.platform_name}</div>
                     <div className="text-xs text-slate-500 mt-0.5">
-                      Connected {new Date(c.connected_at).toLocaleDateString()}
-                      {c.last_verified && <> &middot; last verified {new Date(c.last_verified).toLocaleDateString()}</>}
+                      {t.connected} {new Date(c.connected_at).toLocaleDateString()}
+                      {c.last_verified && <> &middot; {t.lastVerified} {new Date(c.last_verified).toLocaleDateString()}</>}
                     </div>
                   </div>
                   <button
@@ -297,7 +377,7 @@ export default function IdentityPortalPage() {
                     className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 disabled:opacity-50 transition-colors"
                   >
                     <Link2Off className="w-3.5 h-3.5" />
-                    {revoking === c.platform_name ? 'Disconnecting...' : 'Disconnect'}
+                    {revoking === c.platform_name ? t.disconnecting : t.disconnect}
                   </button>
                 </li>
               ))}
@@ -308,7 +388,7 @@ export default function IdentityPortalPage() {
         {revokedConnections.length > 0 && (
           <div className="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden">
             <div className="px-6 py-4 border-b border-white/5">
-              <h2 className="text-sm font-semibold text-slate-400">Disconnected</h2>
+              <h2 className="text-sm font-semibold text-slate-400">{t.disconnectedTitle}</h2>
             </div>
             <ul className="divide-y divide-white/5">
               {revokedConnections.map((c) => (
@@ -328,7 +408,7 @@ export default function IdentityPortalPage() {
               className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
             >
               <Activity className="w-3.5 h-3.5" />
-              View full token usage history
+              {t.viewUsage}
             </a>
           </div>
         )}

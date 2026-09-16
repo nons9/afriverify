@@ -1,4 +1,5 @@
-export type IdType = 'nin' | 'bvn' | 'passport' | 'national_id' | 'huduma' | 'gid' | 'unhcr';
+export type IdType = 'nin' | 'bvn' | 'passport' | 'national_id' | 'huduma' | 'gid' | 'unhcr' | 'cni' | 'cin';
+export type SupportedLang = 'en' | 'fr';
 export type TrustLevel = 'suspended' | 'new' | 'rising' | 'verified' | 'elite' | 'sovereign';
 export type AmlStatus = 'not_screened' | 'pending' | 'clear' | 'flagged' | 'blocked';
 export type Environment = 'sandbox' | 'production';
@@ -104,6 +105,7 @@ export interface VerificationSession {
   ip_address: string | null;
   device_id: string | null;
   flow_id: string | null;
+  lang: SupportedLang;
   expires_at: Date;
   created_at: Date;
 }

@@ -459,7 +459,8 @@ router.get('/api-keys', adminAuth, async (req: Request, res: Response) => {
 
     const { rows } = await pool.query(
       `SELECT ak.id, ak.platform_name, ak.environment, ak.scope, ak.intent,
-              ak.is_active, ak.verifications_this_month, ak.total_verifications,
+              ak.is_active, ak.tier, ak.monthly_limit,
+              ak.verifications_this_month, ak.total_verifications,
               ak.created_at, d.email AS developer_email, d.company_name
        FROM api_keys ak
        JOIN developers d ON d.id = ak.developer_id
@@ -475,15 +476,33 @@ router.get('/api-keys', adminAuth, async (req: Request, res: Response) => {
   }
 });
 
+const patchKeySchema = z.object({
+  is_active:     z.boolean().optional(),
+  tier:          z.enum(['free', 'starter', 'growth', 'enterprise']).optional(),
+  monthly_limit: z.number().int().min(0).max(10_000_000).optional(),
+});
+
 router.patch(
   '/api-keys/:id',
   adminAuth,
   requireRole('super_admin', 'ops'),
+  validateBody(patchKeySchema),
   async (req: Request, res: Response) => {
-    const { is_active } = req.body as { is_active?: boolean };
-    if (is_active === undefined) { res.status(400).json({ error: 'no_fields' }); return; }
+    const body = req.body as z.infer<typeof patchKeySchema>;
+    const setClauses: string[] = [];
+    const params: unknown[] = [req.params.id];
+
+    if (body.is_active !== undefined)     { params.push(body.is_active);     setClauses.push(`is_active = $${params.length}`); }
+    if (body.tier !== undefined)          { params.push(body.tier);          setClauses.push(`tier = $${params.length}`); }
+    if (body.monthly_limit !== undefined) { params.push(body.monthly_limit); setClauses.push(`monthly_limit = $${params.length}`); }
+
+    if (setClauses.length === 0) { res.status(400).json({ error: 'no_fields' }); return; }
+
     try {
-      await pool.query('UPDATE api_keys SET is_active = $1 WHERE id = $2', [is_active, req.params.id]);
+      await pool.query(
+        `UPDATE api_keys SET ${setClauses.join(', ')} WHERE id = $1`,
+        params
+      );
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: 'internal_error', message: (err as Error).message });
