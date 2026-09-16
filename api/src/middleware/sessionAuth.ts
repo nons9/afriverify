@@ -9,7 +9,7 @@ export function sessionAuth(req: Request, res: Response, next: NextFunction): vo
   }
 
   const token = auth.slice(7);
-  // API keys start with 'av_' — they belong to authenticate(), not sessionAuth
+  // API keys start with 'av_' - they belong to authenticate(), not sessionAuth
   if (token.startsWith('av_')) {
     res.status(401).json({ error: 'unauthorized', message: 'Portal session token required' });
     return;

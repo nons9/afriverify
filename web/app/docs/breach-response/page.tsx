@@ -13,9 +13,9 @@ const phases = [
     owner: 'On-call engineer',
     steps: [
       'Confirm the alert is a genuine breach (not a test, scanner, or misconfigured webhook).',
-      'Declare an incident in Slack #incidents: "P0 BREACH — [brief description]". Pin the message.',
+      'Declare an incident in Slack #incidents: "P0 BREACH - [brief description]". Pin the message.',
       'Page the incident lead (CEO / CTO) immediately. Do not wait.',
-      'Do NOT delete logs, rotate keys, or restart services until the incident lead says so — it destroys evidence.',
+      'Do NOT delete logs, rotate keys, or restart services until the incident lead says so - it destroys evidence.',
     ],
     checklist: [
       'Incident declared in Slack',
@@ -35,8 +35,8 @@ const phases = [
     steps: [
       'Identify the blast radius: which identities, platforms, and API keys were in scope.',
       'Revoke all API keys in the affected environment via dashboard → API Keys → Revoke all. Document which keys were revoked and when.',
-      'If the breach involves the signing key (RS256 private key for VIT): rotate it immediately in the secrets manager, then republish the JWKS endpoint. All existing VITs become invalid — communicate this to affected platforms.',
-      'Block the attacker IP / CIDR at the WAF / load balancer level. Do not terminate the connection cleanly (TCP RST is fine — it generates a log entry).',
+      'If the breach involves the signing key (RS256 private key for VIT): rotate it immediately in the secrets manager, then republish the JWKS endpoint. All existing VITs become invalid - communicate this to affected platforms.',
+      'Block the attacker IP / CIDR at the WAF / load balancer level. Do not terminate the connection cleanly (TCP RST is fine - it generates a log entry).',
       'If OrbitShield signals a spike in aml_flagged or blacklisted lookups on a single key, auto-suspend that key (or suspend it manually) and record the identity IDs queried.',
       'Snapshot the relevant DB tables (platform_connections, verified_identities, api_keys, audit_events) to a write-once store before any cleanup.',
     ],
@@ -82,8 +82,8 @@ const phases = [
     title: 'Notify',
     owner: 'CEO + Legal',
     steps: [
-      'Affected platforms: email the platform\'s registered address with (a) what happened, (b) which of their users are affected, (c) what data was exposed, (d) what we have done, (e) what they should do. Use plain language — no weasel words.',
-      'Affected identities: if PII was exposed, notify affected users directly if you have their contact (phone or email). Be specific — do not send vague "security incident" emails.',
+      'Affected platforms: email the platform\'s registered address with (a) what happened, (b) which of their users are affected, (c) what data was exposed, (d) what we have done, (e) what they should do. Use plain language - no weasel words.',
+      'Affected identities: if PII was exposed, notify affected users directly if you have their contact (phone or email). Be specific - do not send vague "security incident" emails.',
       'Regulators: Nigeria\'s NDPC requires breach notification within 72 hours of discovery under the NDPA 2023. Other countries\' data authorities as applicable.',
       'Do NOT post on social media until regulatory notifications are filed or legal has cleared it.',
       'Log every notification: to whom, when sent, message ID or email thread.',
@@ -105,10 +105,10 @@ const phases = [
     title: 'Recover',
     owner: 'Incident lead',
     steps: [
-      'Issue new API keys to affected platforms. Coordinate the rotation — do not leave platforms broken.',
+      'Issue new API keys to affected platforms. Coordinate the rotation - do not leave platforms broken.',
       'If the VIT signing key was rotated: work with each platform to re-verify affected users or accept a grace-period re-issuance.',
       'Re-enable services in staging first, validate with sandbox credentials, then cut over production.',
-      'Verify OrbitShield fraud graph is clean — no residual fraud signals from the incident period.',
+      'Verify OrbitShield fraud graph is clean - no residual fraud signals from the incident period.',
       'Remove WAF blocks once the threat is neutralized (keep the block rule, disable it).',
       'Monitor for 48 hours post-recovery: watch for recurrence, unusual lookup patterns, or new attacker pivots.',
     ],
@@ -130,7 +130,7 @@ const phases = [
     owner: 'All responders',
     steps: [
       'Write a blameless post-mortem: timeline, root cause, impact, what worked, what didn\'t, action items.',
-      'Assign every action item an owner and a due date. Put them in the sprint immediately — not a backlog.',
+      'Assign every action item an owner and a due date. Put them in the sprint immediately - not a backlog.',
       'Typical action items: add a detection test for the attack vector, improve alerting thresholds, tighten CORS/network policies, add rate limiting to newly discovered exposure, improve runbook steps that were unclear.',
       'Share the post-mortem with all connected platforms. Transparency builds trust.',
       'Store the post-mortem in a versioned location (GitHub, Notion). Link it from this runbook.',

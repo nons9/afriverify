@@ -1,5 +1,5 @@
 /**
- * Sandbox utilities — only accessible with sandbox-environment API keys.
+ * Sandbox utilities - only accessible with sandbox-environment API keys.
  * Provides test credentials and state-reset tooling for integration testing.
  *
  * Base path: /v1/sandbox
@@ -36,25 +36,25 @@ export const SANDBOX_CREDENTIALS: Record<
   { documentType: string; documentId: string; outcome: string; description: string }[]
 > = {
   NG: [
-    { documentType: 'NIN',  documentId: 'TEST_NG_PASS_001', outcome: 'pass',        description: 'Valid NIN — verification succeeds, trust score 0.85' },
-    { documentType: 'NIN',  documentId: 'TEST_NG_FAIL_001', outcome: 'fail',         description: 'Invalid NIN — verification fails with name mismatch' },
-    { documentType: 'NIN',  documentId: 'TEST_NG_AML_001',  outcome: 'aml_flagged',  description: 'AML-flagged identity — VIT issued with aml_flagged flag' },
-    { documentType: 'NIN',  documentId: 'TEST_NG_BL_001',   outcome: 'blacklisted',  description: 'Blacklisted identity — VIT issued with blacklisted flag' },
+    { documentType: 'NIN',  documentId: 'TEST_NG_PASS_001', outcome: 'pass',        description: 'Valid NIN - verification succeeds, trust score 0.85' },
+    { documentType: 'NIN',  documentId: 'TEST_NG_FAIL_001', outcome: 'fail',         description: 'Invalid NIN - verification fails with name mismatch' },
+    { documentType: 'NIN',  documentId: 'TEST_NG_AML_001',  outcome: 'aml_flagged',  description: 'AML-flagged identity - VIT issued with aml_flagged flag' },
+    { documentType: 'NIN',  documentId: 'TEST_NG_BL_001',   outcome: 'blacklisted',  description: 'Blacklisted identity - VIT issued with blacklisted flag' },
   ],
   GH: [
-    { documentType: 'GHANA_CARD', documentId: 'TEST_GH_PASS_001', outcome: 'pass', description: 'Valid Ghana Card — verification succeeds' },
-    { documentType: 'GHANA_CARD', documentId: 'TEST_GH_FAIL_001', outcome: 'fail', description: 'Invalid Ghana Card — document not found' },
+    { documentType: 'GHANA_CARD', documentId: 'TEST_GH_PASS_001', outcome: 'pass', description: 'Valid Ghana Card - verification succeeds' },
+    { documentType: 'GHANA_CARD', documentId: 'TEST_GH_FAIL_001', outcome: 'fail', description: 'Invalid Ghana Card - document not found' },
   ],
   KE: [
-    { documentType: 'NATIONAL_ID', documentId: 'TEST_KE_PASS_001', outcome: 'pass', description: 'Valid Kenya ID — verification succeeds' },
-    { documentType: 'NATIONAL_ID', documentId: 'TEST_KE_FAIL_001', outcome: 'fail', description: 'Invalid Kenya ID — not found in IPRS' },
+    { documentType: 'NATIONAL_ID', documentId: 'TEST_KE_PASS_001', outcome: 'pass', description: 'Valid Kenya ID - verification succeeds' },
+    { documentType: 'NATIONAL_ID', documentId: 'TEST_KE_FAIL_001', outcome: 'fail', description: 'Invalid Kenya ID - not found in IPRS' },
   ],
   ZA: [
-    { documentType: 'SA_ID', documentId: 'TEST_ZA_PASS_001', outcome: 'pass', description: 'Valid SA ID — verification succeeds' },
+    { documentType: 'SA_ID', documentId: 'TEST_ZA_PASS_001', outcome: 'pass', description: 'Valid SA ID - verification succeeds' },
   ],
   GLOBAL: [
-    { documentType: 'PASSPORT', documentId: 'TEST_PASS_PASS_001', outcome: 'pass', description: 'Valid passport — verification succeeds (all countries)' },
-    { documentType: 'PASSPORT', documentId: 'TEST_PASS_FAIL_001', outcome: 'fail', description: 'Invalid passport — verification fails' },
+    { documentType: 'PASSPORT', documentId: 'TEST_PASS_PASS_001', outcome: 'pass', description: 'Valid passport - verification succeeds (all countries)' },
+    { documentType: 'PASSPORT', documentId: 'TEST_PASS_FAIL_001', outcome: 'fail', description: 'Invalid passport - verification fails' },
   ],
 };
 
@@ -147,7 +147,7 @@ router.post('/reset', async (req: Request, res: Response): Promise<void> => {
 /**
  * GET /v1/sandbox/state/:platformUserId
  *
- * Returns the current sandbox state for a platform user — useful for
+ * Returns the current sandbox state for a platform user - useful for
  * assertions in integration tests.
  */
 router.get('/state/:platformUserId', async (req: Request, res: Response): Promise<void> => {

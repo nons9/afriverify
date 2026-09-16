@@ -21,7 +21,7 @@ const createKeySchema = z.object({
   expires_at: z.string().datetime().optional(),
 });
 
-// POST /developer/keys — public bootstrap (no auth required)
+// POST /developer/keys - public bootstrap (no auth required)
 router.post(
   '/keys',
   validateBody(createKeySchema),
@@ -59,7 +59,7 @@ router.post(
   }
 );
 
-// GET /developer/keys — list all keys for the signed-in developer (session auth)
+// GET /developer/keys - list all keys for the signed-in developer (session auth)
 router.get('/keys', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const keys = await query<{
     id: string;
@@ -97,7 +97,7 @@ router.get('/keys', sessionAuth, async (req: Request, res: Response): Promise<vo
   res.json({ keys });
 });
 
-// DELETE /developer/keys/:id — revoke a key (session auth)
+// DELETE /developer/keys/:id - revoke a key (session auth)
 router.delete('/keys/:id', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
@@ -117,7 +117,7 @@ router.delete('/keys/:id', sessionAuth, async (req: Request, res: Response): Pro
   res.json({ success: true });
 });
 
-// GET /developer/overview — dashboard summary (session auth)
+// GET /developer/overview - dashboard summary (session auth)
 router.get('/overview', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const email = req.developer!.email;
 
@@ -159,7 +159,7 @@ router.get('/overview', sessionAuth, async (req: Request, res: Response): Promis
   });
 });
 
-// GET /developer/usage — per-key usage stats (API key auth)
+// GET /developer/usage - per-key usage stats (API key auth)
 router.get('/usage', authenticate, async (req: Request, res: Response): Promise<void> => {
   const apiKey = req.apiKey!;
 
@@ -185,7 +185,7 @@ router.get('/usage', authenticate, async (req: Request, res: Response): Promise<
   });
 });
 
-// GET /developer/usage/daily — last-7-days per-day breakdown (session auth)
+// GET /developer/usage/daily - last-7-days per-day breakdown (session auth)
 router.get('/usage/daily', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const email = req.developer!.email;
   const rows = await query<{ day: string; calls: number }>(
@@ -225,7 +225,7 @@ router.get('/metrics', sessionAuth, async (req: Request, res: Response): Promise
   res.json({ window: '7d', metrics: byEventType });
 });
 
-// PATCH /developer/keys/:id/webhook — set or clear webhook URL (session auth)
+// PATCH /developer/keys/:id/webhook - set or clear webhook URL (session auth)
 const webhookUrlSchema = z.object({
   webhook_url: z.string().url().max(2048).nullable()
 });
@@ -284,7 +284,7 @@ router.patch('/keys/:id/ussd-code', sessionAuth, validateBody(ussdCodeSchema), a
   }
 });
 
-// POST /developer/keys/:id/webhook/secret — regenerate signing secret (session auth)
+// POST /developer/keys/:id/webhook/secret - regenerate signing secret (session auth)
 router.post('/keys/:id/webhook/secret', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const secret = randomBytes(32).toString('hex');
@@ -307,7 +307,7 @@ router.post('/keys/:id/webhook/secret', sessionAuth, async (req: Request, res: R
   }
 
   logger.info('Webhook secret regenerated', { id });
-  // Return the raw secret once — it will not be shown again
+  // Return the raw secret once - it will not be shown again
   res.json({ secret });
 });
 
@@ -369,7 +369,7 @@ router.post('/keys/:id/rotate', sessionAuth, async (req: Request, res: Response)
   });
 });
 
-// GET /developer/keys/:id/analytics — per-key verification breakdown (session auth)
+// GET /developer/keys/:id/analytics - per-key verification breakdown (session auth)
 router.get('/keys/:id/analytics', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
@@ -424,7 +424,7 @@ router.get('/keys/:id/analytics', sessionAuth, async (req: Request, res: Respons
   });
 });
 
-// POST /developer/keys/:id/subkeys — issue a delegated sub-key (session auth)
+// POST /developer/keys/:id/subkeys - issue a delegated sub-key (session auth)
 const subkeySchema = z.object({
   platform_name: z.string().min(2).max(100),
   scope: z.string().max(64).default('delegated'),
@@ -489,7 +489,7 @@ router.post('/keys/:id/subkeys', sessionAuth, validateBody(subkeySchema), async 
   });
 });
 
-// GET /developer/keys/:id/subkeys — list sub-keys (session auth)
+// GET /developer/keys/:id/subkeys - list sub-keys (session auth)
 router.get('/keys/:id/subkeys', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
@@ -516,7 +516,7 @@ router.get('/keys/:id/subkeys', sessionAuth, async (req: Request, res: Response)
   res.json({ parent_key_id: id, subkeys });
 });
 
-// POST /developer/verification-tokens — issue a short-lived, single-use verification token (session auth)
+// POST /developer/verification-tokens - issue a short-lived, single-use verification token (session auth)
 const vtSchema = z.object({
   api_key_id: z.string().uuid(),
   allowed_flows: z.array(z.string()).default(['kyc']),
@@ -562,7 +562,7 @@ router.post('/verification-tokens', sessionAuth, validateBody(vtSchema), async (
   });
 });
 
-// GET /developer/verification-tokens — list tokens for an API key (session auth)
+// GET /developer/verification-tokens - list tokens for an API key (session auth)
 router.get('/verification-tokens', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const { api_key_id } = req.query as { api_key_id?: string };
 
@@ -594,7 +594,7 @@ const connectAfriAppSchema = z.object({
   key: z.string().regex(/^averify_live_[0-9a-f]{48}$/, 'Key must be an AfriApp-issued averify_live_ key')
 });
 
-// POST /developer/afriapp-key — connect or replace an AfriApp key (session auth)
+// POST /developer/afriapp-key - connect or replace an AfriApp key (session auth)
 router.post('/afriapp-key', sessionAuth, validateBody(connectAfriAppSchema), async (req: Request, res: Response): Promise<void> => {
   const { key } = req.body as z.infer<typeof connectAfriAppSchema>;
   const email = req.developer!.email;
@@ -608,7 +608,7 @@ router.post('/afriapp-key', sessionAuth, validateBody(connectAfriAppSchema), asy
   }
 
   if (!result.valid) {
-    res.status(422).json({ error: 'invalid_key', message: 'AfriApp returned invalid for this key — check it was copied correctly and is still active' });
+    res.status(422).json({ error: 'invalid_key', message: 'AfriApp returned invalid for this key - check it was copied correctly and is still active' });
     return;
   }
 
@@ -629,7 +629,7 @@ router.post('/afriapp-key', sessionAuth, validateBody(connectAfriAppSchema), asy
   res.json({ connected: true, ownerId: result.ownerId });
 });
 
-// GET /developer/afriapp-key — connection status (session auth)
+// GET /developer/afriapp-key - connection status (session auth)
 router.get('/afriapp-key', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const row = await queryOne<{ afriapp_owner_id: string; connected_at: string; last_verified_at: string | null; is_active: boolean }>(
     `SELECT afriapp_owner_id, connected_at, last_verified_at, is_active
@@ -650,7 +650,7 @@ router.get('/afriapp-key', sessionAuth, async (req: Request, res: Response): Pro
   });
 });
 
-// DELETE /developer/afriapp-key — disconnect (session auth)
+// DELETE /developer/afriapp-key - disconnect (session auth)
 router.delete('/afriapp-key', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const result = await query<{ id: string }>(
     `UPDATE afriapp_connections SET is_active = false
@@ -677,7 +677,7 @@ const whiteLabelSchema = z.object({
   button_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
 });
 
-// GET /developer/white-label — fetch current developer's branding config
+// GET /developer/white-label - fetch current developer's branding config
 router.get('/white-label', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const row = await queryOne<{
     company_name: string;
@@ -699,7 +699,7 @@ router.get('/white-label', sessionAuth, async (req: Request, res: Response): Pro
   });
 });
 
-// PUT /developer/white-label — upsert branding config
+// PUT /developer/white-label - upsert branding config
 router.put(
   '/white-label',
   sessionAuth,
@@ -743,7 +743,7 @@ const providerSettingsSchema = z.object({
   preferred_provider: z.enum(['smile_identity', 'dojah', 'onfido']).nullable()
 });
 
-// GET /developer/provider-settings — returns routing table + per-key preferences
+// GET /developer/provider-settings - returns routing table + per-key preferences
 router.get('/provider-settings', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const keys = await query<{ id: string; platform_name: string; preferred_provider: ProviderName | null }>(
     `SELECT id, platform_name, preferred_provider
@@ -759,7 +759,7 @@ router.get('/provider-settings', sessionAuth, async (req: Request, res: Response
   });
 });
 
-// PUT /developer/provider-settings — pin a key to a specific provider (or clear it)
+// PUT /developer/provider-settings - pin a key to a specific provider (or clear it)
 router.put(
   '/provider-settings',
   sessionAuth,

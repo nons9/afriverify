@@ -109,14 +109,14 @@ async function bootstrap(): Promise<void> {
   try {
     await connectRedis();
   } catch (err) {
-    logger.warn('Redis connection failed — rate limiting degraded, retrying in background', { error: (err as Error).message });
+    logger.warn('Redis connection failed - rate limiting degraded, retrying in background', { error: (err as Error).message });
   }
 
   // Bind the port BEFORE checking Postgres. Railway's healthcheck polls /health
   // immediately after the container starts; crashing before listen() means
   // the probe gets "connection refused" on every attempt and the deploy fails.
   // /health already returns 503 while Postgres is unavailable, then 200 once it
-  // recovers — Railway will wait up to healthcheckTimeout seconds for the 200.
+  // recovers - Railway will wait up to healthcheckTimeout seconds for the 200.
   const server = app.listen(PORT, () => {
     logger.info(`AfriVerify API running on port ${PORT}`, {
       env: process.env.NODE_ENV,
@@ -125,7 +125,7 @@ async function bootstrap(): Promise<void> {
   });
 
   const shutdown = async (signal: string): Promise<void> => {
-    logger.info(`${signal} received — shutting down`);
+    logger.info(`${signal} received - shutting down`);
     server.close(async () => {
       await pool.end();
       logger.info('Server closed');
@@ -146,7 +146,7 @@ async function bootstrap(): Promise<void> {
   pool.query('SELECT 1')
     .then(() => logger.info('PostgreSQL connected'))
     .catch((err: Error) =>
-      logger.error('PostgreSQL not reachable at startup — /health will report degraded until it recovers', {
+      logger.error('PostgreSQL not reachable at startup - /health will report degraded until it recovers', {
         error: err.message
       })
     );

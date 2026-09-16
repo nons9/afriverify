@@ -10,7 +10,7 @@ import logger from '../../utils/logger';
 
 const BASE_URL = 'https://api.dojah.io';
 
-// Dojah specialises in Nigeria — BVN/NIN lookups are particularly cost-effective
+// Dojah specialises in Nigeria - BVN/NIN lookups are particularly cost-effective
 const COVERED_COUNTRIES = new Set(['NG']);
 
 // ID types Dojah can look up for Nigeria

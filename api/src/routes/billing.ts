@@ -172,7 +172,7 @@ router.get('/invoices/:id', sessionAuth, async (req: Request, res: Response): Pr
   const rows: string[] = [];
   if (inv.verifications_included > 0 || inv.amount_cents > 0) {
     rows.push(`<tr>
-      <td>Subscription — ${inv.plan.charAt(0).toUpperCase() + inv.plan.slice(1)} plan</td>
+      <td>Subscription - ${inv.plan.charAt(0).toUpperCase() + inv.plan.slice(1)} plan</td>
       <td>${inv.verifications_included.toLocaleString()} verifications included</td>
       <td style="text-align:right">${fmt(inv.amount_cents)}</td>
     </tr>`);

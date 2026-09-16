@@ -116,7 +116,7 @@ export async function biometricKYC(params: {
     smile_job_id: string;
   };
 
-  // Step 2: Build info.json — selfie and ID photo embedded as base64
+  // Step 2: Build info.json - selfie and ID photo embedded as base64
   const images: Array<{ image_type_id: number; image: string; file_name: string }> = [
     {
       image_type_id: 0, // selfie

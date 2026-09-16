@@ -4,7 +4,7 @@ import { query } from '../db';
 const router = Router();
 
 // ─── GET /v1/countries ───────────────────────────────────────────────────────
-// Public — no auth required. Returns the Francophone country catalog plus
+// Public - no auth required. Returns the Francophone country catalog plus
 // all other countries supported by the platform with their ID type metadata.
 router.get('/', async (_req: Request, res: Response): Promise<void> => {
   const rows = await query<{

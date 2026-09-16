@@ -9,7 +9,7 @@ const i18n = {
   en: {
     back: 'Back',
     vitTitle: 'Verified Identity Token',
-    vitSubtitle: 'Show this to a platform to prove your AfriVerify verification.\nThey see only your trust score — never your name or ID.',
+    vitSubtitle: 'Show this to a platform to prove your AfriVerify verification.\nThey see only your trust score - never your name or ID.',
     copy: 'Copy',
     copied: 'Copied',
     expiresIn: (d: number) => `Expires in ${d} day${d === 1 ? '' : 's'}`,
@@ -23,7 +23,7 @@ const i18n = {
   fr: {
     back: 'Retour',
     vitTitle: 'Jeton d\'identité vérifiée',
-    vitSubtitle: 'Présentez ce jeton à une plateforme pour prouver votre vérification AfriVerify.\nElle voit uniquement votre score de confiance — jamais votre nom ni votre pièce d\'identité.',
+    vitSubtitle: 'Présentez ce jeton à une plateforme pour prouver votre vérification AfriVerify.\nElle voit uniquement votre score de confiance - jamais votre nom ni votre pièce d\'identité.',
     copy: 'Copier',
     copied: 'Copié',
     expiresIn: (d: number) => `Expire dans ${d} jour${d === 1 ? '' : 's'}`,
@@ -107,13 +107,13 @@ function VITPageContent() {
           setVit(found);
           setUsage(usageData.usage);
         } else if (tokenParam) {
-          // Fresh token from refresh — just show the QR, load VIT list to get metadata
+          // Fresh token from refresh - just show the QR, load VIT list to get metadata
           const vitsData = await identityApi.get<{ vits: VIT[] }>('/v1/identity-portal/vit');
           if (vitsData.vits.length > 0) {
             setVit(vitsData.vits[0]);
           }
         } else {
-          // No params — redirect to list
+          // No params - redirect to list
           router.replace('/my-identity');
           return;
         }
@@ -153,7 +153,7 @@ function VITPageContent() {
         });
         setQrReady(true);
       } catch {
-        // QR generation failed silently — user can still copy the token
+        // QR generation failed silently - user can still copy the token
       }
     };
     document.head.appendChild(script);

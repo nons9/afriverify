@@ -7,7 +7,7 @@ const router = Router();
 
 // GET /v1/developer/compliance/export
 // Returns a JSON audit trail of all verification events for the developer's
-// keys — structured for NDPR / regulatory data-subject requests.
+// keys - structured for NDPR / regulatory data-subject requests.
 // Query params: start_date, end_date, identity_id (optional filter), format=json|csv
 router.get('/export', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const parseSchema = z.object({
@@ -108,7 +108,7 @@ router.get('/export', sessionAuth, async (req: Request, res: Response): Promise<
   res.json(exportDoc);
 });
 
-// GET /v1/developer/compliance/cases — list review cases (session auth)
+// GET /v1/developer/compliance/cases - list review cases (session auth)
 router.get('/cases', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const { status, priority } = req.query as { status?: string; priority?: string };
   const email = req.developer!.email;
@@ -134,7 +134,7 @@ router.get('/cases', sessionAuth, async (req: Request, res: Response): Promise<v
   res.json({ cases });
 });
 
-// POST /v1/developer/compliance/cases — open a review case (session auth)
+// POST /v1/developer/compliance/cases - open a review case (session auth)
 router.post('/cases', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const bodySchema = z.object({
     identity_id: z.string().uuid().optional(),
@@ -165,7 +165,7 @@ router.post('/cases', sessionAuth, async (req: Request, res: Response): Promise<
   res.status(201).json({ id: rows[0].id, case_ref: rows[0].case_ref, created_at: rows[0].created_at });
 });
 
-// PATCH /v1/developer/compliance/cases/:id — update status / assignee / notes (session auth)
+// PATCH /v1/developer/compliance/cases/:id - update status / assignee / notes (session auth)
 router.patch('/cases/:id', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const bodySchema = z.object({

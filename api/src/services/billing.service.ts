@@ -17,7 +17,7 @@ interface PlanDefinition {
 }
 
 // Growth is priced to reward volume: $0.0149/verification vs Starter's $0.0245.
-// Enterprise stays sales-driven — custom pricing, SLA, and dedicated support.
+// Enterprise stays sales-driven - custom pricing, SLA, and dedicated support.
 export const PLAN_PRICING: Record<SelfServePlan, PlanDefinition> = {
   starter: { amountCents: 4900, currency: 'USD', monthlyLimit: 2000, label: 'Starter' },
   growth:  { amountCents: 14900, currency: 'USD', monthlyLimit: 10000, label: 'Growth' },
@@ -285,7 +285,7 @@ async function checkUsageAlerts(): Promise<void> {
     const used = parseInt(usage?.total ?? '0', 10);
     if (used < sub.monthly_limit * 0.8) continue;
 
-    // Mark before sending — if the email fails we still won't spam next run.
+    // Mark before sending - if the email fails we still won't spam next run.
     await query(`UPDATE subscriptions SET usage_alert_80_sent_at = NOW() WHERE id = $1`, [sub.id]);
 
     const keyInfo = await queryOne<{ platform_name: string; platform_email: string }>(

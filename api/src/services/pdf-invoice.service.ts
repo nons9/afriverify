@@ -93,7 +93,7 @@ export function generateInvoicePdf(inv: InvoiceData): Promise<Buffer> {
 
     if (inv.amountCents > 0 || inv.verificationsIncluded > 0) {
       doc.fontSize(10).fillColor(DARK).font('Helvetica')
-         .text(`Subscription — ${planLabel} plan`, 58, y)
+         .text(`Subscription - ${planLabel} plan`, 58, y)
          .text(`${inv.verificationsIncluded.toLocaleString()} verifications included`, 280, y)
          .text(fmt(inv.amountCents), 450, y, { width: 90, align: 'right' });
       doc.moveTo(50, y + 22).lineTo(545, y + 22).strokeColor('#eeeeee').lineWidth(0.5).stroke();

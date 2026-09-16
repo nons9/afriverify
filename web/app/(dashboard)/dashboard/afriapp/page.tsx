@@ -51,7 +51,7 @@ export default function AfriAppPage() {
         '/v1/developer/afriapp-key',
         { key }
       );
-      setSuccess(`Connected — AfriApp owner ID: ${result.ownerId}`);
+      setSuccess(`Connected - AfriApp owner ID: ${result.ownerId}`);
       setKey('');
       const updated = await api.get<Status>('/v1/developer/afriapp-key');
       setStatus(updated);

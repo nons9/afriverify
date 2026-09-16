@@ -188,7 +188,7 @@ export default function ProviderSettingsPage() {
         <p className="text-xs text-slate-500 mb-4">
           Leave as <span className="font-medium text-slate-400">Auto (recommended)</span> to use the
           routing table above. Pin to a specific provider to override routing for all verifications on
-          that key — useful when you have a direct contract with a provider.
+          that key - useful when you have a direct contract with a provider.
         </p>
         {data ? (
           <div className="space-y-2">

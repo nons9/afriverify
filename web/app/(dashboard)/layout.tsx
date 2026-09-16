@@ -22,11 +22,13 @@ import {
   GitBranch,
   Paintbrush,
   Layers,
+  Rocket,
 } from 'lucide-react';
 import { getSession, clearSession, Developer } from '@/lib/auth';
 
 const nav = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+  { href: '/dashboard/onboarding', label: 'Quickstart', icon: Rocket },
   { href: '/dashboard/api-keys', label: 'API Keys', icon: Key },
   { href: '/dashboard/verifications', label: 'Verifications', icon: CheckCircle },
   { href: '/dashboard/usage', label: 'Usage & Billing', icon: BarChart2 },

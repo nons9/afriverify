@@ -181,7 +181,7 @@ export const onfidoProvider: IdentityProvider = {
 
   async verifyId(params: ProviderVerifyIdParams): Promise<ProviderResult> {
     if (!params.id_photo_buffer) {
-      // Document-only check without image — Onfido requires a document photo
+      // Document-only check without image - Onfido requires a document photo
       // Fall back to a limited data check result
       return {
         success: false,
@@ -190,7 +190,7 @@ export const onfidoProvider: IdentityProvider = {
         confidence: 0,
         name_match: false,
         dob_match: false,
-        rejected: false, // soft fail — not a hard rejection
+        rejected: false, // soft fail - not a hard rejection
         provider: 'onfido'
       };
     }

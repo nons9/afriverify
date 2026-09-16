@@ -1,5 +1,5 @@
 /**
- * /v1/hosted/* — public-facing endpoints that power the white-label hosted
+ * /v1/hosted/* - public-facing endpoints that power the white-label hosted
  * verification flow. No API key required; the session_token itself is the
  * credential (64 hex chars, 128-bit entropy). Every operation re-verifies the
  * token against the DB, so a revoked or expired session is always rejected.

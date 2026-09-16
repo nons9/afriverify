@@ -16,7 +16,7 @@ export interface ContinuityResult {
 }
 
 // Hash the first two octets of an IPv4 address (or first two groups of IPv6)
-// to get a broad regional fingerprint — never stores precise IP.
+// to get a broad regional fingerprint - never stores precise IP.
 function ipToRegionHash(ip?: string): string | null {
   if (!ip) return null;
   const v4parts = ip.split('.');
@@ -65,21 +65,21 @@ export async function recordContinuity(ctx: AccessContext): Promise<ContinuityRe
       flags.push('device_changed');
     }
 
-    // IP region changed — assess plausibility against time gap
+    // IP region changed - assess plausibility against time gap
     if (ipRegion && mostRecent.ip_geohash && mostRecent.ip_geohash !== ipRegion) {
       if (secondsApart < 7_200) {
-        // Region changed but less than 2 hours since last access — physically implausible
+        // Region changed but less than 2 hours since last access - physically implausible
         continuityScore -= 35;
         flags.push('impossible_location_change');
       } else {
-        // Could be travel or VPN — note but don't penalise as heavily
+        // Could be travel or VPN - note but don't penalise as heavily
         continuityScore -= 10;
         flags.push('location_changed');
       }
     }
 
     // Concurrent session detection: same identity active from a DIFFERENT
-    // device within the last 60 seconds — strong account sharing / takeover signal
+    // device within the last 60 seconds - strong account sharing / takeover signal
     const concurrentCount = history.filter((h) => {
       const t = new Date(h.created_at).getTime();
       return now - t < 60_000 && h.device_fingerprint_hash !== deviceHash;
@@ -93,7 +93,7 @@ export async function recordContinuity(ctx: AccessContext): Promise<ContinuityRe
 
   continuityScore = Math.max(0, Math.min(100, continuityScore));
 
-  // Write ledger entry asynchronously — never block the API response
+  // Write ledger entry asynchronously - never block the API response
   query(
     `INSERT INTO live_ledger
        (identity_id, platform_name, ip_geohash, device_fingerprint_hash,

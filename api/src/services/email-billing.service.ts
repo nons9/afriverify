@@ -139,7 +139,7 @@ export async function sendOverageInvoiceEmail(params: {
   const { error } = await client.emails.send({
     from: fromAddress(),
     to: [email],
-    subject: `[AfriVerify] Overage invoice ${invoiceNumber} — $${(overageAmountCents / 100).toFixed(2)} due`,
+    subject: `[AfriVerify] Overage invoice ${invoiceNumber} - $${(overageAmountCents / 100).toFixed(2)} due`,
     html: emailWrapper('Overage Invoice', body),
   });
   if (error) throw new Error(`Failed to send overage invoice email: ${error.message}`);
@@ -180,7 +180,7 @@ export async function sendPurchaseConfirmationEmail(params: {
 
   const body = `
 <p style="color:#a8a8a8;font-size:14px;line-height:1.6;margin:0 0 16px;">
-  Thank you — your payment has been received and your <strong style="color:#ede8de;">${escapeHtml(planLabel)}</strong> plan
+  Thank you - your payment has been received and your <strong style="color:#ede8de;">${escapeHtml(planLabel)}</strong> plan
   for <strong style="color:#ede8de;">${escapeHtml(inv.platformName)}</strong> is now active.
 </p>
 <div style="background:#1a1a1a;border-radius:8px;padding:16px 20px;margin:0 0 20px;">
@@ -218,7 +218,7 @@ export async function sendPurchaseConfirmationEmail(params: {
   const { error } = await client.emails.send({
     from: fromAddress(),
     to: [inv.developerEmail],
-    subject: `[AfriVerify] Payment confirmed — ${escapeHtml(planLabel)} plan activated (${inv.invoiceNumber})`,
+    subject: `[AfriVerify] Payment confirmed - ${escapeHtml(planLabel)} plan activated (${inv.invoiceNumber})`,
     html: emailWrapper('Payment Confirmed', body),
     attachments: [
       {
@@ -280,7 +280,7 @@ export async function sendWelcomeEmail(params: {
   const { error } = await client.emails.send({
     from: fromAddress(),
     to: [email],
-    subject: '[AfriVerify] Welcome — your account is ready',
+    subject: '[AfriVerify] Welcome - your account is ready',
     html: emailWrapper('Welcome to AfriVerify', body),
   });
   if (error) throw new Error(`Failed to send welcome email: ${error.message}`);

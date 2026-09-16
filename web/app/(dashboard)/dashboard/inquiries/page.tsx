@@ -140,7 +140,7 @@ export default function InquiriesPage() {
           </div>
           <p className="text-slate-400 text-sm max-w-prose">
             Shareable, no-code verification links. Send a link to someone and AfriVerify guides them
-            through identity verification — no API integration needed on their end.
+            through identity verification - no API integration needed on their end.
           </p>
         </div>
         <button
@@ -175,7 +175,7 @@ export default function InquiriesPage() {
                 required
                 value={form.label}
                 onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
-                placeholder="e.g. Contractor onboarding — July 2025"
+                placeholder="e.g. Contractor onboarding - July 2025"
                 className="w-full bg-white/5 border border-white/10 text-white placeholder-slate-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
               />
             </div>

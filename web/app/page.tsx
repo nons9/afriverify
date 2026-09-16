@@ -15,7 +15,7 @@ const features = [
   {
     icon: Globe,
     title: '54 African Countries',
-    desc: 'NIN, BVN, National ID, Passport — every major African identity document supported.',
+    desc: 'NIN, BVN, National ID, Passport - every major African identity document supported.',
   },
   {
     icon: Zap,
@@ -128,7 +128,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-4 py-1.5 text-sm text-indigo-400 mb-6">
             <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-            Now live — 54 African countries
+            Now live - 54 African countries
           </div>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1] mb-6">
             Africa&apos;s identity
@@ -315,11 +315,11 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-500">
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-indigo-400" />
-            <span>AfriVerify — Africa&apos;s identity infrastructure</span>
+            <span>AfriVerify - Africa&apos;s identity infrastructure</span>
           </div>
           <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-white transition-colors">Privacy</a>
-            <a href="#" className="hover:text-white transition-colors">Terms</a>
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-white transition-colors">Terms</Link>
             <Link href="/my-identity/login" className="hover:text-white transition-colors">Manage your identity</Link>
             <a href="mailto:hello@sankofaapp.com" className="hover:text-white transition-colors">Contact</a>
           </div>

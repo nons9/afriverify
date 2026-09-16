@@ -86,7 +86,7 @@ export default function SandboxPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-white">Sandbox</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Test your integration with fake credentials — no real data ever leaves.</p>
+          <p className="text-slate-400 text-sm mt-0.5">Test your integration with fake credentials - no real data ever leaves.</p>
         </div>
       </div>
 
@@ -100,7 +100,7 @@ export default function SandboxPage() {
         <h2 className="text-lg font-semibold text-white mb-1">Test credentials</h2>
         <p className="text-slate-400 text-sm mb-5">
           Pass these document IDs in your <code className="bg-white/5 text-indigo-300 px-1 rounded">POST /v1/verify/initiate</code> flow.
-          Each ID triggers a deterministic outcome — no KYC credits consumed.
+          Each ID triggers a deterministic outcome - no KYC credits consumed.
         </p>
 
         {loadingCreds ? (
