@@ -17,6 +17,8 @@ import {
   Ticket,
   Smartphone,
   Store,
+  Link2,
+  ShieldCheck,
 } from 'lucide-react';
 import { getSession, clearSession, Developer } from '@/lib/auth';
 
@@ -30,6 +32,8 @@ const nav = [
   { href: '/dashboard/sandbox', label: 'Sandbox', icon: FlaskConical },
   { href: '/dashboard/redeem-voucher', label: 'Redeem Voucher', icon: Ticket },
   { href: '/dashboard/afriapp', label: 'AfriApp Store', icon: Store },
+  { href: '/dashboard/inquiries', label: 'Inquiries', icon: Link2 },
+  { href: '/dashboard/compliance', label: 'Compliance', icon: ShieldCheck },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
