@@ -14,7 +14,11 @@ const router = Router();
 const createKeySchema = z.object({
   platform_name: z.string().min(2).max(100),
   platform_email: z.string().email(),
-  environment: z.enum(['sandbox', 'production']).default('sandbox')
+  environment: z.enum(['sandbox', 'production']).default('sandbox'),
+  scope: z.string().max(64).default('full'),
+  intent: z.string().max(255).optional(),
+  allowed_flows: z.array(z.string()).default(['kyc', 'trust', 'aml']),
+  expires_at: z.string().datetime().optional(),
 });
 
 // POST /developer/keys — public bootstrap (no auth required)
@@ -22,7 +26,7 @@ router.post(
   '/keys',
   validateBody(createKeySchema),
   async (req: Request, res: Response): Promise<void> => {
-    const { platform_name, platform_email, environment } =
+    const { platform_name, platform_email, environment, scope, intent, allowed_flows, expires_at } =
       req.body as z.infer<typeof createKeySchema>;
 
     const { key, hash, prefix } = generateApiKey(environment);
@@ -30,13 +34,14 @@ router.post(
     const rows = await query<{ id: string }>(
       `INSERT INTO api_keys
          (platform_name, platform_email, api_key_hash, api_key_prefix, environment,
-          tier, monthly_limit)
-       VALUES ($1,$2,$3,$4,$5,'free',100)
+          tier, monthly_limit, scope, intent, allowed_flows, expires_at)
+       VALUES ($1,$2,$3,$4,$5,'free',100,$6,$7,$8,$9)
        RETURNING id`,
-      [platform_name, platform_email, hash, prefix, environment]
+      [platform_name, platform_email, hash, prefix, environment,
+       scope, intent ?? null, JSON.stringify(allowed_flows), expires_at ?? null]
     );
 
-    logger.info('New API key created', { platform: platform_name, environment, id: rows[0].id });
+    logger.info('New API key created', { platform: platform_name, environment, scope, id: rows[0].id });
 
     res.status(201).json({
       api_key: key,
@@ -44,6 +49,10 @@ router.post(
       environment,
       tier: 'free',
       monthly_limit: 100,
+      scope,
+      intent: intent ?? null,
+      allowed_flows,
+      expires_at: expires_at ?? null,
       message: 'Store this API key securely. It will NOT be shown again.',
       id: rows[0].id
     });
@@ -65,11 +74,23 @@ router.get('/keys', sessionAuth, async (req: Request, res: Response): Promise<vo
     created_at: string;
     webhook_url: string | null;
     ussd_service_code: string | null;
+    scope: string;
+    intent: string | null;
+    allowed_flows: string[];
+    parent_key_id: string | null;
+    expires_at: string | null;
+    subkey_count: number;
   }>(
-    `SELECT id, platform_name, api_key_prefix, environment, tier, monthly_limit,
-            verifications_this_month, last_used, is_active, created_at,
-            webhook_url, ussd_service_code
-     FROM api_keys WHERE platform_email = $1 ORDER BY created_at DESC`,
+    `SELECT k.id, k.platform_name, k.api_key_prefix, k.environment, k.tier, k.monthly_limit,
+            k.verifications_this_month, k.last_used, k.is_active, k.created_at,
+            k.webhook_url, k.ussd_service_code, k.scope, k.intent, k.allowed_flows,
+            k.parent_key_id, k.expires_at,
+            COUNT(s.id)::int AS subkey_count
+     FROM api_keys k
+     LEFT JOIN api_keys s ON s.parent_key_id = k.id AND s.is_active = true
+     WHERE k.platform_email = $1
+     GROUP BY k.id
+     ORDER BY k.created_at DESC`,
     [req.developer!.email]
   );
 
@@ -346,6 +367,225 @@ router.post('/keys/:id/rotate', sessionAuth, async (req: Request, res: Response)
     replaced_key_id: id,
     message: 'Store this API key securely. It will NOT be shown again. The rotated key is now inactive.'
   });
+});
+
+// GET /developer/keys/:id/analytics — per-key verification breakdown (session auth)
+router.get('/keys/:id/analytics', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  const keyRow = await queryOne<{ id: string }>(
+    'SELECT id FROM api_keys WHERE id = $1 AND platform_email = $2',
+    [id, req.developer!.email]
+  );
+  if (!keyRow) {
+    res.status(404).json({ error: 'not_found', message: 'Key not found' });
+    return;
+  }
+
+  const [daily, byType, totals] = await Promise.all([
+    query<{ day: string; calls: number; passed: number; failed: number }>(
+      `SELECT DATE(created_at)::text AS day,
+              COUNT(*)::int AS calls,
+              COUNT(*) FILTER (WHERE result = 'passed')::int AS passed,
+              COUNT(*) FILTER (WHERE result = 'failed')::int AS failed
+       FROM verification_events
+       WHERE api_key_id = $1 AND created_at >= NOW() - INTERVAL '30 days'
+       GROUP BY DATE(created_at) ORDER BY day ASC`,
+      [id]
+    ),
+    query<{ event_type: string; count: number }>(
+      `SELECT event_type::text, COUNT(*)::int AS count
+       FROM verification_events WHERE api_key_id = $1
+         AND created_at >= NOW() - INTERVAL '30 days'
+       GROUP BY event_type ORDER BY count DESC`,
+      [id]
+    ),
+    queryOne<{ total: string; passed: string; failed: string; flagged: string }>(
+      `SELECT COUNT(*)::text AS total,
+              COUNT(*) FILTER (WHERE result = 'passed')::text AS passed,
+              COUNT(*) FILTER (WHERE result = 'failed')::text AS failed,
+              COUNT(*) FILTER (WHERE result = 'flagged')::text AS flagged
+       FROM verification_events WHERE api_key_id = $1`,
+      [id]
+    )
+  ]);
+
+  res.json({
+    key_id: id,
+    window: '30d',
+    totals: {
+      total: parseInt(totals?.total ?? '0'),
+      passed: parseInt(totals?.passed ?? '0'),
+      failed: parseInt(totals?.failed ?? '0'),
+      flagged: parseInt(totals?.flagged ?? '0'),
+    },
+    daily,
+    by_event_type: byType,
+  });
+});
+
+// POST /developer/keys/:id/subkeys — issue a delegated sub-key (session auth)
+const subkeySchema = z.object({
+  platform_name: z.string().min(2).max(100),
+  scope: z.string().max(64).default('delegated'),
+  intent: z.string().max(255).optional(),
+  allowed_flows: z.array(z.string()).optional(),
+  monthly_limit: z.number().int().min(1).max(100_000).default(1000),
+  expires_at: z.string().datetime().optional(),
+});
+
+router.post('/keys/:id/subkeys', sessionAuth, validateBody(subkeySchema), async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { platform_name, scope, intent, allowed_flows, monthly_limit, expires_at } =
+    req.body as z.infer<typeof subkeySchema>;
+
+  const parent = await queryOne<{
+    id: string; environment: 'sandbox' | 'production'; tier: string;
+    allowed_flows: string[]; monthly_limit: number;
+  }>(
+    'SELECT id, environment, tier, allowed_flows, monthly_limit FROM api_keys WHERE id = $1 AND platform_email = $2 AND is_active = true',
+    [id, req.developer!.email]
+  );
+  if (!parent) {
+    res.status(404).json({ error: 'not_found', message: 'Parent key not found or inactive' });
+    return;
+  }
+
+  // Sub-key flows are constrained to what the parent allows
+  const parentFlows: string[] = Array.isArray(parent.allowed_flows) ? parent.allowed_flows : ['kyc', 'trust', 'aml'];
+  const effectiveFlows: string[] = allowed_flows
+    ? allowed_flows.filter((f: string) => parentFlows.includes(f))
+    : parentFlows;
+
+  const { key, hash, prefix } = generateApiKey(parent.environment);
+
+  const rows = await query<{ id: string }>(
+    `INSERT INTO api_keys
+       (platform_name, platform_email, api_key_hash, api_key_prefix, environment,
+        tier, monthly_limit, scope, intent, allowed_flows, parent_key_id, expires_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+     RETURNING id`,
+    [
+      platform_name, req.developer!.email, hash, prefix, parent.environment,
+      parent.tier, monthly_limit, scope, intent ?? null,
+      JSON.stringify(effectiveFlows), parent.id, expires_at ?? null
+    ]
+  );
+
+  logger.info('Sub-key created', { parent_id: parent.id, new_id: rows[0].id });
+
+  res.status(201).json({
+    api_key: key,
+    prefix,
+    id: rows[0].id,
+    parent_key_id: parent.id,
+    environment: parent.environment,
+    scope,
+    intent: intent ?? null,
+    allowed_flows: effectiveFlows,
+    monthly_limit,
+    expires_at: expires_at ?? null,
+    message: 'Store this sub-key securely. It will NOT be shown again.',
+  });
+});
+
+// GET /developer/keys/:id/subkeys — list sub-keys (session auth)
+router.get('/keys/:id/subkeys', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  const parent = await queryOne<{ id: string }>(
+    'SELECT id FROM api_keys WHERE id = $1 AND platform_email = $2',
+    [id, req.developer!.email]
+  );
+  if (!parent) {
+    res.status(404).json({ error: 'not_found', message: 'Parent key not found' });
+    return;
+  }
+
+  const subkeys = await query<{
+    id: string; platform_name: string; api_key_prefix: string; scope: string;
+    intent: string | null; allowed_flows: string[]; monthly_limit: number;
+    verifications_this_month: number; is_active: boolean; expires_at: string | null; created_at: string;
+  }>(
+    `SELECT id, platform_name, api_key_prefix, scope, intent, allowed_flows,
+            monthly_limit, verifications_this_month, is_active, expires_at, created_at
+     FROM api_keys WHERE parent_key_id = $1 ORDER BY created_at DESC`,
+    [id]
+  );
+
+  res.json({ parent_key_id: id, subkeys });
+});
+
+// POST /developer/verification-tokens — issue a short-lived, single-use verification token (session auth)
+const vtSchema = z.object({
+  api_key_id: z.string().uuid(),
+  allowed_flows: z.array(z.string()).default(['kyc']),
+  ttl_seconds: z.number().int().min(60).max(86400).default(3600),
+  metadata: z.record(z.unknown()).default({}),
+});
+
+router.post('/verification-tokens', sessionAuth, validateBody(vtSchema), async (req: Request, res: Response): Promise<void> => {
+  const { api_key_id, allowed_flows, ttl_seconds, metadata } =
+    req.body as z.infer<typeof vtSchema>;
+
+  const keyRow = await queryOne<{ id: string; environment: string }>(
+    'SELECT id, environment FROM api_keys WHERE id = $1 AND platform_email = $2 AND is_active = true',
+    [api_key_id, req.developer!.email]
+  );
+  if (!keyRow) {
+    res.status(404).json({ error: 'not_found', message: 'API key not found or inactive' });
+    return;
+  }
+
+  const raw = `avt_${keyRow.environment === 'production' ? 'live' : 'test'}_${randomBytes(24).toString('hex')}`;
+  const hash = sha256(raw);
+  const prefix = raw.substring(0, 16);
+  const expiresAt = new Date(Date.now() + ttl_seconds * 1000).toISOString();
+
+  const rows = await query<{ id: string }>(
+    `INSERT INTO verification_tokens
+       (token_hash, token_prefix, api_key_id, allowed_flows, metadata, expires_at)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     RETURNING id`,
+    [hash, prefix, api_key_id, JSON.stringify(allowed_flows), JSON.stringify(metadata), expiresAt]
+  );
+
+  logger.info('Verification token issued', { id: rows[0].id, api_key_id, ttl_seconds });
+
+  res.status(201).json({
+    token: raw,
+    prefix,
+    id: rows[0].id,
+    allowed_flows,
+    expires_at: expiresAt,
+    message: 'This token is single-use and expires once consumed or at expires_at.',
+  });
+});
+
+// GET /developer/verification-tokens — list tokens for an API key (session auth)
+router.get('/verification-tokens', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const { api_key_id } = req.query as { api_key_id?: string };
+
+  const where = api_key_id
+    ? `WHERE vt.api_key_id = $2 AND ak.platform_email = $1`
+    : `WHERE ak.platform_email = $1`;
+  const params: unknown[] = api_key_id ? [req.developer!.email, api_key_id] : [req.developer!.email];
+
+  const tokens = await query<{
+    id: string; token_prefix: string; api_key_id: string;
+    allowed_flows: string[]; used: boolean; used_at: string | null;
+    expires_at: string; created_at: string;
+  }>(
+    `SELECT vt.id, vt.token_prefix, vt.api_key_id, vt.allowed_flows,
+            vt.used, vt.used_at, vt.expires_at, vt.created_at
+     FROM verification_tokens vt
+     JOIN api_keys ak ON ak.id = vt.api_key_id
+     ${where}
+     ORDER BY vt.created_at DESC LIMIT 100`,
+    params
+  );
+
+  res.json({ tokens });
 });
 
 // ─── AfriApp Store connection ────────────────────────────────────────────────
