@@ -5,6 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
+    "preDeployCommand": "npm run migrate:prod",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 180,
     "restartPolicyType": "ON_FAILURE",
