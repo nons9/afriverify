@@ -270,7 +270,7 @@ router.get('/identities/:id', adminAuth, async (req: Request, res: Response) => 
 
 router.post('/identities/:id/rescreen', adminAuth, async (req: Request, res: Response) => {
   try {
-    await screenIdentity(req.params.id);
+    await screenIdentity(req.params.id as string);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'rescreen_failed', message: (err as Error).message });
