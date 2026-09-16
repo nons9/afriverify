@@ -1,6 +1,7 @@
 import { query, queryOne } from '../db';
 import { screenName } from './screening.service';
 import { pushAmlUpdate } from './platform-webhook.service';
+import { evaluateIdentity } from './risk-rules.service';
 import logger from '../utils/logger';
 import { captureError } from '../utils/sentry';
 
@@ -33,6 +34,12 @@ export async function screenIdentity(identityId: string): Promise<void> {
   if (result.result !== previousStatus) {
     logger.info('AML status changed', { identityId, previousStatus, newStatus: result.result });
     await pushAmlUpdate(identityId, result.result, previousStatus);
+    // Re-evaluate risk rules whenever AML status changes
+    await evaluateIdentity(identityId).catch((err) =>
+      logger.error('Risk rule evaluation failed after AML rescreen', {
+        identityId, error: (err as Error).message,
+      })
+    );
   }
 }
 

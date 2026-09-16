@@ -6,6 +6,7 @@ import pool from '../db';
 import { adminAuth, requireRole } from '../middleware/adminAuth';
 import { validateBody } from '../middleware/validate';
 import { screenIdentity } from '../services/aml-rescreen.service';
+import { evaluateIdentity } from '../services/risk-rules.service';
 
 const router = Router();
 
@@ -634,5 +635,148 @@ router.patch(
     }
   }
 );
+
+// ─── Risk Rules ──────────────────────────────────────────────────────────────
+
+router.get('/risk-rules', adminAuth, async (_req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, description, is_active, priority, conditions, conditions_mode,
+              action, action_params, created_at, updated_at
+       FROM risk_rules ORDER BY priority ASC, created_at ASC`
+    );
+    res.json({ rules: rows });
+  } catch (err) {
+    res.status(500).json({ error: 'internal_error', message: (err as Error).message });
+  }
+});
+
+const riskRuleSchema = z.object({
+  name: z.string().min(1).max(255),
+  description: z.string().optional(),
+  is_active: z.boolean().optional().default(true),
+  priority: z.number().int().min(1).max(999).optional().default(100),
+  conditions: z.array(z.object({
+    field: z.string(),
+    operator: z.enum(['eq', 'ne', 'lt', 'lte', 'gt', 'gte', 'in', 'not_in']),
+    value: z.unknown(),
+  })),
+  conditions_mode: z.enum(['all', 'any']).optional().default('all'),
+  action: z.enum(['trust_delta', 'flag']),
+  action_params: z.record(z.unknown()).nullable().optional(),
+});
+
+router.post('/risk-rules', adminAuth, validateBody(riskRuleSchema), async (req: Request, res: Response) => {
+  const b = req.body as z.infer<typeof riskRuleSchema>;
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO risk_rules (name, description, is_active, priority, conditions, conditions_mode, action, action_params)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [b.name, b.description ?? null, b.is_active, b.priority, JSON.stringify(b.conditions),
+       b.conditions_mode, b.action, b.action_params ? JSON.stringify(b.action_params) : null]
+    );
+    res.status(201).json({ rule: rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: 'internal_error', message: (err as Error).message });
+  }
+});
+
+const riskRulePatchSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  description: z.string().optional(),
+  is_active: z.boolean().optional(),
+  priority: z.number().int().min(1).max(999).optional(),
+  conditions: z.array(z.object({
+    field: z.string(),
+    operator: z.enum(['eq', 'ne', 'lt', 'lte', 'gt', 'gte', 'in', 'not_in']),
+    value: z.unknown(),
+  })).optional(),
+  conditions_mode: z.enum(['all', 'any']).optional(),
+  action: z.enum(['trust_delta', 'flag']).optional(),
+  action_params: z.record(z.unknown()).nullable().optional(),
+});
+
+router.patch('/risk-rules/:id', adminAuth, validateBody(riskRulePatchSchema), async (req: Request, res: Response) => {
+  const b = req.body as z.infer<typeof riskRulePatchSchema>;
+  const updates: string[] = [];
+  const params: unknown[] = [];
+
+  const set = (col: string, val: unknown) => { params.push(val); updates.push(`${col} = $${params.length}`); };
+  if (b.name !== undefined)            set('name', b.name);
+  if (b.description !== undefined)     set('description', b.description);
+  if (b.is_active !== undefined)       set('is_active', b.is_active);
+  if (b.priority !== undefined)        set('priority', b.priority);
+  if (b.conditions !== undefined)      set('conditions', JSON.stringify(b.conditions));
+  if (b.conditions_mode !== undefined) set('conditions_mode', b.conditions_mode);
+  if (b.action !== undefined)          set('action', b.action);
+  if (b.action_params !== undefined)   set('action_params', b.action_params ? JSON.stringify(b.action_params) : null);
+
+  if (!updates.length) { res.status(400).json({ error: 'no_fields' }); return; }
+  updates.push('updated_at = NOW()');
+  params.push(req.params.id as string);
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE risk_rules SET ${updates.join(', ')} WHERE id = $${params.length} RETURNING *`,
+      params
+    );
+    if (!rows[0]) { res.status(404).json({ error: 'not_found' }); return; }
+    res.json({ rule: rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: 'internal_error', message: (err as Error).message });
+  }
+});
+
+router.delete('/risk-rules/:id', adminAuth, requireRole('super_admin'), async (req: Request, res: Response) => {
+  try {
+    await pool.query('DELETE FROM risk_rules WHERE id = $1', [req.params.id as string]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'internal_error', message: (err as Error).message });
+  }
+});
+
+router.post('/risk-rules/evaluate/:identityId', adminAuth, async (req: Request, res: Response) => {
+  try {
+    const result = await evaluateIdentity(req.params.identityId as string);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'evaluation_failed', message: (err as Error).message });
+  }
+});
+
+// ─── Risk Flags ───────────────────────────────────────────────────────────────
+
+router.get('/risk-flags', adminAuth, async (req: Request, res: Response) => {
+  const { resolved = 'false', limit = '50', offset = '0' } = req.query as Record<string, string>;
+  try {
+    const { rows } = await pool.query(
+      `SELECT rf.id, rf.identity_id, rf.rule_name, rf.triggered_context,
+              rf.resolved_at, rf.resolved_by, rf.created_at,
+              vi.full_name, vi.phone
+       FROM risk_flags rf
+       JOIN verified_identities vi ON vi.id = rf.identity_id
+       WHERE ($1 = 'true' OR rf.resolved_at IS NULL)
+       ORDER BY rf.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [resolved, parseInt(limit, 10), parseInt(offset, 10)]
+    );
+    res.json({ flags: rows });
+  } catch (err) {
+    res.status(500).json({ error: 'internal_error', message: (err as Error).message });
+  }
+});
+
+router.post('/risk-flags/:id/resolve', adminAuth, async (req: Request, res: Response) => {
+  try {
+    await pool.query(
+      `UPDATE risk_flags SET resolved_at = NOW(), resolved_by = $1 WHERE id = $2`,
+      [(req as unknown as { admin?: { email: string } }).admin?.email ?? 'admin', req.params.id as string]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'internal_error', message: (err as Error).message });
+  }
+});
 
 export default router;
