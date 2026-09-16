@@ -26,14 +26,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [admin, setAdmin] = useState<AdminUser | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const isLoginPage = pathname === '/admin/login';
+
   useEffect(() => {
+    if (isLoginPage) return;
     const session = getAdminSession();
     if (!session) {
       router.replace('/admin/login');
     } else {
       setAdmin(session.admin);
     }
-  }, [router]);
+  }, [router, isLoginPage]);
 
   useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
@@ -41,6 +44,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     clearAdminSession();
     router.push('/admin/login');
   }
+
+  if (isLoginPage) return <>{children}</>;
 
   if (!admin) {
     return (
