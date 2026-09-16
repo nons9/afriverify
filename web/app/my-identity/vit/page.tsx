@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ShieldCheck, Copy, Check, ArrowLeft, Clock, Activity } from 'lucide-react';
 import { identityApi } from '@/lib/identity-auth';
@@ -38,7 +38,7 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(months / 12)}yr ago`;
 }
 
-export default function VITPage() {
+function VITPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -285,5 +285,19 @@ export default function VITPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function VITPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <VITPageContent />
+    </Suspense>
   );
 }
