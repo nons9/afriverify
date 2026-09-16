@@ -20,6 +20,7 @@ import internalRouter from './routes/internal';
 import sandboxRouter from './routes/sandbox';
 import inquiriesRouter from './routes/inquiries';
 import complianceRouter from './routes/compliance';
+import adminRouter from './routes/admin';
 import logger from './utils/logger';
 import { initSentry, captureError } from './utils/sentry';
 import { startFailureRateMonitor } from './services/alerting.service';
@@ -79,6 +80,7 @@ app.use('/v1/internal', internalRouter);
 app.use('/v1/sandbox', sandboxRouter);
 app.use('/v1/inquiries', inquiriesRouter);
 app.use('/v1/developer/compliance', complianceRouter);
+app.use('/v1/admin', adminRouter);
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json({
