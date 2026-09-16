@@ -36,5 +36,6 @@ async function identityRequest<T>(path: string, options: RequestInit = {}): Prom
 
 export const identityApi = {
   get: <T>(path: string) => identityRequest<T>(path),
-  post: <T>(path: string, data: unknown) => identityRequest<T>(path, { method: 'POST', body: JSON.stringify(data) })
+  post: <T>(path: string, data: unknown) => identityRequest<T>(path, { method: 'POST', body: JSON.stringify(data) }),
+  delete: <T>(path: string) => identityRequest<T>(path, { method: 'DELETE' })
 };
