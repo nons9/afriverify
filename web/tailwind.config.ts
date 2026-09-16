@@ -10,6 +10,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        bricolage: ['Bricolage Grotesque', 'system-ui', 'sans-serif'],
       },
     },
   },

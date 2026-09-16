@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Code2,
 } from 'lucide-react';
+import { AfriVerifyLogo, AfriVerifyMark } from '@/components/logo';
 
 const features = [
   {
@@ -102,12 +103,7 @@ export default function LandingPage() {
       {/* Nav */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/10 bg-slate-950/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
-              <Shield className="w-4 h-4" />
-            </div>
-            <span className="font-bold text-lg tracking-tight">AfriVerify</span>
-          </div>
+          <AfriVerifyLogo size={30} textSize="text-lg" />
           <div className="hidden md:flex items-center gap-8 text-sm text-slate-400">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
@@ -313,10 +309,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-white/10 py-8 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-500">
-          <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-indigo-400" />
-            <span>AfriVerify - Africa&apos;s identity infrastructure</span>
-          </div>
+          <AfriVerifyLogo size={22} textSize="text-sm" />
           <div className="flex items-center gap-6">
             <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-white transition-colors">Terms</Link>
