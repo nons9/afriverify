@@ -12,7 +12,11 @@ import { validateBody } from '../middleware/validate';
 import { writeAuditEvent } from '../middleware/audit';
 import { sendSms } from '../services/otp.service';
 import { sendOtpEmail } from '../services/email-otp.service';
-import { verifyIdWithSmile, biometricKYC } from '../services/smile-identity.service';
+import {
+  verifyId as verifyIdWithProvider,
+  biometricKYC as biometricKYCWithProvider,
+  ProviderName
+} from '../services/identity-provider.service';
 import { applyTrustEvent } from '../services/trust-score.service';
 import { issueVIT } from '../services/vit.service';
 import { checkBlacklist } from '../services/blacklist.service';
@@ -410,17 +414,23 @@ router.post(
     const idHash = sha256(id_number);
     let idVerified = false;
     let smileCode = 'skipped';
+    let providerUsed: ProviderName = 'smile_identity';
 
     try {
-      const result = await verifyIdWithSmile({
-        id_type: id_type.toUpperCase(),
-        id_number,
-        country: nationality.toUpperCase().substring(0, 2),
-        first_name,
-        last_name,
-        dob,
-        phone: session.phone
-      });
+      const preferred = req.apiKey?.preferred_provider ?? null;
+      const result = await verifyIdWithProvider(
+        {
+          id_type: id_type.toUpperCase(),
+          id_number,
+          country: nationality.toUpperCase().substring(0, 2),
+          first_name,
+          last_name,
+          dob,
+          phone: session.phone,
+          id_photo_buffer: file.buffer
+        },
+        preferred
+      );
 
       if (result.rejected) {
         await writeAuditEvent(req, {
@@ -440,15 +450,16 @@ router.post(
 
       idVerified = result.success;
       smileCode = result.result_code;
+      providerUsed = result.provider;
     } catch (err) {
-      logger.warn('Smile ID unavailable, continuing', { error: (err as Error).message });
+      logger.warn('Identity provider unavailable, continuing', { error: (err as Error).message });
     }
 
     await query(
       `UPDATE verified_identities
        SET full_name = $1, nationality = $2, id_type = $3, id_number_hash = $4,
-           metadata = metadata || $5::jsonb, updated_at = NOW()
-       WHERE id = $6`,
+           metadata = metadata || $5::jsonb, provider_used = $6, updated_at = NOW()
+       WHERE id = $7`,
       [
         `${first_name} ${last_name}`,
         nationality,
@@ -460,6 +471,7 @@ router.post(
           deepscan_verdict: deepScan.verdict,
           deepscan_confidence: deepScan.confidence
         }),
+        providerUsed,
         session.identity_id
       ]
     );
@@ -685,7 +697,7 @@ async function runBiometricProcessing(
       ? await downloadFromS3(session.id_photo_s3_key)
       : undefined;
 
-    const result = await biometricKYC({
+    const result = await biometricKYCWithProvider({
       country: (identity?.nationality ?? 'NG').toUpperCase().substring(0, 2),
       id_type: (identity?.id_type ?? 'NIN').toUpperCase(),
       partner_user_id: identityId,

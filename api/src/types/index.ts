@@ -70,6 +70,8 @@ export interface VerifiedIdentity {
   updated_at: Date;
 }
 
+export type ProviderName = 'smile_identity' | 'dojah' | 'onfido';
+
 export interface ApiKey {
   id: string;
   platform_name: string;
@@ -85,6 +87,7 @@ export interface ApiKey {
   permissions: string[];
   webhook_url: string | null;
   webhook_secret_hash: string | null;
+  preferred_provider: ProviderName | null;
   created_at: Date;
 }
 

@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   GitBranch,
   Paintbrush,
+  Layers,
 } from 'lucide-react';
 import { getSession, clearSession, Developer } from '@/lib/auth';
 
@@ -38,6 +39,7 @@ const nav = [
   { href: '/dashboard/inquiries', label: 'Inquiries', icon: Link2 },
   { href: '/dashboard/compliance', label: 'Compliance', icon: ShieldCheck },
   { href: '/dashboard/white-label', label: 'White Label', icon: Paintbrush },
+  { href: '/dashboard/provider-settings', label: 'ID Providers', icon: Layers },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

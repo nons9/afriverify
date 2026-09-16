@@ -731,4 +731,66 @@ router.put(
   }
 );
 
+// ─── Provider settings ───────────────────────────────────────────────────────
+
+import {
+  routingTableSummary,
+  ProviderName
+} from '../services/identity-provider.service';
+
+const providerSettingsSchema = z.object({
+  api_key_id: z.string().uuid(),
+  preferred_provider: z.enum(['smile_identity', 'dojah', 'onfido']).nullable()
+});
+
+// GET /developer/provider-settings — returns routing table + per-key preferences
+router.get('/provider-settings', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const keys = await query<{ id: string; platform_name: string; preferred_provider: ProviderName | null }>(
+    `SELECT id, platform_name, preferred_provider
+     FROM api_keys
+     WHERE platform_email = $1 AND is_active = true
+     ORDER BY created_at DESC`,
+    [req.developer!.email]
+  );
+
+  res.json({
+    routing_table: routingTableSummary(),
+    api_keys: keys
+  });
+});
+
+// PUT /developer/provider-settings — pin a key to a specific provider (or clear it)
+router.put(
+  '/provider-settings',
+  sessionAuth,
+  validateBody(providerSettingsSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    const { api_key_id, preferred_provider } = req.body as z.infer<typeof providerSettingsSchema>;
+
+    // Verify the key belongs to this developer
+    const key = await queryOne<{ id: string }>(
+      `SELECT id FROM api_keys WHERE id = $1 AND platform_email = $2 AND is_active = true`,
+      [api_key_id, req.developer!.email]
+    );
+
+    if (!key) {
+      res.status(404).json({ error: 'not_found', message: 'API key not found' });
+      return;
+    }
+
+    await query(
+      `UPDATE api_keys SET preferred_provider = $1 WHERE id = $2`,
+      [preferred_provider, api_key_id]
+    );
+
+    logger.info('Provider preference updated', {
+      email: req.developer!.email,
+      api_key_id,
+      preferred_provider
+    });
+
+    res.json({ updated: true, api_key_id, preferred_provider });
+  }
+);
+
 export default router;
