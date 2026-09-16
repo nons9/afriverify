@@ -17,7 +17,7 @@ router.use(requirePermission('verify'));
 // ─── POST /vit/verify ─────────────────────────────────────────────────────────
 // Accepts a VIT JWT presented by a user, validates signature + revocation,
 // and returns sanitized identity claims. The developer never sees PII (name,
-// raw ID number, DOB) — only verification signals and aggregate scores.
+// raw ID number, DOB) - only verification signals and aggregate scores.
 const verifySchema = z.object({
   token: z.string().min(50).max(4096)
 });

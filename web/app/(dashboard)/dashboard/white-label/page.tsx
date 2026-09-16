@@ -291,7 +291,7 @@ export default function WhiteLabelPage() {
                 Redirect your user to{' '}
                 <code className="text-indigo-300">/verify/{'{session_token}'}</code>
               </li>
-              <li>The flow handles OTP, ID, and face — fully branded.</li>
+              <li>The flow handles OTP, ID, and face - fully branded.</li>
               <li>On completion, the user is sent to your <code className="text-indigo-300">redirect_url</code>.</li>
             </ol>
           </div>

@@ -170,15 +170,15 @@ export default function UsagePage() {
       {topPct >= 80 && (
         <div className="mb-6 flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm px-5 py-4 rounded-xl">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          Your most-used key is at {topPct}% of its monthly quota. Upgrade to avoid interruptions — overages are billed at $0.03/verification.
+          Your most-used key is at {topPct}% of its monthly quota. Upgrade to avoid interruptions - overages are billed at $0.03/verification.
         </div>
       )}
 
       <div className="grid grid-cols-3 gap-4 mb-8">
         {[
-          { label: 'Verifications this month', value: loading ? '—' : totalVerifs.toLocaleString(), icon: TrendingUp },
-          { label: 'Monthly limit (top key)', value: loading ? '—' : (topKey?.monthly_limit ?? 100).toLocaleString(), icon: BarChart2 },
-          { label: 'Active keys', value: loading ? '—' : String(overview?.active_keys ?? 0), icon: AlertTriangle },
+          { label: 'Verifications this month', value: loading ? '-' : totalVerifs.toLocaleString(), icon: TrendingUp },
+          { label: 'Monthly limit (top key)', value: loading ? '-' : (topKey?.monthly_limit ?? 100).toLocaleString(), icon: BarChart2 },
+          { label: 'Active keys', value: loading ? '-' : String(overview?.active_keys ?? 0), icon: AlertTriangle },
         ].map(({ label, value, icon: Icon }) => (
           <div key={label} className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
@@ -192,7 +192,7 @@ export default function UsagePage() {
 
       {/* Chart */}
       <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6 mb-6">
-        <h3 className="text-sm font-semibold text-white mb-5">API calls — last 7 days</h3>
+        <h3 className="text-sm font-semibold text-white mb-5">API calls - last 7 days</h3>
         {loading ? (
           <div className="flex items-center justify-center h-[180px]">
             <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -252,7 +252,7 @@ export default function UsagePage() {
                           <> &middot; renews {new Date(sub.current_period_end).toLocaleDateString()}</>
                         )}
                         {sub?.status === 'past_due' && (
-                          <span className="text-amber-400"> &middot; payment due — renew to avoid downgrade</span>
+                          <span className="text-amber-400"> &middot; payment due - renew to avoid downgrade</span>
                         )}
                       </div>
                       <UsageBar used={key.verifications_this_month} limit={key.monthly_limit} />
@@ -266,7 +266,7 @@ export default function UsagePage() {
                         </span>
                       ) : null}
 
-                      {/* Upgrade options — show plans higher than current tier */}
+                      {/* Upgrade options - show plans higher than current tier */}
                       {billing.plans.starter && (!isActive || currentPlan === 'free') && (
                         <button
                           onClick={() => handleSubscribe(key.id, 'starter')}
@@ -276,7 +276,7 @@ export default function UsagePage() {
                           <CreditCard className="w-3.5 h-3.5" />
                           {subscribingKeyId === key.id && subscribingPlan === 'starter'
                             ? 'Redirecting…'
-                            : `Starter — ${formatMoney(billing.plans.starter.amountCents, billing.plans.starter.currency)}/mo`}
+                            : `Starter - ${formatMoney(billing.plans.starter.amountCents, billing.plans.starter.currency)}/mo`}
                         </button>
                       )}
                       {billing.plans.growth && (!isActive || currentPlan === 'free' || currentPlan === 'starter') && (
@@ -288,7 +288,7 @@ export default function UsagePage() {
                           <Zap className="w-3.5 h-3.5" />
                           {subscribingKeyId === key.id && subscribingPlan === 'growth'
                             ? 'Redirecting…'
-                            : `Growth — ${formatMoney(billing.plans.growth.amountCents, billing.plans.growth.currency)}/mo`}
+                            : `Growth - ${formatMoney(billing.plans.growth.amountCents, billing.plans.growth.currency)}/mo`}
                         </button>
                       )}
                     </div>
@@ -346,7 +346,7 @@ export default function UsagePage() {
                           <span className="text-slate-600 ml-1">({inv.overage_verifications.toLocaleString()} extra)</span>
                         </span>
                       ) : (
-                        <span className="text-slate-600">—</span>
+                        <span className="text-slate-600">-</span>
                       )}
                     </td>
                     <td className="px-6 py-3 text-slate-300 font-mono text-xs tabular-nums font-medium">

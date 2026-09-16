@@ -110,7 +110,7 @@ export default function ApiKeysPage() {
         <div className="mb-6 bg-green-500/10 border border-green-500/30 rounded-xl p-5">
           <div className="flex items-center gap-2 mb-1">
             <CheckCircle className="w-4 h-4 text-green-400" />
-            <span className="text-sm font-semibold text-green-400">API key created — save it now</span>
+            <span className="text-sm font-semibold text-green-400">API key created - save it now</span>
           </div>
           <p className="text-xs text-slate-400 mb-3">This key will not be shown again.</p>
           <div className="flex items-center gap-3 bg-black/30 rounded-lg px-4 py-3">
@@ -121,7 +121,7 @@ export default function ApiKeysPage() {
             onClick={() => setNewKeyValue(null)}
             className="mt-3 text-xs text-slate-500 hover:text-slate-300 transition-colors"
           >
-            I&apos;ve copied it — dismiss
+            I&apos;ve copied it - dismiss
           </button>
         </div>
       )}

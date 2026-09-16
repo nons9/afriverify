@@ -14,13 +14,13 @@ interface Identity {
   phone: string;
   full_name: string;
   id_type: string;
-  id_number: string;
-  date_of_birth: string;
-  country: string;
+  id_number_hash: string;
+  nationality: string;
   verification_level: number;
   trust_score: number;
   aml_status: string;
   is_blacklisted: boolean;
+  provider_used: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -140,7 +140,7 @@ export default function IdentityDetailPage() {
             <Fingerprint className="w-5 h-5 text-indigo-400" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-white">{i.full_name || '—'}</h1>
+            <h1 className="text-lg font-bold text-white">{i.full_name || '-'}</h1>
             <p className="text-sm text-slate-400">{i.phone}</p>
           </div>
         </div>
@@ -170,10 +170,10 @@ export default function IdentityDetailPage() {
         <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
           {[
             ['ID', i.id.slice(0, 8) + '…'],
-            ['Country', i.country?.toUpperCase() ?? '—'],
-            ['ID Type', i.id_type ?? '—'],
-            ['ID Number', i.id_number ? '••••' + i.id_number.slice(-4) : '—'],
-            ['Date of Birth', i.date_of_birth ? new Date(i.date_of_birth).toLocaleDateString() : '—'],
+            ['Nationality', i.nationality?.toUpperCase() ?? '-'],
+            ['ID Type', i.id_type ?? '-'],
+            ['ID Hash', i.id_number_hash ? '••••' + i.id_number_hash.slice(-6) : '-'],
+            ['Provider', i.provider_used?.replace(/_/g, ' ') ?? 'unknown'],
             ['Verified', new Date(i.created_at).toLocaleDateString()],
           ].map(([label, value]) => (
             <div key={label}>
@@ -218,7 +218,7 @@ export default function IdentityDetailPage() {
                 <div className="flex items-center gap-2.5">
                   {sessionStatusIcon(s.status)}
                   <div>
-                    <div className="text-sm text-white capitalize">{s.type?.replace(/_/g, ' ') ?? '—'}</div>
+                    <div className="text-sm text-white capitalize">{s.type?.replace(/_/g, ' ') ?? '-'}</div>
                     <div className="text-xs text-slate-500">{new Date(s.created_at).toLocaleString()}</div>
                   </div>
                 </div>

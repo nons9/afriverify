@@ -37,7 +37,7 @@ const globalIpLimit = new RateLimiterRedis({
 });
 
 // A genuine rate-limit rejection from rate-limiter-flexible has msBeforeNext.
-// A Redis connection error does not — we fail open so the server stays up.
+// A Redis connection error does not - we fail open so the server stays up.
 function isRateLimitHit(e: unknown): boolean {
   return typeof (e as { msBeforeNext?: number }).msBeforeNext === 'number';
 }
@@ -54,7 +54,7 @@ export async function rateLimitVerifyInitiate(
     await verifyInitiateLimit.consume(phone);
     next();
   } catch (e: unknown) {
-    if (!isRateLimitHit(e)) { next(); return; } // Redis down — fail open
+    if (!isRateLimitHit(e)) { next(); return; } // Redis down - fail open
     res.status(429).json({
       error: 'rate_limit_exceeded',
       message: 'Too many verification attempts for this phone number. Retry after 24 hours.',
@@ -73,12 +73,12 @@ export async function rateLimitApiKey(
     await apiKeyLimit.consume(req.apiKey.id);
     next();
   } catch (e: unknown) {
-    if (!isRateLimitHit(e)) { next(); return; } // Redis down — fail open
+    if (!isRateLimitHit(e)) { next(); return; } // Redis down - fail open
 
     const ms = (e as { msBeforeNext?: number }).msBeforeNext ?? 60000;
 
     // Count this rejection toward the abuse threshold.
-    // Fire-and-forget — never block the 429 response on DB/Redis ops.
+    // Fire-and-forget - never block the 429 response on DB/Redis ops.
     apiKeyAbuseTracker.consume(req.apiKey.id).catch(async (abuseErr: unknown) => {
       if ((abuseErr as { remainingPoints?: number }).remainingPoints !== undefined) {
         // remainingPoints reached 0 → threshold exceeded → auto-suspend
@@ -111,7 +111,7 @@ export async function rateLimitGlobal(
     await globalIpLimit.consume(ip);
     next();
   } catch (e: unknown) {
-    if (!isRateLimitHit(e)) { next(); return; } // Redis down — fail open
+    if (!isRateLimitHit(e)) { next(); return; } // Redis down - fail open
     const ms = (e as { msBeforeNext?: number }).msBeforeNext ?? 60000;
     res.status(429).json({
       error: 'rate_limit_exceeded',

@@ -1,5 +1,5 @@
 /**
- * Internal API — authenticated with API key, not exposed publicly.
+ * Internal API - authenticated with API key, not exposed publicly.
  * Used by EMERGE GROUP services (ScoutAfrika, OrbitVerse, SANKOFA)
  * to check identity status for their own users.
  *
@@ -161,7 +161,7 @@ router.post('/users/:platformUserId/link', async (req: Request, res: Response): 
     );
 
     if (!identity) {
-      // No identity yet — create a stub so the connection exists when they verify
+      // No identity yet - create a stub so the connection exists when they verify
       const rows = await query<{ id: string }>(
         `INSERT INTO verified_identities (phone) VALUES ($1)
          ON CONFLICT (phone) DO UPDATE SET phone = EXCLUDED.phone
@@ -332,7 +332,7 @@ router.post('/fraud-signal', async (req: Request, res: Response): Promise<void> 
     );
 
     if (!row) {
-      // No linked identity yet — signal is noted but cannot be attributed
+      // No linked identity yet - signal is noted but cannot be attributed
       res.json({ recorded: false, reason: 'no_identity_linked' });
       return;
     }

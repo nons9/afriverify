@@ -71,7 +71,7 @@ async function attemptDelivery(
     });
   }
 
-  // Log every attempt — table is APPEND-ONLY, never updated or deleted
+  // Log every attempt - table is APPEND-ONLY, never updated or deleted
   const identityId = 'identity_id' in payload ? payload.identity_id : null;
   const platformUserId = 'platform_user_id' in payload ? payload.platform_user_id : null;
 
@@ -187,7 +187,7 @@ export async function pushVerificationUpdate(
     timestamp:          new Date().toISOString(),
   };
 
-  // Fire and forget — retries run in background, verification flow is unblocked
+  // Fire and forget - retries run in background, verification flow is unblocked
   deliverWithRetry(
     apiKey.webhook_url,
     apiKey.webhook_secret_hash,
@@ -333,7 +333,7 @@ export async function pushKybUpdate(
   }
 }
 
-// Fires to all platforms connected to the identity when AML status changes —
+// Fires to all platforms connected to the identity when AML status changes -
 // flagged/blocked statuses need to reach every partner in real time so they
 // can act on them (freeze accounts, trigger manual review, etc.).
 export async function pushAmlUpdate(

@@ -18,7 +18,7 @@ const EVENT_LABELS: Record<string, string> = {
   otp_confirmed: 'OTP confirmed',
   id_uploaded: 'ID document uploaded',
   face_submitted: 'Face submitted',
-  vit_issued: 'VIT issued — identity verified',
+  vit_issued: 'VIT issued - identity verified',
   verification_failed: 'Verification failed',
   identity_connected: 'Identity connected to platform',
   trust_updated: 'Trust score updated',

@@ -1,5 +1,5 @@
 /**
- * AfriVerify webhook event catalog — v1
+ * AfriVerify webhook event catalog - v1
  *
  * Every event payload extends BaseEvent. Fields shared across groups are
  * factored into intermediate interfaces so individual payloads stay minimal.
@@ -300,7 +300,7 @@ export type WebhookEvent =
 
 export type WebhookEventType = WebhookEvent['event'];
 
-/** All known event type strings — useful for webhook filter UIs */
+/** All known event type strings - useful for webhook filter UIs */
 export const WEBHOOK_EVENT_TYPES: readonly WebhookEventType[] = [
   'verification.initiated',
   'verification.otp.sent',

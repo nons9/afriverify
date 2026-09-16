@@ -1,0 +1,47 @@
+{
+  "name": "AfriVerify",
+  "short_name": "AfriVerify",
+  "description": "Africa's identity verification infrastructure",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#0f0f0f",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "AfriVerify Dashboard"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "API Keys",
+      "url": "/dashboard/api-keys",
+      "description": "Manage your API keys"
+    },
+    {
+      "name": "Verifications",
+      "url": "/dashboard/verifications",
+      "description": "View verification history"
+    }
+  ]
+}

@@ -147,13 +147,13 @@ export async function scanImage(
     return { verdict: 'skipped', confidence: 100, signals: { disabled: true }, processingMs: 0, blocked: false };
   }
 
-  // Layer 1 — internal buffer heuristics (always runs, zero external cost)
+  // Layer 1 - internal buffer heuristics (always runs, zero external cost)
   const bufferResult = analyseBuffer(buffer, scanType);
   let combinedScore = bufferResult.score;
   const signals: Record<string, boolean | number | string> = { ...bufferResult.flags };
   let provider = 'internal';
 
-  // Layer 2 — AWS Rekognition (runs when configured)
+  // Layer 2 - AWS Rekognition (runs when configured)
   if (process.env.AWS_ACCESS_KEY_ID) {
     try {
       const rekResult = await rekognitionAnalyse(buffer, scanType);
@@ -178,7 +178,7 @@ export async function scanImage(
 
   const processingMs = Date.now() - startMs;
 
-  // Persist — fire and forget, never block the verification flow
+  // Persist - fire and forget, never block the verification flow
   query(
     `INSERT INTO deepscan_results
        (identity_id, session_id, scan_type, verdict, confidence, signals, provider, processing_ms)

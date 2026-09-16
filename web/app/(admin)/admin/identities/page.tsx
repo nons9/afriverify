@@ -85,7 +85,7 @@ export default function AdminIdentitiesPage() {
                     <div className="flex items-center gap-2">
                       {id.is_blacklisted && <AlertOctagon className="w-3.5 h-3.5 text-rose-400 shrink-0" />}
                       <div>
-                        <div className="text-white font-medium">{id.full_name || '—'}</div>
+                        <div className="text-white font-medium">{id.full_name || '-'}</div>
                         <div className="text-xs text-slate-500">{id.phone}</div>
                       </div>
                     </div>
@@ -96,7 +96,7 @@ export default function AdminIdentitiesPage() {
                       {id.trust_score}
                     </span>
                   </td>
-                  <td className={`px-4 py-3 capitalize ${amlColour(id.aml_status)}`}>{id.aml_status || '—'}</td>
+                  <td className={`px-4 py-3 capitalize ${amlColour(id.aml_status)}`}>{id.aml_status || '-'}</td>
                   <td className="px-4 py-3 text-right text-slate-400">{id.session_count}</td>
                   <td className="px-4 py-3 text-xs text-slate-500">
                     {new Date(id.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}

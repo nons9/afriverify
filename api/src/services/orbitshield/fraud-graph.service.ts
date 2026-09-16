@@ -54,16 +54,16 @@ async function upsertEdge(
 
 export async function recordFraudSignal(signal: FraudSignal): Promise<void> {
   try {
-    // Identity node — highest risk delta (20 per report)
+    // Identity node - highest risk delta (20 per report)
     const identityNodeId = await upsertNode('identity', signal.identityId, 20);
 
-    // Device node — 15 per report (device shared across fraud events is a strong cluster signal)
+    // Device node - 15 per report (device shared across fraud events is a strong cluster signal)
     if (signal.deviceId) {
       const deviceNodeId = await upsertNode('device', signal.deviceId, 15);
       await upsertEdge(identityNodeId, deviceNodeId, 'same_device');
     }
 
-    // IP subnet node — 5 per report (shared IP has weaker signal due to NAT/mobile towers)
+    // IP subnet node - 5 per report (shared IP has weaker signal due to NAT/mobile towers)
     if (signal.ipAddress) {
       const parts = signal.ipAddress.split('.');
       const subnet = parts.length >= 2 ? `${parts[0]}.${parts[1]}` : signal.ipAddress;
@@ -109,7 +109,7 @@ export async function evaluateNetworkRisk(
       }
     }
 
-    // Check device node (70% weight — device is a strong linking signal)
+    // Check device node (70% weight - device is a strong linking signal)
     if (deviceId) {
       const deviceHash = sha256(`device:${deviceId}`);
       const deviceNode = await queryOne<{ risk_score: number; fraud_reports_count: number }>(
@@ -123,7 +123,7 @@ export async function evaluateNetworkRisk(
       }
     }
 
-    // Check IP subnet node (30% weight — weak signal, many users share the same subnet)
+    // Check IP subnet node (30% weight - weak signal, many users share the same subnet)
     // Only flag if 3+ fraud reports from this subnet to avoid false positives
     if (ipAddress) {
       const parts = ipAddress.split('.');

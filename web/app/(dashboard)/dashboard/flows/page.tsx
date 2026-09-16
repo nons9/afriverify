@@ -304,9 +304,9 @@ function FlowForm({
           onChange={(e) => setForm((f) => ({ ...f, min_verification_level: Number(e.target.value) }))}
           className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors"
         >
-          <option value={0}>0 — Phone only</option>
-          <option value={1}>1 — ID document</option>
-          <option value={2}>2 — Biometric</option>
+          <option value={0}>0 - Phone only</option>
+          <option value={1}>1 - ID document</option>
+          <option value={2}>2 - Biometric</option>
         </select>
       </div>
 
@@ -560,7 +560,7 @@ function FlowCard({
                     {STEP_LABELS[s] ?? s}
                   </span>
                 ))
-              : <span className="text-slate-600">—</span>}
+              : <span className="text-slate-600">-</span>}
           </div>
         </div>
         <div>

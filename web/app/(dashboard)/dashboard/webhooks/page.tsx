@@ -136,7 +136,7 @@ function KeyWebhookCard({ apiKey }: { apiKey: ApiKey }) {
         )}
         {newSecret && (
           <p className="text-xs text-amber-400 mt-2">
-            Copy this secret now — it will not be shown again.
+            Copy this secret now - it will not be shown again.
           </p>
         )}
         {secretError && (

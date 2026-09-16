@@ -20,7 +20,7 @@ const createInquirySchema = z.object({
   expires_at: z.string().datetime().optional(),
 });
 
-// POST /v1/inquiries — create a new inquiry link (session auth)
+// POST /v1/inquiries - create a new inquiry link (session auth)
 router.post('/', sessionAuth, validateBody(createInquirySchema), async (req: Request, res: Response): Promise<void> => {
   const {
     api_key_id, label, description, allowed_id_types,
@@ -64,7 +64,7 @@ router.post('/', sessionAuth, validateBody(createInquirySchema), async (req: Req
   });
 });
 
-// GET /v1/inquiries — list all inquiries for the developer (session auth)
+// GET /v1/inquiries - list all inquiries for the developer (session auth)
 router.get('/', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const rows = await query<{
     id: string;
@@ -97,7 +97,7 @@ router.get('/', sessionAuth, async (req: Request, res: Response): Promise<void> 
   res.json({ inquiries: rows });
 });
 
-// GET /v1/inquiries/:id — get single inquiry with submissions (session auth)
+// GET /v1/inquiries/:id - get single inquiry with submissions (session auth)
 router.get('/:id', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
@@ -130,7 +130,7 @@ router.get('/:id', sessionAuth, async (req: Request, res: Response): Promise<voi
   res.json({ ...row, submissions });
 });
 
-// PATCH /v1/inquiries/:id — update label / status (session auth)
+// PATCH /v1/inquiries/:id - update label / status (session auth)
 const updateInquirySchema = z.object({
   label: z.string().min(2).max(255).optional(),
   description: z.string().max(1000).nullable().optional(),
@@ -174,7 +174,7 @@ router.patch('/:id', sessionAuth, validateBody(updateInquirySchema), async (req:
   res.json({ success: true });
 });
 
-// DELETE /v1/inquiries/:id — revoke (session auth)
+// DELETE /v1/inquiries/:id - revoke (session auth)
 router.delete('/:id', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
