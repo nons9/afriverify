@@ -251,7 +251,12 @@ router.get('/identities/:id', adminAuth, async (req: Request, res: Response) => 
 
     const [sessionsRes, blRes] = await Promise.all([
       pool.query(
-        `SELECT id, type, status, risk_level, created_at, completed_at
+        `SELECT id,
+                CASE WHEN face_photo_s3_key IS NOT NULL THEN 'biometric'
+                     WHEN id_photo_s3_key IS NOT NULL THEN 'document'
+                     ELSE 'basic' END AS type,
+                step::text AS status,
+                created_at
          FROM verification_sessions WHERE identity_id = $1
          ORDER BY created_at DESC LIMIT 20`,
         [req.params.id]

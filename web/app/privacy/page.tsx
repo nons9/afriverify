@@ -8,9 +8,9 @@ export const metadata: Metadata = {
 };
 
 const EFFECTIVE_DATE = 'September 1, 2026';
-const COMPANY = 'Sankofa Technologies Limited';
+const COMPANY = 'Sankofa Network';
 const EMAIL = 'privacy@sankofaapp.com';
-const ADDRESS = 'Lagos, Nigeria';
+const ADDRESS = 'Akwa Ibom, Nigeria';
 
 export default function PrivacyPage() {
   return (

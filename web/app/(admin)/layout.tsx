@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Shield, LayoutDashboard, Users, Fingerprint,
+  LayoutDashboard, Users, Fingerprint,
   Ban, BarChart2, Activity, Key, LogOut, UserCog, Menu, X, Zap,
 } from 'lucide-react';
 import { getAdminSession, clearAdminSession, AdminUser } from '@/lib/admin-auth';
+import { AfriVerifyMark } from '@/components/logo';
 
 const nav = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -59,12 +60,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const SidebarContent = () => (
     <>
       <div className="h-14 flex items-center px-4 border-b border-white/10">
-        <Link href="/admin" className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-rose-600 flex items-center justify-center">
-            <Shield className="w-3.5 h-3.5 text-white" />
-          </div>
+        <Link href="/admin" className="flex items-center gap-2 shrink-0">
+          <AfriVerifyMark size={26} />
           <div>
-            <span className="font-bold text-white text-sm">AfriVerify</span>
+            <span className="font-bricolage font-extrabold text-[#C9960E] text-sm leading-none">Verify</span>
             <span className="ml-1.5 text-[10px] font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded px-1 py-px">ADMIN</span>
           </div>
         </Link>
@@ -137,10 +136,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-rose-600 flex items-center justify-center">
-              <Shield className="w-3 h-3 text-white" />
-            </div>
-            <span className="font-bold text-white text-sm">Admin</span>
+            <AfriVerifyMark size={22} />
+            <span className="font-bricolage font-extrabold text-[#C9960E] text-sm">Verify</span>
+            <span className="text-[10px] font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded px-1 py-px">ADMIN</span>
           </div>
           {sidebarOpen && (
             <button onClick={() => setSidebarOpen(false)} className="ml-auto text-slate-400 hover:text-white transition-colors">
