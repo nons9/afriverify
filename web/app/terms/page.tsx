@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 const EFFECTIVE_DATE = 'September 1, 2026';
-const COMPANY = 'Sankofa Technologies Limited';
+const COMPANY = 'Sankofa Network';
 const EMAIL = 'legal@sankofaapp.com';
 
 export default function TermsPage() {
