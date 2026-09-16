@@ -5,6 +5,13 @@ import { identityAuth } from '../middleware/identityAuth';
 import { writeAuditEvent } from '../middleware/audit';
 import { requestPortalLogin, confirmPortalLogin } from '../services/identity-portal.service';
 import { pushConnectionRevoked } from '../services/platform-webhook.service';
+import {
+  issueVIT,
+  getIdentityVITs,
+  getVITUsageLog,
+  revokeVIT,
+  revokeAllVITs,
+} from '../services/vit.service';
 import { query, queryOne } from '../db';
 import logger from '../utils/logger';
 
@@ -130,6 +137,53 @@ router.post('/connections/:platform_name/revoke', identityAuth, async (req: Requ
   }
 
   res.json({ success: true });
+});
+
+// ─── GET /identity-portal/vit ───────────────────────────────────────────────────────────────────────
+// Returns the identity's active (non-revoked, non-expired) VITs with usage stats.
+router.get('/vit', identityAuth, async (req: Request, res: Response): Promise<void> => {
+  const vits = await getIdentityVITs(req.identity!.identityId);
+  res.json({ vits });
+});
+
+// ─── POST /identity-portal/vit/refresh ──────────────────────────────────────────────────────────────
+// Revokes all existing VITs and issues a fresh one. Used when the identity holder
+// believes their token has been compromised or wants a clean slate.
+router.post('/vit/refresh', identityAuth, async (req: Request, res: Response): Promise<void> => {
+  await revokeAllVITs(req.identity!.identityId);
+  const { token, payload } = await issueVIT(req.identity!.identityId);
+
+  await writeAuditEvent(req, {
+    event_type: 'vit_refreshed',
+    identity_id: req.identity!.identityId,
+    result: 'passed'
+  });
+
+  res.json({ token, payload });
+});
+
+// ─── DELETE /identity-portal/vit/:id ────────────────────────────────────────────────────────────────
+router.delete('/vit/:id', identityAuth, async (req: Request, res: Response): Promise<void> => {
+  const revoked = await revokeVIT(String(req.params.id), req.identity!.identityId);
+  if (!revoked) {
+    res.status(404).json({ error: 'not_found', message: 'VIT not found or already revoked' });
+    return;
+  }
+
+  await writeAuditEvent(req, {
+    event_type: 'vit_revoked',
+    identity_id: req.identity!.identityId,
+    result: 'passed',
+    metadata: { vit_id: req.params.id }
+  });
+
+  res.json({ success: true });
+});
+
+// ─── GET /identity-portal/vit/:id/usage ─────────────────────────────────────────────────────────────
+router.get('/vit/:id/usage', identityAuth, async (req: Request, res: Response): Promise<void> => {
+  const log = await getVITUsageLog(String(req.params.id), req.identity!.identityId);
+  res.json({ usage: log });
 });
 
 export default router;

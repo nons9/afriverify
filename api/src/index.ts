@@ -21,6 +21,7 @@ import sandboxRouter from './routes/sandbox';
 import inquiriesRouter from './routes/inquiries';
 import complianceRouter from './routes/compliance';
 import adminRouter from './routes/admin';
+import vitRouter from './routes/vit';
 import logger from './utils/logger';
 import { initSentry, captureError } from './utils/sentry';
 import { startFailureRateMonitor } from './services/alerting.service';
@@ -81,6 +82,7 @@ app.use('/v1/sandbox', sandboxRouter);
 app.use('/v1/inquiries', inquiriesRouter);
 app.use('/v1/developer/compliance', complianceRouter);
 app.use('/v1/admin', adminRouter);
+app.use('/v1/vit', vitRouter);
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json({
