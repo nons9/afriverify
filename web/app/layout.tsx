@@ -2,9 +2,21 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://afriverify.sankofaapp.com'),
   title: "AfriVerify - Africa's Identity Infrastructure",
   description:
     'Verify African identities with a single API call. 54 countries, sub-100ms checks, portable Verified Identity Token.',
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    type: 'website',
+    url: 'https://afriverify.sankofaapp.com',
+    siteName: 'AfriVerify',
+    title: "AfriVerify - Africa's Identity Infrastructure",
+    description:
+      'Verify African identities with a single API call. 54 countries, sub-100ms checks, portable Verified Identity Token.',
+  },
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
