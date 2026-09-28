@@ -1,6 +1,6 @@
 {
   "name": "@afriverify/js",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Official JavaScript / TypeScript SDK for the AfriVerify identity platform",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -19,7 +19,7 @@
   },
   "keywords": ["afriverify", "africa", "identity", "kyc", "verification"],
   "license": "MIT",
-  "files": ["dist"],
+  "files": ["dist", "README.md"],
   "publishConfig": {
     "access": "public"
   },
