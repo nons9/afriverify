@@ -3,11 +3,13 @@ from __future__ import annotations
 from ._http import HttpClient, DEFAULT_BASE_URL
 from .resources import VerifyResource, IdentityResource, WebhooksResource
 from .errors import AfriVerifyError, ApiError, WebhookSignatureError, ConfigurationError
+from . import types
 
 __version__ = "0.1.0"
 __all__ = [
     "AfriVerify",
     "AfriVerifyError", "ApiError", "WebhookSignatureError", "ConfigurationError",
+    "types",
 ]
 
 
