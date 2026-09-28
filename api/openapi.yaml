@@ -1,0 +1,989 @@
+openapi: 3.1.0
+
+info:
+  title: AfriVerify API
+  version: 1.0.0
+  description: |
+    Africa's identity infrastructure layer. Verify once, trusted everywhere.
+
+    ## Authentication
+    All API endpoints require an `Authorization: Bearer <api_key>` header.
+    Use a **sandbox** API key (prefix `avk_test_`) for testing — no real KYC
+    calls are made and no charges incurred.
+
+    ## Base URL
+    `https://api.afriverify.sankofaapp.com/v1`
+
+  contact:
+    name: AfriVerify Developer Support
+    url: https://afriverify.sankofaapp.com/dashboard
+    email: support@sankofaapp.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.afriverify.sankofaapp.com/v1
+    description: Production
+  - url: https://sandbox.afriverify.sankofaapp.com/v1
+    description: Sandbox (no real KYC calls; use test credentials)
+
+tags:
+  - name: Verify
+    description: Step-by-step identity verification flow
+  - name: VIT
+    description: Verified Identity Token — portable proof of verification
+  - name: Identity
+    description: Look up an identity's verification status and signals
+  - name: Trust
+    description: Decentralised trust score — updated by cross-platform behaviour
+  - name: Flows
+    description: Configurable verification flows (no-code orchestration)
+  - name: Sandbox
+    description: Test credentials and utilities (sandbox API keys only)
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      description: >
+        Pass your AfriVerify API key as a Bearer token.
+        Example: `Authorization: Bearer avk_live_…`
+
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          example: session_not_found
+        message:
+          type: string
+          example: Session not found or expired
+
+    SessionToken:
+      type: string
+      minLength: 64
+      maxLength: 64
+      description: Opaque 64-character hex session token
+
+    VerificationStep:
+      type: string
+      enum: [phone, otp, id_upload, face_scan, processing, complete, failed]
+
+    TrustLevel:
+      type: string
+      enum: [new, rising, established, trusted, elite]
+
+    VITClaims:
+      type: object
+      description: >
+        Sanitised identity signals returned when a VIT is verified.
+        No raw PII (name, ID number, DOB) is included — only signals.
+      properties:
+        identity_id:
+          type: string
+          format: uuid
+        verification_level:
+          type: integer
+          minimum: 0
+          maximum: 3
+        trust_score:
+          type: integer
+          minimum: 0
+          maximum: 1000
+        trust_level:
+          $ref: '#/components/schemas/TrustLevel'
+        nationality:
+          type: string
+          description: ISO 3166-1 alpha-2 country code
+          example: NG
+        verified_at:
+          type: string
+          format: date-time
+        flags:
+          type: array
+          items:
+            type: string
+            enum: [blacklisted, pep, aml_flagged]
+
+    FlowConfig:
+      type: object
+      properties:
+        required_steps:
+          type: array
+          items:
+            type: string
+            enum: [phone, otp, id_upload, face_scan, kyb]
+        optional_steps:
+          type: array
+          items:
+            type: string
+        allowed_id_types:
+          type: array
+          items:
+            type: string
+            enum: [national_id, passport, drivers_license, voter_id, residence_permit]
+        allowed_countries:
+          type: array
+          nullable: true
+          items:
+            type: string
+            description: ISO 3166-1 alpha-2 country code
+        min_verification_level:
+          type: integer
+          minimum: 0
+          maximum: 2
+        success_url:
+          type: string
+          format: uri
+          nullable: true
+        failure_url:
+          type: string
+          format: uri
+          nullable: true
+        brand_name:
+          type: string
+          nullable: true
+        brand_color:
+          type: string
+          pattern: '^#[0-9a-fA-F]{6}$'
+          nullable: true
+        welcome_message:
+          type: string
+          nullable: true
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # VERIFY
+  # ────────────────────────────────────────────────────────────────────────────
+
+  /verify/initiate:
+    post:
+      tags: [Verify]
+      operationId: verifyInitiate
+      summary: Start a verification session
+      description: |
+        Creates a new verification session for a phone number and queues an OTP.
+        Returns a `session_token` used to thread all subsequent steps.
+
+        Rate-limited per API key. Free-tier keys have a monthly verification cap.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  description: E.164 phone number
+                  example: '+2348012345678'
+                email:
+                  type: string
+                  format: email
+                  description: Required when `otp_channel` is `email`
+                otp_channel:
+                  type: string
+                  enum: [sms, email]
+                  default: sms
+                platform_user_id:
+                  type: string
+                  maxLength: 255
+                  description: Your internal user ID — echoed back in webhooks
+                flow_id:
+                  type: string
+                  format: uuid
+                  description: ID of a pre-configured verification flow
+                lang:
+                  type: string
+                  enum: [en, fr]
+                  default: en
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_token:
+                    $ref: '#/components/schemas/SessionToken'
+                  expires_at:
+                    type: string
+                    format: date-time
+                  next_step:
+                    type: string
+                    example: otp
+        '402':
+          description: Monthly verification limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Phone or device is blocked (blacklist or fraud graph)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /verify/otp/send:
+    post:
+      tags: [Verify]
+      operationId: verifyOtpSend
+      summary: Send OTP to the user
+      description: Sends a 6-digit OTP via the channel chosen at initiation (SMS or email). Valid 5 minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_token]
+              properties:
+                session_token:
+                  $ref: '#/components/schemas/SessionToken'
+      responses:
+        '200':
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent:
+                    type: boolean
+                    example: true
+                  expires_in:
+                    type: integer
+                    description: Seconds until OTP expires
+                    example: 300
+                  channel:
+                    type: string
+                    enum: [sms, email]
+        '404':
+          description: Session not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: SMS/email delivery failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /verify/otp/confirm:
+    post:
+      tags: [Verify]
+      operationId: verifyOtpConfirm
+      summary: Confirm the OTP code
+      description: |
+        Validates the 6-digit code. On success, returns the identity ID and a VIT
+        if the user is returning (already verified). New users are directed to `id_upload`.
+
+        Max 3 attempts per session — after which the session is failed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_token, code]
+              properties:
+                session_token:
+                  $ref: '#/components/schemas/SessionToken'
+                code:
+                  type: string
+                  pattern: '^\d{6}$'
+                  description: 6-digit OTP
+                  example: '482019'
+      responses:
+        '200':
+          description: OTP confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  confirmed:
+                    type: boolean
+                  returning_user:
+                    type: boolean
+                    description: True if this phone has a prior verified identity
+                  identity_id:
+                    type: string
+                    format: uuid
+                  verification_level:
+                    type: integer
+                    description: Present for returning users only
+                  vit:
+                    type: string
+                    description: Verified Identity Token (returning users only)
+                  next_step:
+                    type: string
+                    enum: [id_upload, complete]
+        '400':
+          description: Invalid OTP, OTP expired, or max attempts exceeded
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Error'
+                  - type: object
+                    properties:
+                      attempts_remaining:
+                        type: integer
+        '404':
+          description: Session not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /verify/id/upload:
+    post:
+      tags: [Verify]
+      operationId: verifyIdUpload
+      summary: Submit government ID for verification
+      description: |
+        Uploads a government-issued ID photo and submits the document details for
+        verification via Smile Identity / Dojah / Onfido.
+
+        The image is pre-screened by **OrbitShield DeepScan** before it reaches
+        the external KYC provider — AI-generated documents, screen replays, and
+        photos-of-photos are blocked at this layer.
+
+        Accepts `multipart/form-data`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [session_token, id_type, id_number, nationality, first_name, last_name, id_photo]
+              properties:
+                session_token:
+                  $ref: '#/components/schemas/SessionToken'
+                id_type:
+                  type: string
+                  enum: [NIN, PASSPORT, DRIVERS_LICENSE, VOTER_ID, BVN, NATIONAL_ID]
+                  example: NIN
+                id_number:
+                  type: string
+                  description: Raw ID number (hashed before storage; never stored in plaintext)
+                  example: '12345678901'
+                nationality:
+                  type: string
+                  description: ISO 3166-1 alpha-2 country code
+                  example: NG
+                first_name:
+                  type: string
+                  example: Amara
+                last_name:
+                  type: string
+                  example: Okafor
+                dob:
+                  type: string
+                  format: date
+                  description: Date of birth (YYYY-MM-DD)
+                  example: '1990-05-15'
+                id_photo:
+                  type: string
+                  format: binary
+                  description: Front image of the government-issued ID (JPEG/PNG, max 10 MB)
+      responses:
+        '200':
+          description: ID submitted and pre-screened; biometric step next
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id_verified:
+                    type: boolean
+                    description: Whether the ID was confirmed with the identity provider
+                  next_step:
+                    type: string
+                    example: face_scan
+        '400':
+          description: Document rejected by OrbitShield or identity provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Session not found or at wrong step
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /verify/face/submit:
+    post:
+      tags: [Verify]
+      operationId: verifyFaceSubmit
+      summary: Submit selfie for biometric matching
+      description: |
+        Uploads a selfie and runs biometric face-match against the previously uploaded ID photo.
+        Processing is asynchronous — poll `GET /verify/status/{session_token}` until `status` is
+        `complete` or `failed`.
+
+        The selfie is pre-screened by **OrbitShield DeepScan** (GAN/diffusion detection,
+        screen replay detection) before biometric processing begins.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [session_token, selfie]
+              properties:
+                session_token:
+                  $ref: '#/components/schemas/SessionToken'
+                selfie:
+                  type: string
+                  format: binary
+                  description: Clear, well-lit selfie taken directly with the camera (JPEG/PNG, max 10 MB)
+      responses:
+        '200':
+          description: Selfie accepted; biometric processing started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processing:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Biometric verification in progress. Poll GET /verify/status/{session_token}.
+                  estimated_seconds:
+                    type: integer
+                    example: 30
+        '400':
+          description: Selfie rejected by OrbitShield (AI-generated face, screen replay, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Session not found or at wrong step
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /verify/status/{session_token}:
+    get:
+      tags: [Verify]
+      operationId: verifyGetStatus
+      summary: Poll verification session status
+      description: |
+        Returns the current step and, when complete, the identity's VIT and
+        verification level. Poll this endpoint after `POST /verify/face/submit`
+        until `status` is `complete` or `failed`.
+      parameters:
+        - name: session_token
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/SessionToken'
+      responses:
+        '200':
+          description: Session status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    $ref: '#/components/schemas/VerificationStep'
+                  session_token:
+                    $ref: '#/components/schemas/SessionToken'
+                  lang:
+                    type: string
+                    enum: [en, fr]
+                  message:
+                    type: string
+                    description: Human-readable status message in the requested language
+                  vit:
+                    type: string
+                    description: Verified Identity Token (present when status is `complete`)
+                  identity_id:
+                    type: string
+                    format: uuid
+                  verification_level:
+                    type: integer
+                    minimum: 0
+                    maximum: 3
+                  rejection_reason:
+                    type: string
+                    description: Present when status is `failed`
+                  flow_config:
+                    $ref: '#/components/schemas/FlowConfig'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # VIT
+  # ────────────────────────────────────────────────────────────────────────────
+
+  /vit/verify:
+    post:
+      tags: [VIT]
+      operationId: vitVerify
+      summary: Verify a Verified Identity Token
+      description: |
+        Accepts a VIT JWT presented by a user, validates its signature and
+        revocation status, and returns sanitised identity claims.
+
+        Your application never sees raw PII — only verification signals and
+        aggregate scores. This is the correct endpoint for "accept a returning
+        user who already has a VIT" flows.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  minLength: 50
+                  description: The VIT JWT string
+      responses:
+        '200':
+          description: VIT valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    example: true
+                  claims:
+                    $ref: '#/components/schemas/VITClaims'
+        '400':
+          description: Invalid or malformed token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+                    enum: [invalid_token, invalid_signature, malformed]
+        '410':
+          description: Token expired
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+                    example: token_expired
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # IDENTITY
+  # ────────────────────────────────────────────────────────────────────────────
+
+  /identity/check:
+    get:
+      tags: [Identity]
+      operationId: identityCheck
+      summary: Check verification status by phone number
+      description: |
+        Returns an identity's verification level, trust score, and any flags
+        (blacklisted, PEP, AML) for a given phone number.
+
+        Also records a LiveLedger continuity event and runs the OrbitShield
+        fraud graph evaluation, both silently and asynchronously.
+
+        Requires the `check` permission on your API key.
+      parameters:
+        - name: phone
+          in: query
+          required: true
+          schema:
+            type: string
+          description: E.164 phone number
+          example: '+2348012345678'
+        - name: x-device-id
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Stable device fingerprint for fraud graph correlation
+      responses:
+        '200':
+          description: Identity status (unverified identities also return 200 with `verified: false`)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                  level:
+                    type: integer
+                    minimum: 0
+                    maximum: 3
+                  trust_score:
+                    type: integer
+                    nullable: true
+                  trust_level:
+                    $ref: '#/components/schemas/TrustLevel'
+                    nullable: true
+                  flags:
+                    type: array
+                    items:
+                      type: string
+                      enum: [blacklisted, pep, aml_flagged]
+                  network_risk_score:
+                    type: integer
+                    description: OrbitShield cross-platform fraud graph score (0–100)
+                  continuity_score:
+                    type: integer
+                    description: LiveLedger behavioural continuity score (0–100)
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # TRUST
+  # ────────────────────────────────────────────────────────────────────────────
+
+  /trust/{identity_id}:
+    get:
+      tags: [Trust]
+      operationId: trustGet
+      summary: Get trust score and history
+      description: |
+        Returns the current trust score, trust level, and a log of all trust
+        events for the given identity. Requires the `trust` permission.
+      parameters:
+        - name: identity_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Trust data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  identity_id:
+                    type: string
+                    format: uuid
+                  trust_score:
+                    type: integer
+                  trust_level:
+                    $ref: '#/components/schemas/TrustLevel'
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        event_type:
+                          type: string
+                        score_delta:
+                          type: integer
+                        platform_name:
+                          type: string
+                        created_at:
+                          type: string
+                          format: date-time
+        '404':
+          description: Identity not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /trust/update:
+    post:
+      tags: [Trust]
+      operationId: trustUpdate
+      summary: Post a trust event
+      description: |
+        Reports a behavioural event for an identity, adjusting their trust score.
+        Events are aggregated across all platforms — this is how AfriVerify builds
+        a cross-platform reputation layer.
+
+        Common events and their score deltas:
+        | Event | Delta |
+        |---|---|
+        | `transaction_completed` | +15 |
+        | `positive_review` | +10 |
+        | `dispute_resolved_favour` | +5 |
+        | `dispute_lost` | -30 |
+        | `payment_failed` | -20 |
+        | `negative_review` | -10 |
+        | `fraud_confirmed` | -9999 (permanent ban) |
+
+        Requires the `trust` permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identity_id, event_type]
+              properties:
+                identity_id:
+                  type: string
+                  format: uuid
+                event_type:
+                  type: string
+                  enum:
+                    - transaction_completed
+                    - positive_review
+                    - dispute_resolved_favour
+                    - commitment_met
+                    - dispute_lost
+                    - payment_failed
+                    - negative_review
+                    - broken_commitment
+                    - fraud_confirmed
+                    - platform_ban
+                  example: transaction_completed
+                metadata:
+                  type: object
+                  additionalProperties: true
+                  description: Arbitrary context attached to the event
+      responses:
+        '200':
+          description: Trust event applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  applied:
+                    type: boolean
+                  trust_score:
+                    type: integer
+                  trust_level:
+                    $ref: '#/components/schemas/TrustLevel'
+        '404':
+          description: Identity not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # FLOWS
+  # ────────────────────────────────────────────────────────────────────────────
+
+  /developer/flows:
+    get:
+      tags: [Flows]
+      operationId: flowsList
+      summary: List verification flows
+      description: Returns all active verification flows for the authenticated developer account.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: List of flows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flows:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FlowConfig'
+
+    post:
+      tags: [Flows]
+      operationId: flowsCreate
+      summary: Create a verification flow
+      description: |
+        Creates a reusable flow configuration. Pass the returned `flow_id` to
+        `POST /verify/initiate` to apply it to a session. The flow controls
+        which steps are required, which ID types and countries are accepted,
+        and your brand customisation.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/FlowConfig'
+                - type: object
+                  required: [name]
+                  properties:
+                    name:
+                      type: string
+                      maxLength: 100
+                    description:
+                      type: string
+                      maxLength: 500
+      responses:
+        '201':
+          description: Flow created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flow:
+                    allOf:
+                      - $ref: '#/components/schemas/FlowConfig'
+                      - type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          created_at:
+                            type: string
+                            format: date-time
+
+  /developer/flows/{id}:
+    get:
+      tags: [Flows]
+      operationId: flowsGet
+      summary: Get a verification flow
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Flow details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlowConfig'
+        '404':
+          description: Flow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # SANDBOX
+  # ────────────────────────────────────────────────────────────────────────────
+
+  /sandbox/credentials:
+    get:
+      tags: [Sandbox]
+      operationId: sandboxCredentials
+      summary: Get test credentials
+      description: |
+        Returns deterministic test document IDs for each supported country.
+        Use these in `POST /verify/id/upload` during sandbox testing to trigger
+        specific outcomes without consuming real KYC credits.
+
+        **Sandbox API keys only** (prefix `avk_test_`).
+
+        Example test credentials:
+        | Country | Document | ID | Outcome |
+        |---|---|---|---|
+        | NG | NIN | `TEST_NG_PASS_001` | Pass — trust score 0.85 |
+        | NG | NIN | `TEST_NG_FAIL_001` | Fail — name mismatch |
+        | KE | NATIONAL_ID | `TEST_KE_PASS_001` | Pass |
+        | GH | PASSPORT | `TEST_GH_PASS_001` | Pass |
+        | ZA | NATIONAL_ID | `TEST_ZA_PASS_001` | Pass |
+      responses:
+        '200':
+          description: Test credentials by country
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      documentType:
+                        type: string
+                      documentId:
+                        type: string
+                      outcome:
+                        type: string
+                        enum: [pass, fail, timeout, review]
+                      description:
+                        type: string
+        '403':
+          description: Sandbox API key required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /sandbox/reset:
+    post:
+      tags: [Sandbox]
+      operationId: sandboxReset
+      summary: Reset sandbox state for a phone number
+      description: |
+        Clears all verification history for a phone number in the sandbox
+        environment, allowing the same number to be re-verified from scratch.
+
+        **Sandbox API keys only.**
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  description: E.164 phone number to reset
+                  example: '+2348000000001'
+      responses:
+        '200':
+          description: Sandbox state reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reset:
+                    type: boolean
+                    example: true
+        '403':
+          description: Sandbox API key required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
