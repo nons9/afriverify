@@ -1,8 +1,19 @@
 {
     "name": "afriverify/afriverify-php",
     "description": "Official PHP SDK for the AfriVerify identity platform",
+    "version": "0.1.0",
     "type": "library",
     "license": "MIT",
+    "keywords": ["afriverify", "identity", "verification", "kyc", "africa"],
+    "homepage": "https://afriverify.sankofaapp.com",
+    "authors": [
+        {
+            "name": "AfriVerify",
+            "email": "dev@sankofaapp.com",
+            "homepage": "https://afriverify.sankofaapp.com"
+        }
+    ],
+    "minimum-stability": "stable",
     "require": {
         "php": ">=8.1",
         "guzzlehttp/guzzle": "^7.0"
