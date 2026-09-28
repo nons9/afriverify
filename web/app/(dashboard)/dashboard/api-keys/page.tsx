@@ -91,7 +91,7 @@ export default function ApiKeysPage() {
     new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
-    <div className="p-8">
+    <div className="p-8 max-w-6xl">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white">API Keys</h1>
@@ -180,79 +180,75 @@ export default function ApiKeysPage() {
       )}
 
       {/* Keys table */}
-      <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center h-32">
-            <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : keys.length === 0 ? (
-          <div className="text-center py-16">
-            <Key className="w-8 h-8 mx-auto mb-3 text-slate-600" />
-            <p className="text-sm text-slate-500">No API keys yet. Create your first key to start building.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px]">
-              <thead className="border-b border-white/10">
-                <tr>
-                  {['Platform', 'Key prefix', 'Environment', 'Usage (month)', 'Created', ''].map((h) => (
-                    <th
-                      key={h}
-                      className="px-5 py-3.5 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {keys.map((k) => (
-                  <tr key={k.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-5 py-4">
-                      <div className="font-medium text-white text-sm">{k.platform_name}</div>
-                      <div className={`text-xs mt-0.5 ${k.is_active ? 'text-green-400' : 'text-slate-500 line-through'}`}>
-                        {k.is_active ? 'Active' : 'Revoked'}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <code className="text-xs text-slate-300 bg-white/5 px-2 py-1 rounded">
-                        {k.api_key_prefix}...
-                      </code>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span
-                        className={`text-xs px-2 py-1 rounded-full ${
-                          k.environment === 'production'
-                            ? 'bg-green-500/10 text-green-400'
-                            : 'bg-amber-500/10 text-amber-400'
-                        }`}
-                      >
-                        {k.environment}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-400">
-                      {k.verifications_this_month} / {k.monthly_limit}
-                    </td>
-                    <td className="px-5 py-4 text-xs text-slate-500">{fmtDate(k.created_at)}</td>
-                    <td className="px-5 py-4">
-                      {k.is_active && (
-                        <button
-                          onClick={() => handleRevoke(k.id)}
-                          disabled={revoking === k.id}
-                          className="text-slate-500 hover:text-red-400 disabled:opacity-40 transition-colors"
-                          title="Revoke key"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
+      {loading ? (
+        <div className="flex items-center justify-center h-32">
+          <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : keys.length === 0 ? (
+        <div className="text-center py-20">
+          <Key className="w-8 h-8 mx-auto mb-3 text-slate-600" />
+          <p className="text-sm text-slate-500">No API keys yet. Create your first key to start building.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[700px] text-sm">
+            <thead>
+              <tr className="text-xs text-slate-500 text-left border-b border-white/[0.08]">
+                {['Platform', 'Key prefix', 'Environment', 'Usage (month)', 'Last used', 'Created', ''].map((h) => (
+                  <th key={h} className="pb-3 pr-6 font-medium">{h}</th>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.05]">
+              {keys.map((k) => (
+                <tr key={k.id} className="text-slate-300">
+                  <td className="py-4 pr-6">
+                    <div className="font-medium text-white">{k.platform_name}</div>
+                    <div className={`text-xs mt-0.5 ${k.is_active ? 'text-green-400' : 'text-slate-500 line-through'}`}>
+                      {k.is_active ? 'Active' : 'Revoked'}
+                    </div>
+                  </td>
+                  <td className="py-4 pr-6">
+                    <code className="text-xs text-slate-300 bg-white/5 px-2 py-1 rounded">
+                      {k.api_key_prefix}...
+                    </code>
+                  </td>
+                  <td className="py-4 pr-6">
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        k.environment === 'production'
+                          ? 'bg-green-500/10 text-green-400'
+                          : 'bg-amber-500/10 text-amber-400'
+                      }`}
+                    >
+                      {k.environment}
+                    </span>
+                  </td>
+                  <td className="py-4 pr-6 tabular-nums text-slate-400">
+                    {k.verifications_this_month.toLocaleString()} / {k.monthly_limit.toLocaleString()}
+                  </td>
+                  <td className="py-4 pr-6 text-xs text-slate-500">
+                    {k.last_used ? fmtDate(k.last_used) : '—'}
+                  </td>
+                  <td className="py-4 pr-6 text-xs text-slate-500">{fmtDate(k.created_at)}</td>
+                  <td className="py-4">
+                    {k.is_active && (
+                      <button
+                        onClick={() => handleRevoke(k.id)}
+                        disabled={revoking === k.id}
+                        className="text-slate-500 hover:text-red-400 disabled:opacity-40 transition-colors"
+                        title="Revoke key"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
