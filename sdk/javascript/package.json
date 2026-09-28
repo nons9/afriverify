@@ -1,5 +1,5 @@
 {
-  "name": "afriverify",
+  "name": "@afriverify/js",
   "version": "0.1.0",
   "description": "Official JavaScript / TypeScript SDK for the AfriVerify identity platform",
   "main": "dist/index.js",
@@ -20,6 +20,18 @@
   "keywords": ["afriverify", "africa", "identity", "kyc", "verification"],
   "license": "MIT",
   "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nons9/afriverify.git",
+    "directory": "sdk/javascript"
+  },
+  "homepage": "https://github.com/nons9/afriverify/tree/main/sdk/javascript#readme",
+  "engines": {
+    "node": ">=18"
+  },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "tsup": "^8.0.0",
