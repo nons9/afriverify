@@ -1,0 +1,47 @@
+{
+  "name": "@afriverify/vit",
+  "version": "0.1.0",
+  "description": "Verify AfriVerify VIT (Verified Identity Token) JWTs — zero runtime dependencies, works in Node.js 18+ and browser",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./express": {
+      "types": "./dist/middleware/express.d.ts",
+      "default": "./dist/middleware/express.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": ["afriverify", "vit", "verified-identity-token", "jwt", "identity", "kyc", "africa"],
+  "license": "MIT",
+  "files": ["dist"],
+  "peerDependencies": {
+    "express": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "express": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nons9/afriverify",
+    "directory": "vit"
+  },
+  "homepage": "https://afriverify.sankofaapp.com"
+}
