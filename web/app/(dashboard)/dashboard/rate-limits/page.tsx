@@ -124,8 +124,8 @@ export default function RateLimitsPage() {
     setLoading(true);
     try {
       const [tierData, alertData] = await Promise.all([
-        api.get('/developer/rate-limits') as Promise<{ tiers: RateLimitTier[] }>,
-        api.get('/developer/rate-limits/alerts') as Promise<{ rules: AlertRule[] }>,
+        api.get<{ tiers: RateLimitTier[] }>('/developer/rate-limits'),
+        api.get<{ rules: AlertRule[] }>('/developer/rate-limits/alerts'),
       ]);
       setTiers(tierData.tiers ?? []);
       setAlerts(alertData.rules ?? []);

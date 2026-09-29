@@ -150,8 +150,8 @@ export default function TeamPage() {
 
   useEffect(() => {
     setLoading(true);
-    api.get('/developer/team/members')
-      .then((data: { members: TeamMember[] }) => setMembers(data.members ?? []))
+    api.get<{ members: TeamMember[] }>('/developer/team/members')
+      .then(data => setMembers(data.members ?? []))
       .catch(() => setMembers([]))
       .finally(() => setLoading(false));
   }, []);
@@ -166,7 +166,7 @@ export default function TeamPage() {
       await api.post('/developer/team/invite', { email: inviteEmail.trim(), role: inviteRole });
       setInviteSuccess(`Invitation sent to ${inviteEmail.trim()}`);
       setInviteEmail('');
-      const data = await api.get('/developer/team/members') as { members: TeamMember[] };
+      const data = await api.get<{ members: TeamMember[] }>('/developer/team/members');
       setMembers(data.members ?? []);
     } catch (err: unknown) {
       const e = err as { message?: string };
