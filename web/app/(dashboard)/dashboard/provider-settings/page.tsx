@@ -118,7 +118,7 @@ export default function ProviderSettingsPage() {
             ([name, meta]) => (
               <div
                 key={name}
-                className="bg-slate-900 border border-white/10 rounded-xl p-4 space-y-2"
+                className="space-y-2"
               >
                 <ProviderBadge name={name} />
                 <p className="text-xs text-slate-400 leading-relaxed">{meta.description}</p>
@@ -143,38 +143,36 @@ export default function ProviderSettingsPage() {
           </div>
         </div>
         {data ? (
-          <div className="bg-slate-900 border border-white/10 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/10">
-                  <th className="text-left text-xs text-slate-500 font-medium px-4 py-3">Countries</th>
-                  <th className="text-left text-xs text-slate-500 font-medium px-4 py-3">ID Types</th>
-                  <th className="text-left text-xs text-slate-500 font-medium px-4 py-3">Primary</th>
-                  <th className="text-left text-xs text-slate-500 font-medium px-4 py-3">Fallback</th>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/[0.06]">
+                <th className="text-left text-xs text-slate-500 font-medium pb-3">Countries</th>
+                <th className="text-left text-xs text-slate-500 font-medium px-4 pb-3">ID Types</th>
+                <th className="text-left text-xs text-slate-500 font-medium px-4 pb-3">Primary</th>
+                <th className="text-left text-xs text-slate-500 font-medium px-4 pb-3">Fallback</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.06]">
+              {data.routing_table.map((row, i) => (
+                <tr key={i}>
+                  <td className="py-3 text-slate-300 font-mono text-xs">
+                    {row.countries}
+                  </td>
+                  <td className="px-4 py-3 text-slate-300 font-mono text-xs">
+                    {row.id_types}
+                  </td>
+                  <td className="px-4 py-3">
+                    <ProviderBadge name={row.primary} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <ProviderBadge name={row.fallback} />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {data.routing_table.map((row, i) => (
-                  <tr key={i} className="border-b border-white/5 last:border-0">
-                    <td className="px-4 py-3 text-slate-300 font-mono text-xs">
-                      {row.countries}
-                    </td>
-                    <td className="px-4 py-3 text-slate-300 font-mono text-xs">
-                      {row.id_types}
-                    </td>
-                    <td className="px-4 py-3">
-                      <ProviderBadge name={row.primary} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <ProviderBadge name={row.fallback} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         ) : (
-          <div className="bg-slate-900 border border-white/10 rounded-xl p-6 flex justify-center">
+          <div className="flex justify-center py-6">
             <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
@@ -191,16 +189,16 @@ export default function ProviderSettingsPage() {
           that key - useful when you have a direct contract with a provider.
         </p>
         {data ? (
-          <div className="space-y-2">
+          <div className="divide-y divide-white/[0.06]">
             {data.api_keys.length === 0 ? (
-              <p className="text-sm text-slate-500 bg-slate-900 border border-white/10 rounded-xl p-6 text-center">
+              <p className="text-sm text-slate-500 text-center py-6">
                 No active API keys found.
               </p>
             ) : (
               data.api_keys.map((key) => (
                 <div
                   key={key.id}
-                  className="bg-slate-900 border border-white/10 rounded-xl px-4 py-3 flex items-center gap-4"
+                  className="py-3 flex items-center gap-4"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-white truncate">{key.platform_name}</div>
@@ -235,7 +233,7 @@ export default function ProviderSettingsPage() {
             )}
           </div>
         ) : (
-          <div className="bg-slate-900 border border-white/10 rounded-xl p-6 flex justify-center">
+          <div className="flex justify-center py-6">
             <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         )}

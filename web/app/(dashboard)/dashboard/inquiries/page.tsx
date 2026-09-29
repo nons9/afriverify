@@ -166,7 +166,7 @@ export default function InquiriesPage() {
       )}
 
       {showForm && (
-        <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6 mb-6">
+        <div className="mb-6">
           <h2 className="text-sm font-semibold text-white mb-4">Create inquiry link</h2>
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
@@ -262,15 +262,15 @@ export default function InquiriesPage() {
       )}
 
       {inquiries.length === 0 ? (
-        <div className="bg-white/[0.03] border border-white/10 rounded-xl p-10 text-center">
+        <div className="text-center py-10">
           <Link2 className="w-6 h-6 text-slate-600 mx-auto mb-3" />
           <p className="text-sm text-slate-500">No inquiry links yet. Create one to get started.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="divide-y divide-white/[0.06]">
           {inquiries.map((inq) => (
-            <div key={inq.id} className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden">
-              <div className="p-5">
+            <div key={inq.id}>
+              <div className="py-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2.5 mb-1">
@@ -332,7 +332,7 @@ export default function InquiriesPage() {
               </div>
 
               {expanded === inq.id && (
-                <div className="border-t border-white/5 px-5 py-3 bg-white/[0.02] text-xs space-y-1.5 text-slate-500">
+                <div className="border-t border-white/[0.06] py-3 text-xs space-y-1.5 text-slate-500">
                   <div className="flex gap-8">
                     <span>Slug: <code className="text-slate-300">{inq.slug}</code></span>
                     {inq.require_liveness && <span className="text-amber-400">Liveness required</span>}

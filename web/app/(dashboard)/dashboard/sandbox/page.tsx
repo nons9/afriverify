@@ -108,16 +108,16 @@ export default function SandboxPage() {
             <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : credentials ? (
-          <div className="space-y-5">
+          <div className="space-y-8">
             {Object.entries(credentials).map(([country, creds]) => (
-              <div key={country} className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden">
-                <div className="px-5 py-3 border-b border-white/10 flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">{country}</span>
+              <div key={country}>
+                <div className="mb-3">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{country}</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[540px]">
                     <thead>
-                      <tr className="border-b border-white/5">
+                      <tr className="border-b border-white/[0.06]">
                         {['Document type', 'Test ID', 'Outcome', 'Description'].map((h) => (
                           <th key={h} className="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                             {h}
@@ -125,9 +125,9 @@ export default function SandboxPage() {
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5">
+                    <tbody className="divide-y divide-white/[0.06]">
                       {creds.map((c) => (
-                        <tr key={c.documentId} className="hover:bg-white/[0.02] transition-colors">
+                        <tr key={c.documentId}>
                           <td className="px-5 py-3.5 text-xs text-slate-400">{c.documentType}</td>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center">
@@ -161,7 +161,7 @@ export default function SandboxPage() {
           if no other platform uses the same identity, the <code className="bg-white/5 text-slate-300 px-1 rounded">verified_identities</code> row too.
         </p>
 
-        <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6 max-w-md">
+        <div className="max-w-md">
           <form onSubmit={handleReset} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">

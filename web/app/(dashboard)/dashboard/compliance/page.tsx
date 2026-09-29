@@ -159,8 +159,7 @@ export default function CompliancePage() {
       {/* Audit Export */}
       <section>
         <h2 className="text-sm font-semibold text-white mb-4">Audit trail export</h2>
-        <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6">
-          <form onSubmit={handleExport} className="space-y-4">
+        <form onSubmit={handleExport} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-slate-400 mb-1.5">From (optional)</label>
@@ -211,7 +210,7 @@ export default function CompliancePage() {
                   { label: 'Active keys', val: exportSummary.active_api_keys },
                   { label: 'Rows exported', val: exportSummary.exported_rows },
                 ].map(({ label, val }) => (
-                  <div key={label} className="bg-white/5 rounded-lg px-3 py-3">
+                  <div key={label}>
                     <div className="text-lg font-semibold text-white tabular-nums">{val.toLocaleString()}</div>
                     <div className="text-xs text-slate-500 mt-0.5">{label}</div>
                   </div>
@@ -229,7 +228,6 @@ export default function CompliancePage() {
               </button>
             </div>
           </form>
-        </div>
       </section>
 
       {/* Case Management */}
@@ -271,7 +269,7 @@ export default function CompliancePage() {
         )}
 
         {showCaseForm && (
-          <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6 mb-4">
+          <div className="mb-4">
             <form onSubmit={handleCreateCase} className="space-y-4">
               <div>
                 <label className="block text-xs text-slate-400 mb-1.5">Reason *</label>
@@ -330,16 +328,16 @@ export default function CompliancePage() {
         )}
 
         {cases !== null && !casesLoading && cases.length === 0 && (
-          <div className="bg-white/[0.03] border border-white/10 rounded-xl p-8 text-center">
+          <div className="text-center py-8">
             <FolderOpen className="w-5 h-5 text-slate-600 mx-auto mb-2" />
             <p className="text-sm text-slate-500">No cases yet.</p>
           </div>
         )}
 
         {cases !== null && cases.length > 0 && (
-          <div className="space-y-2">
+          <div className="divide-y divide-white/[0.06]">
             {cases.map((c) => (
-              <div key={c.id} className="bg-white/[0.03] border border-white/10 rounded-xl px-5 py-4 flex items-start justify-between gap-4">
+              <div key={c.id} className="py-4 flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <code className="text-xs text-slate-500 font-mono">{c.case_ref}</code>

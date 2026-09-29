@@ -311,18 +311,18 @@ function FlowForm({
       </div>
 
       {/* Advanced section */}
-      <div className="border border-white/10 rounded-xl overflow-hidden">
+      <div className="border-t border-white/[0.06] mt-2">
         <button
           type="button"
           onClick={() => setShowAdvanced((v) => !v)}
-          className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/[0.03] transition-colors"
+          className="w-full flex items-center justify-between py-3.5 text-sm font-medium text-slate-300 hover:text-white transition-colors"
         >
           <span>Advanced settings</span>
           {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
 
         {showAdvanced && (
-          <div className="px-5 pb-5 space-y-5 border-t border-white/10 pt-5">
+          <div className="pb-5 space-y-5 pt-1">
             {/* Country allow-list */}
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-2">
@@ -504,7 +504,7 @@ function FlowCard({
   }
 
   return (
-    <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
+    <div className="py-5">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -678,7 +678,7 @@ export default function FlowsPage() {
       </div>
 
       {/* How it works */}
-      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5 mb-8">
+      <div className="mb-8">
         <h3 className="text-xs font-semibold text-white uppercase tracking-wide mb-3">How flows work</h3>
         <ul className="space-y-2 text-sm text-slate-400">
           <li className="flex items-start gap-2">
@@ -716,7 +716,7 @@ export default function FlowsPage() {
           <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : flows.length === 0 ? (
-        <div className="text-center py-16 bg-white/[0.03] border border-white/10 rounded-xl">
+        <div className="text-center py-16">
           <GitBranch className="w-10 h-10 mx-auto mb-4 text-slate-700" />
           <h3 className="text-white font-medium mb-1">No flows yet</h3>
           <p className="text-slate-500 text-sm mb-5">
@@ -731,7 +731,7 @@ export default function FlowsPage() {
           </button>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="divide-y divide-white/[0.06]">
           {flows.map((f) => (
             <FlowCard key={f.id} flow={f} onEdit={startEdit} onDelete={handleDelete} />
           ))}

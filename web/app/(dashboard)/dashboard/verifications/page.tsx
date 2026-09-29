@@ -63,47 +63,45 @@ export default function VerificationsPage() {
         </button>
       </div>
 
-      <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center h-32">
-            <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : events.length === 0 ? (
-          <div className="text-center py-20">
-            <CheckCircle className="w-10 h-10 mx-auto mb-4 text-slate-700" />
-            <h3 className="text-white font-medium mb-1">No verifications yet</h3>
-            <p className="text-slate-500 text-sm max-w-xs mx-auto">
-              Create an API key and initiate your first verification to see events here.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[480px]">
-              <thead className="border-b border-white/10">
-                <tr>
-                  {['Status', 'Event', 'Timestamp'].map((h) => (
-                    <th
-                      key={h}
-                      className="px-5 py-3.5 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {events.map((ev, i) => (
-                  <tr key={i} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-5 py-4"><Badge type={ev.type} /></td>
-                    <td className="px-5 py-4 text-sm text-slate-300">{ev.type.replace(/_/g, ' ')}</td>
-                    <td className="px-5 py-4 text-sm text-slate-500">{fmtDate(ev.created_at)}</td>
-                  </tr>
+      {loading ? (
+        <div className="flex items-center justify-center h-32">
+          <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : events.length === 0 ? (
+        <div className="text-center py-20">
+          <CheckCircle className="w-10 h-10 mx-auto mb-4 text-slate-700" />
+          <h3 className="text-white font-medium mb-1">No verifications yet</h3>
+          <p className="text-slate-500 text-sm max-w-xs mx-auto">
+            Create an API key and initiate your first verification to see events here.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px]">
+            <thead className="border-b border-white/[0.06]">
+              <tr>
+                {['Status', 'Event', 'Timestamp'].map((h) => (
+                  <th
+                    key={h}
+                    className="px-5 py-3.5 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
+                  >
+                    {h}
+                  </th>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.06]">
+              {events.map((ev, i) => (
+                <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="px-5 py-4"><Badge type={ev.type} /></td>
+                  <td className="px-5 py-4 text-sm text-slate-300">{ev.type.replace(/_/g, ' ')}</td>
+                  <td className="px-5 py-4 text-sm text-slate-500">{fmtDate(ev.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

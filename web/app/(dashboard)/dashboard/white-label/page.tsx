@@ -84,7 +84,7 @@ export default function WhiteLabelPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Form */}
         <form onSubmit={handleSave} className="space-y-5">
-          <div className="bg-slate-900 border border-white/10 rounded-xl p-5 space-y-4">
+          <div className="space-y-4">
             <h2 className="text-sm font-semibold text-white">Branding</h2>
 
             <div>
@@ -282,7 +282,7 @@ export default function WhiteLabelPage() {
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-white/10 rounded-xl p-4">
+          <div className="pt-4 border-t border-white/[0.06]">
             <p className="text-xs font-medium text-white mb-2">How to use</p>
             <ol className="text-xs text-slate-400 space-y-2 list-decimal list-inside">
               <li>Save your branding above.</li>
