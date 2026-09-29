@@ -254,22 +254,21 @@ export default function OnboardingPage() {
           Use these phone numbers in Sandbox. OTP is always <strong className="text-white font-mono">123456</strong>. All
           sandbox data is isolated and never touches real registries.
         </p>
-        <div className="bg-slate-900 border border-white/10 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
+        <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-white/10">
-                <th className="text-left text-xs text-slate-500 font-medium px-4 py-3">Phone</th>
-                <th className="text-left text-xs text-slate-500 font-medium px-4 py-3">Outcome</th>
-                <th className="text-left text-xs text-slate-500 font-medium px-4 py-3">Notes</th>
+              <tr className="border-b border-white/[0.06]">
+                <th className="text-left text-xs text-slate-500 font-medium pb-3">Phone</th>
+                <th className="text-left text-xs text-slate-500 font-medium px-3 pb-3">Outcome</th>
+                <th className="text-left text-xs text-slate-500 font-medium px-3 pb-3">Notes</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-white/[0.06]">
               {TEST_NUMBERS.map((t) => (
                 <tr key={t.phone}>
-                  <td className="px-4 py-2.5">
+                  <td className="py-2.5">
                     <code className="text-xs font-mono text-indigo-400">{t.phone}</code>
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-3 py-2.5">
                     <span className={`text-xs font-medium ${
                       t.outcome.includes('pass') ? 'text-emerald-400' :
                       t.outcome.includes('flagged') ? 'text-amber-400' :
@@ -277,12 +276,11 @@ export default function OnboardingPage() {
                       'text-slate-400'
                     }`}>{t.outcome}</span>
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-slate-500">{t.note}</td>
+                  <td className="px-3 py-2.5 text-xs text-slate-500">{t.note}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
         <p className="text-xs text-slate-600 mt-3">
           More test credentials including ID numbers and biometric outcomes are available in the{' '}
           <Link href="/dashboard/sandbox" className="text-indigo-400 hover:text-indigo-300">Sandbox</Link> page.
@@ -305,7 +303,7 @@ export default function OnboardingPage() {
             { code: 'cin', label: 'CIN / CNI', countries: 'MA, TN, DZ', note: 'Carte Nationale' },
             { code: 'cni', label: 'CNI', countries: 'CM, SN, CI', note: 'Carte Nationale Identite' },
           ].map((id) => (
-            <div key={id.code} className="bg-slate-900 border border-white/10 rounded-xl p-3 flex items-start gap-3">
+            <div key={id.code} className="flex items-start gap-3">
               <code className="bg-indigo-500/10 text-indigo-400 text-xs font-mono px-2 py-1 rounded shrink-0">{id.code}</code>
               <div>
                 <div className="text-sm font-medium text-white">{id.label}</div>
@@ -362,7 +360,7 @@ export default function OnboardingPage() {
             <Link
               key={href}
               href={href}
-              className="flex items-center justify-between bg-slate-900 border border-white/10 hover:border-white/20 rounded-xl p-4 group transition-colors"
+              className="flex items-center justify-between border border-white/10 hover:border-white/20 rounded-xl p-4 group transition-colors"
             >
               <div>
                 <div className="text-sm font-medium text-white">{label}</div>

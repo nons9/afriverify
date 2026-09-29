@@ -39,7 +39,7 @@ function KeyUssdCard({ apiKey }: { apiKey: ApiKey }) {
     apiKey.environment === 'production' ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400';
 
   return (
-    <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6">
+    <div className="py-6">
       <div className="flex items-center gap-3 mb-5">
         <div>
           <div className="flex items-center gap-2">
@@ -101,7 +101,7 @@ export default function UssdPage() {
         </p>
       </div>
 
-      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6 mb-8">
+      <div className="mb-8">
         <h3 className="text-sm font-semibold text-white mb-3">How it works</h3>
         <ul className="space-y-2 text-sm text-slate-400">
           <li className="flex items-start gap-2">
@@ -127,13 +127,13 @@ export default function UssdPage() {
           <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : keys.length === 0 ? (
-        <div className="text-center py-16 bg-white/[0.03] border border-white/10 rounded-xl">
+        <div className="text-center py-16">
           <Smartphone className="w-10 h-10 mx-auto mb-4 text-slate-700" />
           <h3 className="text-white font-medium mb-1">No active API keys</h3>
           <p className="text-slate-500 text-sm">Create an API key first to configure USSD.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="divide-y divide-white/[0.06]">
           {keys.map((k) => (
             <KeyUssdCard key={k.id} apiKey={k} />
           ))}

@@ -203,14 +203,14 @@ export default function TeamPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 mb-2">
         {[
           { label: 'Total members', value: members.length },
           { label: 'Active', value: activeCount },
           { label: 'Pending', value: pendingCount },
           { label: 'Roles', value: ROLE_ORDER.length },
         ].map(({ label, value }) => (
-          <div key={label} className="bg-slate-900 border border-white/10 rounded-xl p-4">
+          <div key={label}>
             <div className="text-2xl font-bold text-white">{loading ? '—' : value}</div>
             <div className="text-xs text-slate-500 mt-0.5">{label}</div>
           </div>
@@ -218,7 +218,7 @@ export default function TeamPage() {
       </div>
 
       {/* Invite form */}
-      <div className="bg-slate-900 border border-white/10 rounded-xl p-5">
+      <div className="py-6 border-t border-white/[0.06]">
         <div className="flex items-center gap-2 mb-4">
           <UserPlus className="w-4 h-4 text-indigo-400" />
           <h2 className="text-sm font-semibold text-white">Invite member</h2>
@@ -257,14 +257,14 @@ export default function TeamPage() {
       </div>
 
       {/* Roles reference */}
-      <div className="bg-slate-900 border border-white/10 rounded-xl p-5">
+      <div className="py-6 border-t border-white/[0.06]">
         <div className="flex items-center gap-2 mb-4">
           <Shield className="w-4 h-4 text-indigo-400" />
           <h2 className="text-sm font-semibold text-white">Roles &amp; permissions</h2>
         </div>
-        <div className="grid sm:grid-cols-2 gap-2">
+        <div className="grid sm:grid-cols-2 gap-3">
           {ROLE_ORDER.map(role => (
-            <div key={role} className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-lg">
+            <div key={role} className="flex items-start gap-3">
               <RoleBadge role={role} />
               <p className="text-xs text-slate-400 leading-relaxed">{ROLE_DESCRIPTIONS[role]}</p>
             </div>
@@ -273,26 +273,26 @@ export default function TeamPage() {
       </div>
 
       {/* Members list */}
-      <div className="bg-slate-900 border border-white/10 rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-white/10">
+      <div className="py-6 border-t border-white/[0.06]">
+        <div className="flex items-center gap-2 mb-4">
           <Users className="w-4 h-4 text-indigo-400" />
           <h2 className="text-sm font-semibold text-white">Members</h2>
           {!loading && <span className="ml-auto text-xs text-slate-500">{members.length} total</span>}
         </div>
 
         {loading ? (
-          <div className="p-8 flex items-center justify-center">
+          <div className="flex items-center justify-center h-20">
             <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : members.length === 0 ? (
-          <div className="p-8 text-center">
+          <div className="text-center py-8">
             <Users className="w-8 h-8 text-slate-700 mx-auto mb-2" />
             <p className="text-sm text-slate-500">No members yet — invite someone to get started</p>
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
+          <div className="divide-y divide-white/[0.06]">
             {members.map(member => (
-              <div key={member.id} className="flex items-center gap-4 px-5 py-4">
+              <div key={member.id} className="flex items-center gap-4 py-4">
                 {/* Avatar */}
                 <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-xs font-bold text-indigo-400 shrink-0">
                   {(member.full_name ?? member.email)[0].toUpperCase()}

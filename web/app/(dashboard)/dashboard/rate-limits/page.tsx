@@ -8,7 +8,6 @@ import {
   Bell,
   BellOff,
   RefreshCw,
-  TrendingUp,
   Zap,
   Clock,
 } from 'lucide-react';
@@ -69,7 +68,7 @@ function RateLimitCard({ tier, onRefresh }: { tier: RateLimitTier; onRefresh: ()
   }, [tier.reset_at]);
 
   return (
-    <div className={`bg-slate-900 border rounded-xl p-5 ${p >= 90 ? 'border-red-500/40' : 'border-white/10'}`}>
+    <div className={p >= 90 ? 'border-l-2 border-l-red-500/40 pl-4' : ''}>
       {p >= 90 && (
         <div className="flex items-center gap-1.5 text-xs text-red-400 mb-3">
           <AlertTriangle className="w-3.5 h-3.5" />
@@ -185,17 +184,14 @@ export default function RateLimitsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 mb-2">
         {[
-          { label: 'Endpoints', value: tiers.length, icon: Gauge, color: 'text-indigo-400' },
-          { label: 'Critical (≥90%)', value: criticalCount, icon: AlertTriangle, color: criticalCount > 0 ? 'text-red-400' : 'text-slate-500' },
-          { label: 'Warning (≥70%)', value: warnCount, icon: TrendingUp, color: warnCount > 0 ? 'text-amber-400' : 'text-slate-500' },
-          { label: 'Avg usage', value: loading ? '—' : `${avgUsage}%`, icon: TrendingUp, color: 'text-emerald-400' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-slate-900 border border-white/10 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Icon className={`w-4 h-4 ${color}`} />
-            </div>
+          { label: 'Endpoints', value: tiers.length },
+          { label: 'Critical (≥90%)', value: criticalCount },
+          { label: 'Warning (≥70%)', value: warnCount },
+          { label: 'Avg usage', value: loading ? '—' : `${avgUsage}%` },
+        ].map(({ label, value }) => (
+          <div key={label}>
             <div className="text-2xl font-bold text-white">{loading ? '—' : value}</div>
             <div className="text-xs text-slate-500 mt-0.5">{label}</div>
           </div>
@@ -208,11 +204,11 @@ export default function RateLimitsPage() {
         {loading ? (
           <div className="grid sm:grid-cols-2 gap-3">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="bg-slate-900 border border-white/10 rounded-xl p-5 h-32 animate-pulse" />
+              <div key={i} className="h-32 animate-pulse bg-white/[0.02] rounded-lg" />
             ))}
           </div>
         ) : tiers.length === 0 ? (
-          <div className="bg-slate-900 border border-white/10 rounded-xl p-8 text-center">
+          <div className="py-8 text-center">
             <Gauge className="w-8 h-8 text-slate-700 mx-auto mb-2" />
             <p className="text-sm text-slate-500">No rate limit data available</p>
           </div>
@@ -226,26 +222,26 @@ export default function RateLimitsPage() {
       </div>
 
       {/* Alert rules */}
-      <div className="bg-slate-900 border border-white/10 rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-white/10">
+      <div className="pt-6 border-t border-white/[0.06]">
+        <div className="flex items-center gap-2 mb-4">
           <Bell className="w-4 h-4 text-indigo-400" />
           <h2 className="text-sm font-semibold text-white">Alert rules</h2>
           <span className="ml-auto text-xs text-slate-500">Email when usage exceeds threshold</span>
         </div>
 
         {loading ? (
-          <div className="p-6 flex items-center justify-center">
+          <div className="flex items-center justify-center h-20">
             <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : alerts.length === 0 ? (
-          <div className="p-8 text-center">
+          <div className="text-center py-8">
             <Bell className="w-8 h-8 text-slate-700 mx-auto mb-2" />
             <p className="text-sm text-slate-500">No alert rules configured</p>
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
+          <div className="divide-y divide-white/[0.06]">
             {alerts.map(rule => (
-              <div key={rule.id} className="flex items-center gap-4 px-5 py-4">
+              <div key={rule.id} className="flex items-center gap-4 py-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white font-medium truncate">{rule.endpoint}</p>
                   <p className="text-xs text-slate-500 mt-0.5">

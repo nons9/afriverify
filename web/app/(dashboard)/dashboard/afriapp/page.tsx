@@ -134,9 +134,7 @@ export default function AfriAppPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5 mb-6">
-              <p className="text-sm text-slate-400">No AfriApp key connected.</p>
-            </div>
+            <p className="text-sm text-slate-400 mb-6">No AfriApp key connected.</p>
           )}
 
           {/* Feedback banners */}
@@ -154,7 +152,7 @@ export default function AfriAppPage() {
           )}
 
           {/* Connect / replace form */}
-          <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6">
+          <div>
             <h2 className="text-sm font-semibold text-white mb-1">
               {status?.connected ? 'Replace key' : 'Connect a key'}
             </h2>

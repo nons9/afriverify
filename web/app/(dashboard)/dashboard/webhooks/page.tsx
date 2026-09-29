@@ -99,7 +99,7 @@ function DeliveryRow({ delivery, keyName, onReplay }: {
   const succeeded = delivery.response_status !== null && delivery.response_status >= 200 && delivery.response_status < 300;
 
   return (
-    <div className="border border-white/5 rounded-lg overflow-hidden">
+    <div>
       <div
         className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/[0.02] transition-colors"
         onClick={() => setExpanded(!expanded)}
@@ -122,7 +122,7 @@ function DeliveryRow({ delivery, keyName, onReplay }: {
       </div>
 
       {expanded && (
-        <div className="border-t border-white/5 bg-slate-950/40 px-4 py-4 space-y-4">
+        <div className="border-t border-white/[0.06] bg-slate-950/40 px-4 py-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div>
               <div className="text-slate-500 mb-1">Delivery ID</div>
@@ -227,7 +227,7 @@ function KeyWebhookCard({ apiKey }: { apiKey: ApiKey }) {
     : 'bg-amber-500/10 text-amber-400';
 
   return (
-    <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6">
+    <div className="py-6 border-b border-white/[0.06]">
       <div className="flex items-center gap-3 mb-5">
         <div>
           <div className="flex items-center gap-2">
@@ -379,7 +379,7 @@ export default function WebhooksPage() {
             <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12 bg-white/[0.02] border border-white/5 rounded-xl">
+          <div className="text-center py-12">
             <Webhook className="w-8 h-8 mx-auto mb-3 text-slate-700" />
             <p className="text-slate-500 text-sm">
               {deliveries.length === 0
@@ -388,7 +388,7 @@ export default function WebhooksPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="divide-y divide-white/[0.06]">
             {filtered.map((d) => (
               <DeliveryRow
                 key={d.id}
@@ -406,7 +406,7 @@ export default function WebhooksPage() {
         <h2 className="text-lg font-semibold text-white mb-1">Endpoint configuration</h2>
         <p className="text-slate-500 text-sm mb-5">Configure a webhook URL and signing secret per API key.</p>
 
-        <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6 mb-6">
+        <div className="mb-6">
           <h3 className="text-sm font-semibold text-white mb-3">How it works</h3>
           <ul className="space-y-2 text-sm text-slate-400">
             <li className="flex items-start gap-2">
@@ -441,13 +441,13 @@ export default function WebhooksPage() {
             <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : keys.length === 0 ? (
-          <div className="text-center py-16 bg-white/[0.03] border border-white/10 rounded-xl">
+          <div className="text-center py-16">
             <Webhook className="w-10 h-10 mx-auto mb-4 text-slate-700" />
             <h3 className="text-white font-medium mb-1">No active API keys</h3>
             <p className="text-slate-500 text-sm">Create an API key first to configure webhooks.</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="divide-y divide-white/[0.06]">
             {keys.map((k) => <KeyWebhookCard key={k.id} apiKey={k} />)}
           </div>
         )}

@@ -174,24 +174,21 @@ export default function UsagePage() {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-x-8 mb-8">
         {[
-          { label: 'Verifications this month', value: loading ? '-' : totalVerifs.toLocaleString(), icon: TrendingUp },
-          { label: 'Monthly limit (top key)', value: loading ? '-' : (topKey?.monthly_limit ?? 100).toLocaleString(), icon: BarChart2 },
-          { label: 'Active keys', value: loading ? '-' : String(overview?.active_keys ?? 0), icon: AlertTriangle },
-        ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-slate-400">{label}</span>
-              <Icon className="w-4 h-4 text-slate-600" />
-            </div>
+          { label: 'Verifications this month', value: loading ? '-' : totalVerifs.toLocaleString() },
+          { label: 'Monthly limit (top key)', value: loading ? '-' : (topKey?.monthly_limit ?? 100).toLocaleString() },
+          { label: 'Active keys', value: loading ? '-' : String(overview?.active_keys ?? 0) },
+        ].map(({ label, value }) => (
+          <div key={label}>
             <div className="text-2xl font-bold text-white">{value}</div>
+            <div className="text-xs text-slate-500 mt-0.5">{label}</div>
           </div>
         ))}
       </div>
 
       {/* Chart */}
-      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6 mb-6">
+      <div className="mb-8">
         <h3 className="text-sm font-semibold text-white mb-5">API calls - last 7 days</h3>
         {loading ? (
           <div className="flex items-center justify-center h-[180px]">
@@ -219,7 +216,7 @@ export default function UsagePage() {
       </div>
 
       {/* Plans per key */}
-      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6 mb-6">
+      <div className="mb-8">
         <h3 className="text-sm font-semibold text-white mb-1">Plans &amp; Usage</h3>
         <p className="text-slate-500 text-xs mb-5">Each API key is billed and metered independently.</p>
 
@@ -232,14 +229,14 @@ export default function UsagePage() {
         {!billing || billing.keys.length === 0 ? (
           <p className="text-slate-500 text-sm">No active API keys yet.</p>
         ) : (
-          <div className="space-y-4">
+          <div className="divide-y divide-white/[0.06]">
             {billing.keys.map((key) => {
               const sub = billing.subscriptions.find((s) => s.api_key_id === key.id);
               const isActive = sub?.status === 'active';
               const currentPlan = sub?.plan ?? key.tier;
 
               return (
-                <div key={key.id} className="bg-white/[0.02] border border-white/10 rounded-lg px-5 py-4">
+                <div key={key.id} className="py-4">
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -307,39 +304,35 @@ export default function UsagePage() {
       </div>
 
       {/* Invoice history */}
-      <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-white/10">
-          <h3 className="text-sm font-semibold text-white">Invoices</h3>
-        </div>
+      <div>
+        <h3 className="text-sm font-semibold text-white mb-4">Invoices</h3>
         {!billing || billing.invoices.length === 0 ? (
-          <div className="px-6 py-10 text-center">
-            <p className="text-slate-500 text-sm">No invoices yet.</p>
-          </div>
+          <p className="text-slate-500 text-sm">No invoices yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-white/5">
-                  <th className="px-6 py-3 font-medium">Invoice</th>
-                  <th className="px-6 py-3 font-medium">Period</th>
-                  <th className="px-6 py-3 font-medium">Base</th>
-                  <th className="px-6 py-3 font-medium">Overage</th>
-                  <th className="px-6 py-3 font-medium">Total</th>
-                  <th className="px-6 py-3 font-medium">Status</th>
-                  <th className="px-6 py-3 font-medium"></th>
+                <tr className="text-left text-xs text-slate-500 border-b border-white/[0.06]">
+                  <th className="px-0 pb-3 font-medium">Invoice</th>
+                  <th className="px-3 pb-3 font-medium">Period</th>
+                  <th className="px-3 pb-3 font-medium">Base</th>
+                  <th className="px-3 pb-3 font-medium">Overage</th>
+                  <th className="px-3 pb-3 font-medium">Total</th>
+                  <th className="px-3 pb-3 font-medium">Status</th>
+                  <th className="px-3 pb-3 font-medium"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-white/[0.06]">
                 {billing.invoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-6 py-3 text-slate-300 font-mono text-xs">{inv.invoice_number}</td>
-                    <td className="px-6 py-3 text-slate-400 text-xs">
+                  <tr key={inv.id}>
+                    <td className="px-0 py-3 text-slate-300 font-mono text-xs">{inv.invoice_number}</td>
+                    <td className="px-3 py-3 text-slate-400 text-xs">
                       {new Date(inv.period_start).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
                     </td>
-                    <td className="px-6 py-3 text-slate-400 font-mono text-xs tabular-nums">
+                    <td className="px-3 py-3 text-slate-400 font-mono text-xs tabular-nums">
                       {formatMoney(inv.amount_cents, inv.currency)}
                     </td>
-                    <td className="px-6 py-3 text-xs tabular-nums">
+                    <td className="px-3 py-3 text-xs tabular-nums">
                       {inv.overage_verifications > 0 ? (
                         <span className="text-amber-400 font-mono">
                           +{formatMoney(inv.overage_amount_cents, inv.currency)}
@@ -349,10 +342,10 @@ export default function UsagePage() {
                         <span className="text-slate-600">-</span>
                       )}
                     </td>
-                    <td className="px-6 py-3 text-slate-300 font-mono text-xs tabular-nums font-medium">
+                    <td className="px-3 py-3 text-slate-300 font-mono text-xs tabular-nums font-medium">
                       {formatMoney(inv.total_amount_cents, inv.currency)}
                     </td>
-                    <td className="px-6 py-3">
+                    <td className="px-3 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
                         inv.status === 'paid' ? 'bg-green-500/10 text-green-400'
                           : inv.status === 'open' ? 'bg-amber-500/10 text-amber-400'
@@ -361,7 +354,7 @@ export default function UsagePage() {
                         {inv.status}
                       </span>
                     </td>
-                    <td className="px-6 py-3">
+                    <td className="px-3 py-3">
                       <a
                         href={`${process.env.NEXT_PUBLIC_API_URL ?? ''}/v1/developer/billing/invoices/${inv.id}`}
                         target="_blank"
