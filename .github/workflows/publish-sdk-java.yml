@@ -1,0 +1,30 @@
+name: Validate afriverify-java
+
+on:
+  push:
+    tags:
+      - 'sdk/java/v*'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk/java
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Compile
+        run: mvn --batch-mode compile
+
+      - name: Package
+        run: mvn --batch-mode package -DskipTests
