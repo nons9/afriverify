@@ -1,0 +1,30 @@
+name: Validate afriverify-ruby
+
+on:
+  push:
+    tags:
+      - 'sdk/ruby/v*'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk/ruby
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Validate gemspec
+        run: ruby -e "require 'rubygems'; spec = Gem::Specification.load('afriverify.gemspec'); puts spec.name + ' ' + spec.version.to_s"
+
+      - name: Syntax check
+        run: find lib -name '*.rb' | xargs ruby -c
+
+      - name: Build gem
+        run: gem build afriverify.gemspec

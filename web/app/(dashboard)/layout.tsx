@@ -22,6 +22,8 @@ import {
   Paintbrush,
   Layers,
   Rocket,
+  Users,
+  Gauge,
 } from 'lucide-react';
 import { getSession, clearSession, Developer } from '@/lib/auth';
 import { AfriVerifyLogo, AfriVerifyMark } from '@/components/logo';
@@ -42,6 +44,8 @@ const nav = [
   { href: '/dashboard/compliance', label: 'Compliance', icon: ShieldCheck },
   { href: '/dashboard/white-label', label: 'White Label', icon: Paintbrush },
   { href: '/dashboard/provider-settings', label: 'ID Providers', icon: Layers },
+  { href: '/dashboard/team', label: 'Team', icon: Users },
+  { href: '/dashboard/rate-limits', label: 'Rate Limits', icon: Gauge },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
