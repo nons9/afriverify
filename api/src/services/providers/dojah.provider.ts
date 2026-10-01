@@ -182,7 +182,7 @@ export const dojahProvider: IdentityProvider = {
         dob_match: false,
         rejected: !passed,
         face_match_confidence: confidence,
-        liveness_passed: entity?.liveness_check !== false,
+        liveness_passed: entity?.liveness_check === true,
         provider: 'dojah'
       };
     } catch (err) {
