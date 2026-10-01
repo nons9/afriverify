@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: 'AfriVerify Privacy Policy - How we collect, use, and protect your personal data.',
 };
 
-const EFFECTIVE_DATE = 'September 1, 2026';
+const EFFECTIVE_DATE = 'October 1, 2026';
 const COMPANY = 'Sankofa Network';
 const EMAIL = 'privacy@sankofaapp.com';
 const ADDRESS = 'Akwa Ibom, Nigeria';
@@ -73,8 +73,40 @@ export default function PrivacyPage() {
               <li>Biometric data: facial photograph and derived face embedding vector (stored encrypted)</li>
               <li>Device fingerprint identifiers</li>
               <li>IP address at time of verification</li>
-              <li>Session metadata (timestamps, verification steps completed)</li>
+              <li>Session metadata (timestamps, verification steps completed, verification channel used)</li>
             </ul>
+
+            <h3 className="text-base font-medium text-slate-200 mb-2 mt-4">3.1a USSD Verification Data</h3>
+            <p>When an end-user initiates identity verification via USSD (Unstructured Supplementary Service Data), we additionally collect:</p>
+            <ul className="list-disc list-inside mt-2 space-y-1.5 text-slate-400">
+              <li>The MSISDN (mobile number) from which the USSD session was initiated, as proof of phone possession</li>
+              <li>Telecom operator identifier and session reference number</li>
+              <li>USSD session timestamps and menu navigation sequence</li>
+              <li>The developer API key and short code that routed the session</li>
+            </ul>
+
+            <h3 className="text-base font-medium text-slate-200 mb-2 mt-4">3.1b Inquiry Link Session Data</h3>
+            <p>When an end-user accesses a no-code Inquiry Link created by a developer, we collect:</p>
+            <ul className="list-disc list-inside mt-2 space-y-1.5 text-slate-400">
+              <li>Inquiry link identifier (slug) and the developer account that created it</li>
+              <li>Completion status, number of attempts, and expiry/max-use thresholds reached</li>
+              <li>All standard identity verification data collected during the session (see 3.1 above)</li>
+            </ul>
+
+            <h3 className="text-base font-medium text-slate-200 mb-2 mt-4">3.1c White-Label Session Data</h3>
+            <p>When an end-user completes verification through a developer&apos;s white-label branded flow, we collect:</p>
+            <ul className="list-disc list-inside mt-2 space-y-1.5 text-slate-400">
+              <li>Session token and the developer&apos;s white-label configuration identifier (company name, logo URL, brand colour)</li>
+              <li>All standard identity verification data collected during the session (see 3.1 above)</li>
+            </ul>
+
+            <h3 className="text-base font-medium text-slate-200 mb-2 mt-4">3.1d AfriApp / Kliqa Integration Data</h3>
+            <p>When a developer connects an AfriApp key issued via the Kliqa store, we collect:</p>
+            <ul className="list-disc list-inside mt-2 space-y-1.5 text-slate-400">
+              <li>The AfriApp API key prefix (we do not store the full secret)</li>
+              <li>Connection timestamp and the associated AfriVerify developer account</li>
+            </ul>
+            <p className="mt-2">When an end-user redeems a Kliqa voucher for Orbitverse wallet credit, we collect the voucher code prefix (masked), redemption timestamp, voucher tier, and credit amount applied.</p>
 
             <h3 className="text-base font-medium text-slate-200 mb-2 mt-4">3.2 Developer Account Data</h3>
             <p>When you register as a developer, we collect:</p>
@@ -107,11 +139,15 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">5. How We Use Your Information</h2>
             <ul className="list-disc list-inside mt-2 space-y-1.5 text-slate-400">
-              <li>Performing liveness detection, document authentication, and identity verification</li>
+              <li>Performing liveness detection, document authentication, and identity verification across all channels (API, hosted flow, USSD, Inquiry Link, white-label)</li>
+              <li>Processing USSD sessions to confirm phone possession and return verification outcomes to the requesting developer application</li>
+              <li>Routing and completing no-code verification sessions initiated via developer-created Inquiry Links</li>
+              <li>Rendering white-label hosted verification flows with developer-supplied branding configuration</li>
               <li>Issuing and validating Verified Identity Tokens (VITs)</li>
               <li>AML screening against global sanctions lists and PEP databases</li>
               <li>Calculating and maintaining trust scores</li>
               <li>Detecting and preventing fraud across the AfriVerify network</li>
+              <li>Processing and validating Kliqa voucher redemptions for Orbitverse wallet credit</li>
               <li>Providing developer dashboard analytics and usage metrics</li>
               <li>Billing and invoicing</li>
               <li>Customer support and dispute resolution</li>
@@ -124,6 +160,7 @@ export default function PrivacyPage() {
             <p>We do not sell your personal data. We share data only:</p>
             <ul className="list-disc list-inside mt-2 space-y-1.5 text-slate-400">
               <li><span className="text-slate-300 font-medium">Identity verification providers:</span> Smile Identity, Dojah, and Onfido receive only the minimum data required to perform the specific check requested. Each provider is contractually bound to our data processing terms.</li>
+              <li><span className="text-slate-300 font-medium">AfriApp / Kliqa:</span> When a developer connects an AfriApp key or an end-user redeems a Kliqa voucher, Kliqa (store.kliqa.africa) receives the voucher code for validation. No personal identity data is shared in this exchange.</li>
               <li><span className="text-slate-300 font-medium">Payment processors:</span> Flutterwave processes billing transactions. We do not store raw card data.</li>
               <li><span className="text-slate-300 font-medium">Cloud infrastructure:</span> AWS (data storage, S3), Railway (API hosting), and Vercel (web hosting). Data processing agreements are in place with each provider.</li>
               <li><span className="text-slate-300 font-medium">Developer applications:</span> Verification outcomes (pass/fail, trust score, verification level) are shared with the developer whose API key initiated the verification. The developer&apos;s privacy policy governs their use of this data.</li>
@@ -156,11 +193,14 @@ export default function PrivacyPage() {
                   {[
                     ['Verified identity record (name, nationality, hash)', '7 years from last activity or as required by KYC regulations'],
                     ['Facial embedding vectors', '5 years from last verification, unless extended consent given'],
-                    ['Verification session logs', '5 years'],
+                    ['Verification session logs (API & hosted flow)', '5 years'],
+                    ['USSD session logs', '2 years'],
+                    ['Inquiry Link session logs', '5 years'],
                     ['API access logs', '2 years'],
                     ['Billing records', '7 years (tax and regulatory compliance)'],
                     ['Developer account data', 'Duration of account plus 2 years'],
                     ['AML screening results', '5 years or as required by applicable AML law'],
+                    ['Voucher redemption records', '7 years (financial compliance)'],
                   ].map(([cat, period]) => (
                     <tr key={cat}>
                       <td className="px-4 py-2.5 text-slate-300">{cat}</td>

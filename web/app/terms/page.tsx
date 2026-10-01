@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: 'AfriVerify Terms of Service - the agreement governing your use of the AfriVerify platform.',
 };
 
-const EFFECTIVE_DATE = 'September 1, 2026';
+const EFFECTIVE_DATE = 'October 1, 2026';
 const COMPANY = 'Sankofa Network';
 const EMAIL = 'legal@sankofaapp.com';
 
@@ -56,7 +56,13 @@ export default function TermsPage() {
                 ['"API Key"', 'the credential pair (key + secret) issued to your account for authenticating API requests'],
                 ['"End-User"', 'an individual whose identity is verified through the Service at your direction'],
                 ['"Verification"', 'the process of confirming an End-User\'s identity using government-issued documents, biometrics, or official registries'],
-                ['"VIT"', 'Verified Identity Token - a signed, portable attestation of a completed verification'],
+                ['"VIT"', 'Verified Identity Token — a signed, portable attestation of a completed verification'],
+                ['"USSD Verification"', 'an identity verification initiated via Unstructured Supplementary Service Data (USSD) that confirms phone possession and reaches AfriVerify Level 1 trust without requiring an app or internet connection'],
+                ['"Inquiry Link"', 'a no-code, shareable URL created by a developer through the dashboard that directs End-Users through a hosted verification flow without requiring any API integration'],
+                ['"White-Label Flow"', 'the hosted verification experience rendered with a developer\'s custom branding (company name, logo, brand colour) at a dedicated session URL'],
+                ['"Verification Flow"', 'a developer-configured sequence of verification steps (e.g., document check, liveness detection, AML screen) applied to End-User sessions under a named policy'],
+                ['"AfriApp Key"', 'an API key issued via the Kliqa AfriApp Store (store.kliqa.africa) that a developer connects to their AfriVerify account to access the Service'],
+                ['"Voucher" / "Orbitverse Wallet Credit"', 'a Kliqa-issued voucher code (format OV-XXXXXXX-XXXXXXX) that a developer or end-user redeems through the Service to receive platform credit at a tier-based multiplier (Silver 1×, Gold 1.25×, Platinum 1.5×)'],
                 ['"Developer Data"', 'data you upload, transmit, or generate through the Service'],
                 ['"Platform"', 'your application, website, or product that integrates with the Service'],
               ].map(([term, def]) => (
@@ -93,7 +99,13 @@ export default function TermsPage() {
             </p>
             <ul className="list-disc list-inside mt-2 space-y-1.5 text-slate-400">
               <li>Verify the identity of End-Users of your Platform in connection with legitimate KYC, onboarding, financial services, or access-control purposes</li>
+              <li>Initiate verification sessions via API, hosted flow, USSD channel, Inquiry Link, or White-Label Flow</li>
+              <li>Create and manage Inquiry Links to enable no-code, shareable verification journeys for your End-Users</li>
+              <li>Configure and deploy White-Label Flows to deliver a branded verification experience under your company identity</li>
+              <li>Define and apply Verification Flows to enforce consistent step sequences across End-User sessions</li>
               <li>Issue and verify VITs to reduce friction for returning verified users</li>
+              <li>Connect an AfriApp Key to access the Service through the Kliqa AfriApp Store</li>
+              <li>Redeem Kliqa Vouchers to apply Orbitverse Wallet Credit to your AfriVerify account balance</li>
               <li>Access your dashboard, usage data, and billing information</li>
               <li>Integrate our SDK and embed the hosted verification flow under your white-label configuration</li>
             </ul>
@@ -160,6 +172,9 @@ export default function TermsPage() {
               <li>Non-refundable except where required by applicable consumer protection law</li>
               <li>Subject to VAT, withholding tax, or other applicable taxes as required by law in your jurisdiction; you are responsible for all such taxes</li>
             </ul>
+            <p className="mt-3">
+              <span className="text-slate-300 font-medium">Voucher credit.</span> Orbitverse Wallet Credit obtained by redeeming a Kliqa Voucher is applied to your account balance and consumed before any invoiced charges. Voucher credit is non-transferable, non-refundable, and expires 12 months from the date of redemption unless otherwise stated at the time of issue. The credit multiplier applied (Silver 1×, Gold 1.25×, Platinum 1.5×) is determined by the voucher tier at the time of redemption and cannot be changed after redemption.
+            </p>
             <p className="mt-3">
               If payment fails, we will retry for 7 days before suspending API access. You will be notified
               at each retry attempt. Your data is preserved for 30 days after suspension before any deletion
