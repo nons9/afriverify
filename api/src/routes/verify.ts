@@ -432,7 +432,15 @@ router.post(
         preferred
       );
 
-      if (result.rejected) {
+      if (result.pending && result.check_id) {
+        // Onfido submitted the check asynchronously — store check_id to resolve via webhook.
+        smileCode = 'pending';
+        providerUsed = result.provider;
+        await query(
+          `UPDATE verified_identities SET metadata = metadata || $1::jsonb WHERE id = $2`,
+          [JSON.stringify({ onfido_check_id: result.check_id, onfido_check_pending: true }), session.identity_id]
+        );
+      } else if (result.rejected) {
         await writeAuditEvent(req, {
           event_type: 'id_rejected',
           identity_id: session.identity_id,
@@ -446,11 +454,11 @@ router.post(
           reason: result.result_text
         });
         return;
+      } else {
+        idVerified = result.success;
+        smileCode = result.result_code;
+        providerUsed = result.provider;
       }
-
-      idVerified = result.success;
-      smileCode = result.result_code;
-      providerUsed = result.provider;
     } catch (err) {
       logger.warn('Identity provider unavailable, continuing', { error: (err as Error).message });
     }
@@ -705,7 +713,15 @@ async function runBiometricProcessing(
       id_photo_buffer: idPhotoBuffer
     });
 
-    if (result.success && (result.face_match_confidence ?? 0) >= 70) {
+    if (result.pending && result.check_id) {
+      // Onfido submitted the biometric check asynchronously — resolve via webhook.
+      await query(
+        `UPDATE verified_identities SET metadata = metadata || $1::jsonb WHERE id = $2`,
+        [JSON.stringify({ onfido_biometric_check_id: result.check_id, onfido_biometric_pending: true }), identityId]
+      );
+      // Treat as Level 1 for now — webhook will upgrade to Level 2 when check completes.
+      await completeLevel1(session.id, identityId, req);
+    } else if (result.success && (result.face_match_confidence ?? 0) >= 70) {
       await completeLevel2(session.id, identityId, result.face_match_confidence ?? 90, req);
     } else {
       await failSession(

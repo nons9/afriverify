@@ -115,36 +115,46 @@ async function requestCheck(applicantId: string, reportNames: string[]): Promise
   return (resp.data as { id: string }).id;
 }
 
-async function pollCheck(
-  checkId: string,
-  maxWaitMs = 90_000
+export async function resolveCheck(
+  checkId: string
 ): Promise<{ result: string; sub_result: string; breakdown: Record<string, { result: string }> }> {
-  const interval = 5000;
-  const attempts = Math.ceil(maxWaitMs / interval);
+  const resp = await client().get(`/checks/${checkId}`);
+  const data = resp.data as {
+    status: string;
+    result: string;
+    sub_result: string;
+  };
 
-  for (let i = 0; i < attempts; i++) {
-    if (i > 0) await new Promise<void>((r) => setTimeout(r, interval));
-
-    const resp = await client().get(`/checks/${checkId}`);
-    const data = resp.data as {
-      status: string;
-      result: string;
-      sub_result: string;
-      report_ids: string[];
-    };
-
-    if (data.status === 'complete') {
-      // Fetch report breakdown
-      const reportResp = await client().get(`/reports?check_id=${checkId}`);
-      const reports = (reportResp.data as { reports: Array<{ breakdown?: Record<string, { result: string }> }> }).reports;
-      const breakdown = reports[0]?.breakdown ?? {};
-      return { result: data.result, sub_result: data.sub_result, breakdown };
-    }
-
-    logger.debug('Onfido check not complete yet', { attempt: i + 1, checkId });
+  if (data.status !== 'complete') {
+    throw new Error(`Onfido check ${checkId} is not yet complete (status: ${data.status})`);
   }
 
-  throw new Error(`Onfido check ${checkId} timed out after ${maxWaitMs / 1000}s`);
+  const reportResp = await client().get(`/reports?check_id=${checkId}`);
+  const reports = (reportResp.data as { reports: Array<{ breakdown?: Record<string, { result: string }> }> }).reports;
+  const breakdown = reports[0]?.breakdown ?? {};
+  return { result: data.result, sub_result: data.sub_result, breakdown };
+}
+
+export function mapOnfidoResultPublic(
+  result: string,
+  subResult: string,
+  breakdown: Record<string, { result: string }>
+): ProviderResult {
+  const facePassed = breakdown['facial_similarity_photo']?.result === 'clear';
+  const overallPassed = result === 'clear';
+  const confidence = overallPassed ? (facePassed ? 92 : 85) : facePassed ? 70 : 0;
+  return {
+    success: overallPassed,
+    result_code: overallPassed ? '1012' : result === 'consider' ? '1015' : '1016',
+    result_text: overallPassed ? 'Verification Successful' : result === 'consider' ? 'Manual review required' : 'Verification Failed',
+    confidence,
+    name_match: overallPassed,
+    dob_match: overallPassed,
+    rejected: !overallPassed && result !== 'consider',
+    face_match_confidence: facePassed ? confidence : 0,
+    liveness_passed: facePassed,
+    provider: 'onfido'
+  };
 }
 
 function mapOnfidoResult(result: string, subResult: string): ProviderResult {
@@ -201,8 +211,19 @@ export const onfidoProvider: IdentityProvider = {
       const applicantId = await createApplicant(params.first_name, params.last_name, params.dob);
       await uploadDocument(applicantId, docType, params.id_photo_buffer, params.country);
       const checkId = await requestCheck(applicantId, ['document']);
-      const { result, sub_result } = await pollCheck(checkId);
-      return mapOnfidoResult(result, sub_result);
+      // Return immediately — Onfido resolves asynchronously via webhook (POST /webhooks/onfido).
+      return {
+        success: false,
+        result_code: 'PENDING',
+        result_text: 'Onfido check submitted, awaiting result',
+        confidence: 0,
+        name_match: false,
+        dob_match: false,
+        rejected: false,
+        provider: 'onfido',
+        pending: true,
+        check_id: checkId
+      };
     } catch (err) {
       logger.error('Onfido verifyId error', { error: (err as Error).message });
       throw new Error('Onfido verification service temporarily unavailable');
@@ -226,25 +247,18 @@ export const onfidoProvider: IdentityProvider = {
 
       await uploadLivePhoto(applicantId, params.selfie_buffer);
       const checkId = await requestCheck(applicantId, reports);
-      const { result, sub_result, breakdown } = await pollCheck(checkId);
-
-      const facePassed = breakdown['facial_similarity_photo']?.result === 'clear';
-      const docPassed =
-        !params.id_photo_buffer || breakdown['document']?.result === 'clear';
-      const overallPassed = result === 'clear' && facePassed;
-      const confidence = overallPassed ? 92 : facePassed ? 70 : 0;
-
+      // Return immediately — Onfido resolves asynchronously via webhook (POST /webhooks/onfido).
       return {
-        success: overallPassed,
-        result_code: overallPassed ? '1012' : '1016',
-        result_text: overallPassed ? 'Biometric verification passed' : 'Biometric verification failed',
-        confidence,
-        name_match: docPassed,
+        success: false,
+        result_code: 'PENDING',
+        result_text: 'Onfido biometric check submitted, awaiting result',
+        confidence: 0,
+        name_match: false,
         dob_match: false,
-        rejected: !overallPassed && result === 'consider' ? false : !overallPassed,
-        face_match_confidence: facePassed ? confidence : 0,
-        liveness_passed: facePassed,
-        provider: 'onfido'
+        rejected: false,
+        provider: 'onfido',
+        pending: true,
+        check_id: checkId
       };
     } catch (err) {
       logger.error('Onfido biometricKYC error', { error: (err as Error).message });
