@@ -89,24 +89,38 @@ router.get(
 );
 
 // ─── POST /identity/connect ───────────────────────────────────────────────────────────────────────────────────────
-const connectSchema = z.object({
-  identity_id: z.string().uuid(),
-  platform_user_id: z.string().min(1).max(255)
-});
+// Connect by identity_id (platform already knows it), or by phone so a platform
+// can link a user it only knows by phone number. Phone mode requires a
+// consent_reference (the platform's record of the user's consent), which is
+// written to the audit trail with the connection.
+const connectSchema = z
+  .object({
+    identity_id: z.string().uuid().optional(),
+    phone: z.string().regex(/^\+[1-9]\d{7,14}$/, 'phone must be E.164, e.g. +2348012345678').optional(),
+    platform_user_id: z.string().min(1).max(255),
+    consent_reference: z.string().min(1).max(255).optional()
+  })
+  .refine((b) => Boolean(b.identity_id) !== Boolean(b.phone), {
+    message: 'Provide exactly one of identity_id or phone'
+  })
+  .refine((b) => !b.phone || Boolean(b.consent_reference), {
+    message: 'consent_reference is required when connecting by phone',
+    path: ['consent_reference']
+  });
 
 router.post(
   '/connect',
   requirePermission('verify'),
   validateBody(connectSchema),
   async (req: Request, res: Response): Promise<void> => {
-    const { identity_id, platform_user_id } = req.body as { identity_id: string; platform_user_id: string };
+    const body = req.body as z.infer<typeof connectSchema>;
+    const { platform_user_id } = body;
     const platform = req.platform!;
     const apiKey = req.apiKey!;
 
-    const identity = await queryOne<VerifiedIdentity>(
-      'SELECT * FROM verified_identities WHERE id = $1',
-      [identity_id]
-    );
+    const identity = body.identity_id
+      ? await queryOne<VerifiedIdentity>('SELECT * FROM verified_identities WHERE id = $1', [body.identity_id])
+      : await queryOne<VerifiedIdentity>('SELECT * FROM verified_identities WHERE phone = $1', [body.phone]);
     if (!identity) {
       res.status(404).json({ error: 'identity_not_found', message: 'Identity not found' });
       return;
@@ -115,6 +129,7 @@ router.post(
       res.status(403).json({ error: 'identity_blocked', message: 'This identity is blocked from all platforms' });
       return;
     }
+    const identity_id = identity.id;
 
     await query(
       `INSERT INTO platform_connections
@@ -129,7 +144,12 @@ router.post(
       event_type: 'platform_connected',
       identity_id,
       result: 'passed',
-      metadata: { platform, platform_user_id }
+      metadata: {
+        platform,
+        platform_user_id,
+        connected_by: body.phone ? 'phone' : 'identity_id',
+        ...(body.consent_reference ? { consent_reference: body.consent_reference } : {})
+      }
     });
 
     const { token, payload } = await issueVIT(identity_id);
