@@ -34,7 +34,16 @@ export function validateQuery(schema: ZodSchema) {
       });
       return;
     }
-    req.query = result.data as Record<string, string>;
+    // Express 5 exposes req.query as a getter-only property, so assigning to
+    // it throws ("Cannot set property query ... which has only a getter") and
+    // every route using validateQuery returned 500. Define an own property to
+    // shadow the getter with the validated (and coerced) values.
+    Object.defineProperty(req, 'query', {
+      value: result.data as Record<string, string>,
+      writable: true,
+      enumerable: true,
+      configurable: true
+    });
     next();
   };
 }
