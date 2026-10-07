@@ -49,7 +49,7 @@ POST /v1/verify/face/submit       Submit selfie for biometric match
 GET  /v1/verify/status/:token     Poll verification status → returns VIT when complete
 
 GET  /v1/identity/check?phone=    Sub-100ms identity lookup
-POST /v1/identity/connect         Connect verified identity to your platform
+POST /v1/identity/connect         Connect verified identity to your platform (by identity_id, or by phone + consent_reference)
 GET  /v1/identity/profile/:id     Full identity profile
 POST /v1/identity/flag            Report fraud
 
