@@ -5,6 +5,7 @@ import { sendUsageAlertEmail, sendOverageInvoiceEmail, sendSubscriptionPastDueEm
 import { generateInvoicePdf } from './pdf-invoice.service';
 import { ApiTier } from '../types';
 import logger from '../utils/logger';
+import { runOncePerInterval } from '../utils/job-lock';
 
 export const SELF_SERVE_PLANS = ['starter', 'growth'] as const;
 export type SelfServePlan = (typeof SELF_SERVE_PLANS)[number];
@@ -389,7 +390,7 @@ export async function runBillingCycle(): Promise<void> {
 export function startBillingCron(): void {
   const DAY_MS = 24 * 60 * 60 * 1000;
   setInterval(() => {
-    runBillingCycle().catch((err) => logger.error('Billing cycle errored', { error: (err as Error).message }));
+    runOncePerInterval('billing-cycle', DAY_MS, runBillingCycle).catch((err) => logger.error('Billing cycle errored', { error: (err as Error).message }));
   }, DAY_MS);
   logger.info('Billing cron scheduled', { intervalHours: 24 });
 }

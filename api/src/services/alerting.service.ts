@@ -1,5 +1,6 @@
 import { query } from '../db';
 import logger from '../utils/logger';
+import { runOncePerInterval } from '../utils/job-lock';
 
 interface FailureRateRow {
   event_type: string;
@@ -77,7 +78,7 @@ async function checkFailureRates(): Promise<void> {
 export function startFailureRateMonitor(): void {
   const intervalMs = CHECK_INTERVAL_MINUTES * 60 * 1000;
   setInterval(() => {
-    checkFailureRates().catch((err) =>
+    runOncePerInterval('failure-rate-monitor', intervalMs, checkFailureRates).catch((err) =>
       logger.error('Failure rate check errored', { error: (err as Error).message })
     );
   }, intervalMs);
