@@ -20,6 +20,7 @@ class VerifyResource:
         redirect_url: str | None = None,
         flow_id: str | None = None,
         lang: str = "en",
+        require_liveness: bool = False,
     ) -> dict[str, Any]:
         return self._http.post("/verify/initiate", _compact({
             "phone": phone,
@@ -29,6 +30,7 @@ class VerifyResource:
             "redirect_url": redirect_url,
             "flow_id": flow_id,
             "lang": lang,
+            "require_liveness": True if require_liveness else None,
         }))
 
     def send_otp(self, session_token: str) -> dict[str, Any]:
@@ -53,6 +55,29 @@ class VerifyResource:
             "/verify/face/submit",
             files={"selfie": _to_bytes(selfie)},
             data={"session_token": session_token},
+        )
+
+    def start_liveness(self, session_token: str, *, consent: bool) -> dict[str, Any]:
+        """Start a live face scan. `consent` must be True (user agreed to biometric capture).
+        Returns liveness_id and the random challenge sequence the user must perform."""
+        return self._http.post("/verify/face/liveness/start", {"session_token": session_token, "consent": consent})
+
+    def complete_liveness(
+        self,
+        session_token: str,
+        liveness_id: str,
+        frames: "list[bytes | BinaryIO | Path]",
+        timestamps_ms: "list[float]",
+        windows: "list[dict[str, float]] | None" = None,
+    ) -> dict[str, Any]:
+        """Submit UNMIRRORED JPEG frames (capture order) + one capture-relative ms timestamp per frame."""
+        import json
+
+        meta = _compact({"timestamps_ms": timestamps_ms, "windows": windows})
+        return self._http.post_files(
+            "/verify/face/liveness/complete",
+            files=[("frames", _to_bytes(f)) for f in frames],
+            data={"session_token": session_token, "liveness_id": liveness_id, "meta": json.dumps(meta)},
         )
 
     def get_status(self, session_token: str) -> dict[str, Any]:

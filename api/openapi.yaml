@@ -205,6 +205,12 @@ paths:
                   type: string
                   enum: [en, fr]
                   default: en
+                require_liveness:
+                  type: boolean
+                  default: false
+                  description: |
+                    Require a live face scan (`/verify/face/liveness/*`) instead of a photo upload.
+                    `/verify/face/submit` then returns `400 liveness_required` for this session.
       responses:
         '201':
           description: Session created
@@ -482,6 +488,117 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /verify/face/liveness/start:
+    post:
+      tags: [Verify]
+      operationId: verifyFaceLivenessStart
+      summary: Start a live face scan
+      description: |
+        Issues a random challenge sequence (one head turn, one blink, one smile, random order)
+        that the user must perform in front of a live camera. Use instead of `/verify/face/submit`
+        when the session was created with `require_liveness: true`.
+        The user must have consented to biometric capture (`consent: true`).
+        At most 3 attempts per session; each challenge expires after 3 minutes and is single-use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_token, consent]
+              properties:
+                session_token:
+                  $ref: '#/components/schemas/SessionToken'
+                consent:
+                  type: boolean
+                  enum: [true]
+      responses:
+        '200':
+          description: Challenge issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  liveness_id: { type: string, format: uuid }
+                  challenges:
+                    type: array
+                    items: { type: string, enum: [turn_left, turn_right, blink, smile] }
+                  attempt: { type: integer }
+                  max_attempts: { type: integer }
+                  expires_in_seconds: { type: integer }
+                  capture:
+                    type: object
+                    properties:
+                      min_frames: { type: integer }
+                      max_frames: { type: integer }
+                      min_seconds: { type: integer }
+                      max_seconds: { type: integer }
+                      target_fps: { type: integer }
+        '400': { description: Consent missing, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: Session not found or at wrong step, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: Maximum attempts reached, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '501': { description: Live face scanning is not enabled on this deployment, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /verify/face/liveness/complete:
+    post:
+      tags: [Verify]
+      operationId: verifyFaceLivenessComplete
+      summary: Submit the captured frames for liveness + face match
+      description: |
+        Submit the frames recorded while the user performed the challenges. Frames must be
+        **unmirrored JPEGs captured live from the camera**, in capture order, at roughly 8 fps
+        (8-120 frames, 3-60 seconds, max 1.5 MB each). `meta` is a JSON string:
+        `{"timestamps_ms": [..one per frame..], "windows": [{"start_ms":0,"end_ms":3000}, ..one per challenge..]}`.
+
+        The engine re-analyses every frame server-side (it never trusts client measurements),
+        verifies the challenge sequence, runs passive presentation-attack checks, then matches the
+        best frame against the ID photo. `decision` is one of `approved`, `retry` (attempts left),
+        `rejected`, or `manual_review` (borderline; vendor second opinion unavailable). Poll
+        `GET /verify/status/{session_token}` for the final session status.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [session_token, liveness_id, meta, frames]
+              properties:
+                session_token: { $ref: '#/components/schemas/SessionToken' }
+                liveness_id: { type: string, format: uuid }
+                meta: { type: string, description: JSON string (see above) }
+                frames:
+                  type: array
+                  items: { type: string, format: binary }
+      responses:
+        '200':
+          description: Scan analysed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  decision: { type: string, enum: [approved, retry, rejected, manual_review, processing] }
+                  next_step: { type: string, enum: [complete, face_scan, failed, processing] }
+                  attempts_remaining: { type: integer }
+                  review_pending: { type: boolean }
+                  liveness:
+                    type: object
+                    properties:
+                      verdict: { type: string, enum: [pass, review, fail] }
+                      score: { type: number }
+                      reasons: { type: array, items: { type: string } }
+                      challenges:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            type: { type: string }
+                            passed: { type: boolean }
+        '404': { description: Challenge unknown, already used, or expired, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: Capture malformed (too few frames, bad timestamps, ...), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: Engine temporarily unavailable - safe to retry, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /verify/status/{session_token}:
     get:

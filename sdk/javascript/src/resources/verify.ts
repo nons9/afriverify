@@ -5,6 +5,8 @@ import type {
   ConfirmOtpParams, ConfirmOtpResponse,
   UploadIdParams, UploadIdResponse,
   SubmitFaceParams, SubmitFaceResponse,
+  StartLivenessParams, StartLivenessResponse,
+  CompleteLivenessParams, CompleteLivenessResponse,
   SessionStatusResponse,
 } from '../types.js';
 
@@ -38,6 +40,23 @@ export class VerifyResource {
     form.append('session_token', params.session_token);
     form.append('selfie', await toBlob(params.selfie), 'selfie.jpg');
     return this.http.postForm('/verify/face/submit', form);
+  }
+
+  /** Start a live face scan; returns the random challenge sequence the user must perform. */
+  startLiveness(params: StartLivenessParams): Promise<StartLivenessResponse> {
+    return this.http.post('/verify/face/liveness/start', params);
+  }
+
+  /** Submit the frames captured while the user performed the challenges. */
+  async completeLiveness(params: CompleteLivenessParams): Promise<CompleteLivenessResponse> {
+    const form = new FormData();
+    form.append('session_token', params.session_token);
+    form.append('liveness_id', params.liveness_id);
+    form.append('meta', JSON.stringify({ timestamps_ms: params.timestamps_ms, windows: params.windows }));
+    for (let i = 0; i < params.frames.length; i++) {
+      form.append('frames', await toBlob(params.frames[i]), `f${i}.jpg`);
+    }
+    return this.http.postForm('/verify/face/liveness/complete', form);
   }
 
   getStatus(sessionToken: string): Promise<SessionStatusResponse> {

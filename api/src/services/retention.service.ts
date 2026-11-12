@@ -1,8 +1,12 @@
 import { query } from '../db';
 import { deleteFromS3 } from '../utils/s3';
 import logger from '../utils/logger';
+import { purgeLivenessEvidence } from './liveness.service';
 
 const RETENTION_DAYS = parseInt(process.env.SESSION_MEDIA_RETENTION_DAYS ?? '30', 10);
+// Extra liveness frames + capture video are short-lived evidence: kept only long enough for
+// review/disputes. (The single best frame follows the session-media policy above.)
+const LIVENESS_EVIDENCE_DAYS = parseInt(process.env.LIVENESS_EVIDENCE_RETENTION_DAYS ?? '30', 10);
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 interface StaleSession {
@@ -57,6 +61,9 @@ export function startRetentionPurge(): void {
   setInterval(() => {
     purgeStaleSessionMedia().catch((err) =>
       logger.error('Retention purge errored', { error: (err as Error).message })
+    );
+    purgeLivenessEvidence(LIVENESS_EVIDENCE_DAYS).catch((err) =>
+      logger.error('Liveness evidence purge errored', { error: (err as Error).message })
     );
   }, CHECK_INTERVAL_MS);
   logger.info('Retention purge scheduled', { retentionDays: RETENTION_DAYS, intervalHours: 24 });

@@ -21,7 +21,12 @@ import { applyTrustEvent } from '../services/trust-score.service';
 import { issueVIT } from '../services/vit.service';
 import { uploadToS3, downloadFromS3 } from '../utils/s3';
 import { scanImage } from '../services/orbitshield/deepscan.service';
+import {
+  livenessEnabled, isLivenessRequired, startLiveness, completeLiveness, attachLivenessVideo,
+  MAX_FRAMES, MAX_FRAME_BYTES, MAX_VIDEO_BYTES, CONSENT_VERSION,
+} from '../services/liveness.service';
 import { createOrUpdatePlatformConnection, pushVerificationUpdate } from '../services/platform-webhook.service';
+import { writeAuditEvent } from '../middleware/audit';
 import logger from '../utils/logger';
 import { captureError } from '../utils/sentry';
 import { stepMessage } from '../utils/i18n';
@@ -29,6 +34,9 @@ import { SupportedLang, VerificationSession } from '../types';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+// live-capture frames: capped per file AND per request, so a hostile client can't exhaust memory
+const frameUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FRAME_BYTES, files: MAX_FRAMES } });
+const videoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_VIDEO_BYTES, files: 1 } });
 
 // ─── GET /hosted/branding/:session_token ──────────────────────────────────────
 // Public. Returns the white-label branding for the developer who owns this
@@ -47,6 +55,7 @@ router.get('/branding/:session_token', async (req: Request, res: Response): Prom
     step: string;
     lang: string;
     redirect_url: string | null;
+    liveness_required: boolean;
   }>(
     `SELECT ak.platform_email AS developer_email,
             COALESCE(wl.company_name, ak.platform_name)  AS company_name,
@@ -57,7 +66,8 @@ router.get('/branding/:session_token', async (req: Request, res: Response): Prom
             vs.phone,
             vs.step,
             COALESCE(vs.lang, 'en')                      AS lang,
-            vs.redirect_url
+            vs.redirect_url,
+            vs.liveness_required
      FROM verification_sessions vs
      JOIN api_keys ak ON vs.api_key_id = ak.id
      LEFT JOIN white_label_configs wl ON wl.developer_email = ak.platform_email
@@ -80,6 +90,11 @@ router.get('/branding/:session_token', async (req: Request, res: Response): Prom
     current_step: row.step,
     lang: row.lang,
     redirect_url: row.redirect_url ?? null,
+    liveness: {
+      enabled: livenessEnabled(),
+      required: isLivenessRequired({ liveness_required: row.liveness_required }),
+      consent_version: CONSENT_VERSION,
+    },
   });
 });
 
@@ -329,6 +344,13 @@ router.post(
       res.status(404).json({ error: 'session_not_found' });
       return;
     }
+    if (isLivenessRequired(session)) {
+      res.status(400).json({
+        error: 'liveness_required',
+        message: 'A live face scan is required for this verification. Photo uploads are not accepted.',
+      });
+      return;
+    }
 
     const deepScan = await scanImage(file.buffer, 'selfie', session.identity_id, session.id);
     if (deepScan.blocked) {
@@ -357,6 +379,144 @@ router.post(
     res.json({ processing: true, estimated_seconds: 30 });
   }
 );
+
+// ─── Live face scan ───────────────────────────────────────────────────────────
+const livenessStartSchema = z.object({
+  session_token: z.string().length(64),
+  consent: z.union([z.literal(true), z.literal('true')]),
+});
+
+// POST /hosted/face/liveness/start - server issues a random challenge sequence
+router.post('/face/liveness/start', async (req: Request, res: Response): Promise<void> => {
+  if (!livenessEnabled()) {
+    res.status(501).json({ error: 'liveness_unavailable', message: 'Live face scanning is not enabled.' });
+    return;
+  }
+  const parsed = livenessStartSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const consentMissing = !req.body?.consent;
+    res.status(400).json({
+      error: consentMissing ? 'consent_required' : 'validation_error',
+      message: consentMissing ? 'Consent to biometric capture is required.' : 'session_token required (64 chars)',
+    });
+    return;
+  }
+  const session = await queryOne<VerificationSession>(
+    `SELECT * FROM verification_sessions
+     WHERE session_token = $1 AND step = 'face_scan' AND expires_at > NOW()`,
+    [parsed.data.session_token]
+  );
+  if (!session?.identity_id) {
+    res.status(404).json({ error: 'session_not_found', message: 'Session not found or wrong step' });
+    return;
+  }
+  const out = await startLiveness(session, true);
+  if (!out.ok) {
+    res.status(out.status).json({ error: out.error, message: out.message });
+    return;
+  }
+  const { ok: _ok, ...body } = out;
+  res.json(body);
+});
+
+const livenessMetaSchema = z.object({
+  timestamps_ms: z.array(z.number().finite()).min(2).max(MAX_FRAMES),
+  windows: z.array(z.object({ start_ms: z.number().finite(), end_ms: z.number().finite() })).max(8).optional(),
+});
+
+// POST /hosted/face/liveness/complete - frames in, verdict + decision out
+router.post(
+  '/face/liveness/complete',
+  frameUpload.array('frames', MAX_FRAMES),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!livenessEnabled()) {
+      res.status(501).json({ error: 'liveness_unavailable', message: 'Live face scanning is not enabled.' });
+      return;
+    }
+    const body = req.body as { session_token?: string; liveness_id?: string; meta?: string };
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+    if (!body.session_token || body.session_token.length !== 64 || !body.liveness_id || !z.string().uuid().safeParse(body.liveness_id).success) {
+      res.status(400).json({ error: 'validation_error', message: 'session_token and liveness_id required' });
+      return;
+    }
+    let meta: z.infer<typeof livenessMetaSchema>;
+    try {
+      meta = livenessMetaSchema.parse(JSON.parse(body.meta ?? ''));
+    } catch {
+      res.status(400).json({ error: 'validation_error', message: 'meta must be JSON with timestamps_ms[] (and optional windows[])' });
+      return;
+    }
+    if (files.length === 0 || files.length !== meta.timestamps_ms.length) {
+      res.status(400).json({ error: 'validation_error', message: 'one timestamp per frame is required' });
+      return;
+    }
+
+    const session = await queryOne<VerificationSession>(
+      `SELECT * FROM verification_sessions
+       WHERE session_token = $1 AND step = 'face_scan' AND expires_at > NOW()`,
+      [body.session_token]
+    );
+    if (!session?.identity_id) {
+      res.status(404).json({ error: 'session_not_found', message: 'Session not found or wrong step' });
+      return;
+    }
+
+    try {
+      const out = await completeLiveness({
+        session,
+        livenessId: body.liveness_id,
+        frames: files.map((f) => f.buffer),
+        timestampsMs: meta.timestamps_ms,
+        windows: meta.windows,
+      });
+      if (out.kind === 'bad_request') {
+        res.status(out.status).json({ error: out.error, message: out.message });
+        return;
+      }
+      await writeAuditEvent(req, {
+        event_type: out.liveness.verdict === 'fail' ? 'liveness_failed' : 'liveness_passed',
+        identity_id: session.identity_id,
+        result: out.liveness.verdict === 'pass' ? 'passed' : out.liveness.verdict === 'review' ? 'flagged' : 'failed',
+        metadata: { score: out.liveness.score, reasons: out.liveness.reasons, decision: out.decision },
+      });
+      res.json({
+        decision: out.decision,
+        next_step: out.decision === 'retry' ? 'face_scan' : out.decision === 'rejected' ? 'failed' : out.decision === 'approved' ? 'complete' : 'processing',
+        liveness: out.liveness,
+        attempts_remaining: out.attempts_remaining,
+        review_pending: out.decision === 'manual_review',
+      });
+    } catch (err) {
+      logger.error('Liveness completion failed', { error: (err as Error).message, session: session.id });
+      captureError(err as Error, { session: session.id, stage: 'liveness_complete' });
+      res.status(503).json({ error: 'liveness_unavailable', message: 'Could not analyse the scan right now. Please try again.' });
+    }
+  }
+);
+
+// POST /hosted/face/liveness/video - optional screen recording of the capture
+router.post('/face/liveness/video', videoUpload.single('video'), async (req: Request, res: Response): Promise<void> => {
+  const { session_token, liveness_id } = req.body as { session_token?: string; liveness_id?: string };
+  if (!session_token || session_token.length !== 64 || !liveness_id || !req.file) {
+    res.status(400).json({ error: 'validation_error', message: 'session_token, liveness_id and video required' });
+    return;
+  }
+  if (!/^video\/(webm|mp4)/.test(req.file.mimetype)) {
+    res.status(400).json({ error: 'validation_error', message: 'video must be webm or mp4' });
+    return;
+  }
+  const session = await queryOne<VerificationSession>(
+    `SELECT * FROM verification_sessions WHERE session_token = $1 AND expires_at > NOW()`,
+    [session_token]
+  );
+  if (!session) {
+    res.status(404).json({ error: 'session_not_found' });
+    return;
+  }
+  const r = await attachLivenessVideo(session, liveness_id, req.file.buffer);
+  if (r === 'not_found') { res.status(404).json({ error: 'challenge_not_found' }); return; }
+  res.json({ stored: r === 'attached' });
+});
 
 // ─── GET /hosted/status/:session_token ────────────────────────────────────────
 router.get('/status/:session_token', async (req: Request, res: Response): Promise<void> => {
