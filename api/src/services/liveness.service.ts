@@ -18,6 +18,7 @@ import { query, queryOne } from '../db';
 import { uploadToS3, downloadFromS3, deleteFromS3 } from '../utils/s3';
 import { biometricKYC as biometricKYCWithProvider } from './identity-provider.service';
 import { applyTrustEvent } from './trust-score.service';
+import { incrMetric } from '../utils/metrics';
 import { createOrUpdatePlatformConnection, pushVerificationUpdate } from './platform-webhook.service';
 import logger from '../utils/logger';
 import { VerificationSession } from '../types';
@@ -263,6 +264,7 @@ export async function completeLiveness(input: CompleteInput): Promise<CompleteOu
       return { kind: 'bad_request', status: 422, error: 'invalid_capture', message: err.detail };
     }
     // engine down/unreachable: release the claim so the user can retry; do NOT fail open
+    void incrMetric('liveness_engine_error');
     await query(`UPDATE liveness_sessions SET status = 'expired', completed_at = NULL WHERE id = $1`, [row.id]);
     throw err;
   }

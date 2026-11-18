@@ -1,6 +1,7 @@
 import { query } from '../db';
 import logger from '../utils/logger';
 import { runOncePerInterval } from '../utils/job-lock';
+import { claimCooldown, evaluateHttpHealth, sumMetric } from '../utils/metrics';
 
 interface FailureRateRow {
   event_type: string;
@@ -20,7 +21,6 @@ const FAILURE_RATE_THRESHOLD = parseFloat(process.env.ALERT_FAILURE_RATE_THRESHO
 const MIN_SAMPLE_SIZE = parseInt(process.env.ALERT_MIN_SAMPLE_SIZE ?? '5', 10);
 const COOLDOWN_MS = 60 * 60 * 1000;
 
-const lastAlertedAt = new Map<string, number>();
 
 async function sendAlert(eventType: string, total: number, failed: number, rate: number): Promise<void> {
   const message =
@@ -69,10 +69,8 @@ async function checkFailureRates(): Promise<void> {
     const rate = failed / total;
     if (rate < FAILURE_RATE_THRESHOLD) continue;
 
-    const lastAlert = lastAlertedAt.get(row.event_type) ?? 0;
-    if (Date.now() - lastAlert < COOLDOWN_MS) continue;
-
-    lastAlertedAt.set(row.event_type, Date.now());
+    // one page per incident across ALL replicas (Redis), not one per process
+    if (!(await claimCooldown(`failure-rate:${row.event_type}`, COOLDOWN_MS / 1000))) continue;
     await sendAlert(row.event_type, total, failed, rate);
   }
 }
@@ -93,4 +91,36 @@ export function startFailureRateMonitor(): void {
     intervalMinutes: CHECK_INTERVAL_MINUTES,
     threshold: FAILURE_RATE_THRESHOLD
   });
+}
+
+// ─── API health monitor: 5xx rate + liveness-engine failures ────────────────────────────────────────────────
+const HTTP_WINDOW_MINUTES = 10;
+const HTTP_CHECK_MINUTES = parseInt(process.env.HTTP_ALERT_CHECK_MINUTES ?? '5', 10);
+const HTTP_CONFIG = {
+  minRequests: parseInt(process.env.HTTP_ALERT_MIN_REQUESTS ?? '20', 10),
+  errorRate: parseFloat(process.env.HTTP_ALERT_5XX_RATE ?? '0.1'),
+  engineErrorThreshold: parseInt(process.env.LIVENESS_ALERT_ENGINE_ERRORS ?? '3', 10),
+};
+
+export async function checkHttpHealth(): Promise<void> {
+  const [total, errors, engineErrors] = await Promise.all([
+    sumMetric('http_total', HTTP_WINDOW_MINUTES),
+    sumMetric('http_5xx', HTTP_WINDOW_MINUTES),
+    sumMetric('liveness_engine_error', HTTP_WINDOW_MINUTES),
+  ]);
+  for (const alert of evaluateHttpHealth({ total, errors, engineErrors }, HTTP_CONFIG)) {
+    if (!(await claimCooldown(alert.key, 60 * 60))) continue;
+    logger.error('API health alert', { alert: alert.key, total, errors, engineErrors });
+    await sendOpsAlert(alert.message);
+  }
+}
+
+export function startHttpHealthMonitor(): void {
+  const intervalMs = HTTP_CHECK_MINUTES * 60 * 1000;
+  setInterval(() => {
+    runOncePerInterval('http-health-monitor', intervalMs, checkHttpHealth).catch((err) =>
+      logger.error('HTTP health check errored', { error: (err as Error).message })
+    );
+  }, intervalMs);
+  logger.info('HTTP health monitor started', { windowMinutes: HTTP_WINDOW_MINUTES, ...HTTP_CONFIG });
 }
