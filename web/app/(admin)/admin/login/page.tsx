@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { setAdminSession, getAdminSession } from '@/lib/admin-auth';
 import { AfriVerifyLogo } from '@/components/logo';
+import { Copyright } from '@/components/copyright';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -96,6 +97,9 @@ export default function AdminLoginPage() {
 
         <p className="text-center text-xs text-slate-600 mt-4">
           Internal use only · Unauthorised access is prohibited
+        </p>
+        <p className="text-center text-xs text-slate-600 mt-2">
+          <Copyright />
         </p>
       </div>
     </div>

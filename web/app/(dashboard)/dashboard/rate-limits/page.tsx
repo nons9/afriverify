@@ -189,10 +189,10 @@ export default function RateLimitsPage() {
           { label: 'Endpoints', value: tiers.length },
           { label: 'Critical (≥90%)', value: criticalCount },
           { label: 'Warning (≥70%)', value: warnCount },
-          { label: 'Avg usage', value: loading ? '—' : `${avgUsage}%` },
+          { label: 'Avg usage', value: loading ? '-' : `${avgUsage}%` },
         ].map(({ label, value }) => (
           <div key={label}>
-            <div className="text-2xl font-bold text-white">{loading ? '—' : value}</div>
+            <div className="text-2xl font-bold text-white">{loading ? '-' : value}</div>
             <div className="text-xs text-slate-500 mt-0.5">{label}</div>
           </div>
         ))}

@@ -45,7 +45,7 @@ function redactName(fullName: string): string {
 }
 
 // ─── GET /v1/public/cert/:cert_id ────────────────────────────────────────────
-// No authentication required. Returns verification outcomes only — no PII.
+// No authentication required. Returns verification outcomes only - no PII.
 
 router.get('/cert/:cert_id', async (req: Request, res: Response): Promise<void> => {
   const { cert_id } = req.params;

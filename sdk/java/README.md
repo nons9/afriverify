@@ -137,7 +137,7 @@ try {
     WebhookEvent event = client.webhooks.constructEvent(payload, signature);
     System.out.println(event.event); // e.g. "verification.completed"
 } catch (WebhookSignatureException e) {
-    // Invalid signature — return 400
+    // Invalid signature - return 400
 }
 ```
 

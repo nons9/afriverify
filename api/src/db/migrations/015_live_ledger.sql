@@ -1,8 +1,8 @@
 -- Migration 015: live_ledger
--- OrbitShield: LiveLedger — Verification Continuity Protocol
+-- OrbitShield: LiveLedger - Verification Continuity Protocol
 -- Records every identity access with device/IP context.
 -- Used to compute a continuity_score returned alongside every /identity/check response.
--- APPEND-ONLY — no updates, no deletes, ever.
+-- APPEND-ONLY - no updates, no deletes, ever.
 
 CREATE TABLE IF NOT EXISTS live_ledger (
   id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { CheckCircle2, XCircle, Loader2, Shield, ChevronRight, Camera, Upload, Eye, EyeOff } from 'lucide-react';
 import LiveFaceCapture from '@/components/live-face-capture';
 import { readableOn, resolveBrandColor } from '@/lib/color';
+import { Copyright } from '@/components/copyright';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -351,6 +352,9 @@ export default function HostedVerifyPage() {
       <p className="mt-6 text-xs text-slate-600">
         Secured by{' '}
         <span className="text-slate-500 font-medium">AfriVerify</span>
+      </p>
+      <p className="mt-2 text-xs text-slate-600">
+        <Copyright />
       </p>
     </div>
   );

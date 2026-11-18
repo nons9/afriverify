@@ -1,7 +1,7 @@
 {
   "name": "@afriverify/mcp",
   "version": "0.1.0",
-  "description": "AfriVerify MCP server — identity verification tools for AI agents",
+  "description": "AfriVerify MCP server - identity verification tools for AI agents",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {

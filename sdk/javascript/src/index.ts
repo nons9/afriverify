@@ -23,7 +23,7 @@ export type {
   FlagIdentityParams, FlagIdentityResponse,
   VouchParams, VouchResponse,
   Vouch,
-  // Webhooks — union & discriminant
+  // Webhooks - union & discriminant
   WebhookEvent,
   WebhookEventType,
   // Webhook event shapes (all 29)

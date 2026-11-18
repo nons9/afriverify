@@ -55,7 +55,7 @@ export default function HomePage() {
             Escrow-protected payments
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold mb-4">Africa&apos;s Safest Marketplace</h1>
-          <p className="text-lg text-orange-100 mb-8 max-w-xl mx-auto">Buy and sell with confidence. Funds held in escrow until you confirm delivery — zero fraud risk.</p>
+          <p className="text-lg text-orange-100 mb-8 max-w-xl mx-auto">Buy and sell with confidence. Funds held in escrow until you confirm delivery - zero fraud risk.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/products" className="bg-white text-brand-600 px-6 py-3 rounded-lg font-semibold hover:bg-orange-50">Browse Products</Link>
             <Link href="/sell" className="border border-white text-white px-6 py-3 rounded-lg font-semibold hover:bg-white/10">Start Selling</Link>

@@ -22,7 +22,7 @@ export const verifyToolDefs = [
         otp_channel: {
           type: 'string',
           enum: ['sms', 'email'],
-          description: 'How to deliver the OTP — sms (default) or email',
+          description: 'How to deliver the OTP - sms (default) or email',
         },
         platform_user_id: {
           type: 'string',

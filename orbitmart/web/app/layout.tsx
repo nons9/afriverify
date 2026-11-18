@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'OrbitMart — Africa\'s Escrow Marketplace',
+  title: 'OrbitMart - Africa\'s Escrow Marketplace',
   description: 'Buy and sell safely across Africa. Every transaction protected by escrow.',
 };
 

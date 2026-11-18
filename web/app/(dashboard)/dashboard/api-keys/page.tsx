@@ -228,7 +228,7 @@ export default function ApiKeysPage() {
                     {k.verifications_this_month.toLocaleString()} / {k.monthly_limit.toLocaleString()}
                   </td>
                   <td className="py-4 pr-6 text-xs text-slate-500">
-                    {k.last_used ? fmtDate(k.last_used) : '—'}
+                    {k.last_used ? fmtDate(k.last_used) : '-'}
                   </td>
                   <td className="py-4 pr-6 text-xs text-slate-500">{fmtDate(k.created_at)}</td>
                   <td className="py-4">

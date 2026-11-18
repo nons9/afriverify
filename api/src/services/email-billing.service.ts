@@ -28,7 +28,7 @@ function emailWrapper(title: string, body: string): string {
         <div style="color:#ede8de;font-size:20px;font-weight:bold;margin-bottom:16px;">${escapeHtml(title)}</div>
         ${body}
         <div style="height:1px;background:#1d1d1d;margin:24px 0;"></div>
-        <div style="color:#5a5a5a;font-size:11px;">AfriVerify &middot; afriverify.sankofaapp.com</div>
+        <div style="color:#5a5a5a;font-size:11px;">AfriVerify &middot; afriverify.sankofaapp.com<br />&copy; ${new Date().getFullYear()} Sankofa Network. All rights reserved.</div>
       </td>
     </tr>
   </table>

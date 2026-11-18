@@ -23,7 +23,7 @@ export const trustToolDefs = [
     name: 'afriverify_trust_update',
     description:
       'Post a trust event for an identity, updating their cross-platform trust score. ' +
-      'Call this when meaningful user behaviour occurs on your platform — completed transactions, fraud signals, etc. ' +
+      'Call this when meaningful user behaviour occurs on your platform - completed transactions, fraud signals, etc. ' +
       'This data feeds the AfriVerify fraud graph and improves risk signals for all platforms. ' +
       'Event types and their score deltas: transaction_completed (+15), payment_on_time (+20), ' +
       'positive_review (+10), account_age_milestone (+5), dispute_raised (-30), ' +

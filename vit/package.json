@@ -1,7 +1,7 @@
 {
   "name": "@afriverify/vit",
   "version": "0.1.0",
-  "description": "Verify AfriVerify VIT (Verified Identity Token) JWTs — zero runtime dependencies, works in Node.js 18+ and browser",
+  "description": "Verify AfriVerify VIT (Verified Identity Token) JWTs - zero runtime dependencies, works in Node.js 18+ and browser",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {

@@ -1,6 +1,6 @@
 # @afriverify/vit
 
-Verify [AfriVerify](https://afriverify.sankofaapp.com) VIT (Verified Identity Token) JWTs — zero runtime dependencies, works in Node.js 18+ and browsers.
+Verify [AfriVerify](https://afriverify.sankofaapp.com) VIT (Verified Identity Token) JWTs - zero runtime dependencies, works in Node.js 18+ and browsers.
 
 ## Install
 
@@ -10,7 +10,7 @@ npm install @afriverify/vit
 
 ## What is a VIT?
 
-A VIT is a signed JWT issued by AfriVerify after completing identity verification. It contains no PII — only verification signals your platform can trust:
+A VIT is a signed JWT issued by AfriVerify after completing identity verification. It contains no PII - only verification signals your platform can trust:
 
 | Claim | Type | Description |
 |---|---|---|
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
 
 ```ts
 interface VerifyVitOptions {
-  audience?: string;      // Your platform ID — recommended
+  audience?: string;      // Your platform ID - recommended
   issuer?: string;        // Defaults to AfriVerify production
   leeway?: number;        // Clock skew tolerance in seconds (default: 60)
   jwksUri?: string;       // Override for sandbox testing
@@ -93,6 +93,6 @@ await verifyVit(token, {
 
 ## Requirements
 
-- Node.js 18+ (uses `globalThis.crypto.subtle` — no polyfill needed)
+- Node.js 18+ (uses `globalThis.crypto.subtle` - no polyfill needed)
 - Modern browsers (same Web Crypto API)
 - For Express middleware: Express 4+

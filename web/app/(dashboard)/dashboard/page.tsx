@@ -17,7 +17,7 @@ const EVENT_LABELS: Record<string, string> = {
   otp_confirmed: 'OTP confirmed',
   id_uploaded: 'ID document uploaded',
   face_submitted: 'Face submitted',
-  vit_issued: 'VIT issued — identity verified',
+  vit_issued: 'VIT issued: identity verified',
   verification_failed: 'Verification failed',
   identity_connected: 'Identity connected to platform',
   trust_updated: 'Trust score updated',
@@ -69,7 +69,7 @@ export default function DashboardPage() {
         <p className="text-slate-400 text-sm mt-1">Your AfriVerify platform at a glance</p>
       </div>
 
-      {/* Flat stats row — no boxes */}
+      {/* Flat stats row - no boxes */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-8 mb-14">
         <div>
           <div className="text-3xl font-bold text-white tabular-nums">{d.active_keys}</div>
@@ -100,7 +100,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Recent activity — flat list, no card */}
+      {/* Recent activity - flat list, no card */}
       <div>
         <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Recent activity</h2>
         {d.recent_events.length === 0 ? (

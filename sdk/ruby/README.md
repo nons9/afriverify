@@ -4,7 +4,7 @@ Official Ruby SDK for the [AfriVerify](https://afriverify.sankofaapp.com) identi
 
 ## Requirements
 
-Ruby 3.0+. No external dependencies — uses stdlib `net/http` and `openssl`.
+Ruby 3.0+. No external dependencies - uses stdlib `net/http` and `openssl`.
 
 ## Installation
 

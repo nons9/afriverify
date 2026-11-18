@@ -4,7 +4,7 @@ export type TrustLevel = 'low' | 'medium' | 'high' | 'very_high';
 export interface VitClaims {
   /** AfriVerify identity ID */
   sub: string;
-  /** Token issuer — always `https://api.afriverify.sankofaapp.com` */
+  /** Token issuer - always `https://api.afriverify.sankofaapp.com` */
   iss: string;
   /** Intended audience (your platform ID) */
   aud: string | string[];

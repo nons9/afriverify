@@ -31,26 +31,26 @@ use AfriVerify\AfriVerify;
 
 $client = new AfriVerify('sk_live_...');
 
-// 1 — initiate
+// 1 - initiate
 $session = $client->verify->initiate([
     'phone'       => '+2348012345678',
     'otp_channel' => 'sms',
 ]);
 $token = $session['session_token'];
 
-// 2 — send OTP
+// 2 - send OTP
 $client->verify->sendOtp(['session_token' => $token]);
 
-// 3 — confirm OTP
+// 3 - confirm OTP
 $client->verify->confirmOtp(['session_token' => $token, 'code' => '123456']);
 
-// 4 — upload ID document
+// 4 - upload ID document
 $client->verify->uploadId($token, '/path/to/id_front.jpg', '/path/to/id_back.jpg');
 
-// 5 — submit selfie
+// 5 - submit selfie
 $client->verify->submitFace($token, '/path/to/selfie.jpg');
 
-// 6 — poll status
+// 6 - poll status
 $status = $client->verify->getStatus($token);
 echo $status['status']; // "completed"
 ```

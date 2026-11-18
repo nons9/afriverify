@@ -48,7 +48,7 @@ export class AfriVerifyClient {
     if (!res.ok) {
       const err = json as { error?: string; message?: string };
       throw new Error(
-        `AfriVerify API error ${res.status}: ${err.error ?? 'unknown'} — ${err.message ?? ''}`
+        `AfriVerify API error ${res.status}: ${err.error ?? 'unknown'} - ${err.message ?? ''}`
       );
     }
 

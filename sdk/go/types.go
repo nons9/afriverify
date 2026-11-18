@@ -145,7 +145,7 @@ type WebhookEvent struct {
 	Raw            json.RawMessage `json:"-"`
 }
 
-// Concrete event types — unmarshal Raw into one of these after switching on Event.
+// Concrete event types - unmarshal Raw into one of these after switching on Event.
 
 type VerificationInitiatedEvent struct {
 	SchemaVersion string  `json:"schema_version"`

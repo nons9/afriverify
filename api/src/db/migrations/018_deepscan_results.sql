@@ -1,8 +1,8 @@
 -- Migration 018: deepscan_results
--- OrbitShield: DeepScan — Deepfake + Document Authenticity Pre-Screen
+-- OrbitShield: DeepScan - Deepfake + Document Authenticity Pre-Screen
 -- Runs BEFORE Smile Identity on every ID document upload and selfie submission.
 -- Catches AI-generated faces, screen replay attacks, and synthetic documents.
--- APPEND-ONLY — immutable record of every scan decision.
+-- APPEND-ONLY - immutable record of every scan decision.
 
 CREATE TYPE deepscan_verdict_enum AS ENUM ('clear', 'suspicious', 'rejected', 'skipped');
 

@@ -1,4 +1,5 @@
 import { AfriVerifyLogo } from '@/components/logo';
+import { Copyright } from '@/components/copyright';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,6 +9,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <AfriVerifyLogo size={34} />
         </div>
         {children}
+        <p className="mt-8 text-center text-xs text-slate-600">
+          <Copyright />
+        </p>
       </div>
     </div>
   );
