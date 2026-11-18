@@ -7,7 +7,7 @@ Africa's identity infrastructure layer. One verified African identity - portable
 This repo contains the production-ready API backend for Phase 1:
 
 - All 14 PostgreSQL tables with indexes and append-only enforcement
-- Phone OTP verification (Twilio primary, Termii fallback)
+- Phone OTP verification (Africa's Talking and Termii, routed by country with automatic failover)
 - Government ID verification via Smile Identity (54 African countries)
 - Biometric face match (Smile Identity KYC)
 - **Live face scanning** with our own liveness engine (`liveness-service/`): random active challenges, passive spoof checks, recorded evidence, 1:1 face match. Smile/Dojah/Onfido stay as a second opinion for borderline scans.
@@ -25,7 +25,7 @@ This repo contains the production-ready API backend for Phase 1:
 - **Database**: PostgreSQL
 - **Cache / Rate limiting**: Redis (ioredis)
 - **ID Verification**: Smile Identity
-- **OTP**: Twilio Verify + Termii fallback
+- **OTP**: Africa's Talking + Termii (country routing, failover)
 - **Storage**: AWS S3 (af-south-1, KMS-encrypted)
 - **VIT signing**: RS256 (jsonwebtoken)
 

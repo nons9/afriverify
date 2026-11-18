@@ -49,7 +49,7 @@ protection, which is why the gates above also live inside the deploy itself and 
 ## SMS routing (OTP delivery)
 `api/src/services/otp.service.ts` routes each OTP by destination country code and fails over automatically.
 
-- **Order:** Nigeria (+234) tries Termii first; everywhere else tries Africa's Talking first. Twilio (the priciest for Africa) is always last and only used if configured. Providers with no credentials are skipped without an attempt.
+- **Order:** Nigeria (+234) tries Termii first; everywhere else tries Africa's Talking first. Each is the other's failover. Providers with no credentials are skipped without an attempt.
 - **Override:** set `SMS_ROUTES` to JSON, e.g. `{"233":["termii","africastalking"],"default":["africastalking","termii"]}` (longest country-code prefix wins; bad JSON falls back to the defaults).
 - **Circuit breaker:** 3 failures in 2 minutes skips that provider for the rest of the window (shared across replicas through Redis), so an outage does not add a 10 second timeout to every verification. If every provider is tripped they are all still tried.
 - **Measure cost and delivery:** every send writes one row to `sms_messages` (hash and masked phone only). Example: `SELECT provider, status, count(*) FROM sms_messages WHERE created_at > now() - interval '7 days' GROUP BY 1,2;`

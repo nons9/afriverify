@@ -17,7 +17,6 @@ const logged: Array<unknown[]> = [];
 process.env.AFRICASTALKING_API_KEY = 'k';
 process.env.AFRICASTALKING_USERNAME = 'u';
 process.env.TERMII_API_KEY = 't';
-delete process.env.TWILIO_ACCOUNT_SID;
 
 let calls: string[] = [];
 let down = new Set<string>();
@@ -31,21 +30,21 @@ let down = new Set<string>();
 };
 const reset = () => { calls = []; down = new Set(); store.clear(); logged.length = 0; };
 
-test('routing: Nigeria goes to Termii first, others to Africa\'s Talking, Twilio always last', () => {
-  assert.deepEqual(routeFor('+2348012345678'), ['termii', 'africastalking', 'twilio']);
-  assert.deepEqual(routeFor('+233201234567'), ['africastalking', 'termii', 'twilio']);
-  assert.deepEqual(routeFor('+254712345678'), ['africastalking', 'termii', 'twilio']);
+test('routing: Nigeria goes to Termii first, others to Africa\'s Talking, each with the other as failover', () => {
+  assert.deepEqual(routeFor('+2348012345678'), ['termii', 'africastalking']);
+  assert.deepEqual(routeFor('+233201234567'), ['africastalking', 'termii']);
+  assert.deepEqual(routeFor('+254712345678'), ['africastalking', 'termii']);
 });
 
 test('routing: SMS_ROUTES overrides by country code and survives bad JSON', () => {
   process.env.SMS_ROUTES = '{"233":["termii"]}';
   assert.deepEqual(routeFor('+233201234567'), ['termii']);
   process.env.SMS_ROUTES = 'not json';
-  assert.deepEqual(routeFor('+233201234567'), ['africastalking', 'termii', 'twilio']);
+  assert.deepEqual(routeFor('+233201234567'), ['africastalking', 'termii']);
   delete process.env.SMS_ROUTES;
 });
 
-test('sends via the first provider on the route and skips unconfigured Twilio', async () => {
+test('sends via the first provider on the route and does not touch the other', async () => {
   reset();
   assert.equal(await sendSms('+233201234567', 'hi'), 'africastalking');
   assert.deepEqual(calls, ['africastalking']);

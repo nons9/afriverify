@@ -74,7 +74,7 @@ AfriVerify is the **identity and trust layer** powering an interconnected ecosys
 - KYC lookup: sub-100ms identity check
 - Webhooks: verification completion, trust updates, fraud signals
 
-**Dependencies:** PostgreSQL, Redis, Smile Identity, Twilio/Termii, AWS S3
+**Dependencies:** PostgreSQL, Redis, Smile Identity, Africa's Talking/Termii, AWS S3
 
 **Maturity:** Production (MVP shipped on afriverify.sankofaapp.com)
 

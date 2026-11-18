@@ -1,4 +1,3 @@
-import twilio from 'twilio';
 import axios from 'axios';
 import { createHash } from 'crypto';
 import redis from '../redis';
@@ -14,16 +13,6 @@ function maskPhone(phone: string): string {
 // hashed by the caller (routes/verify.ts) and checked against
 // verification_sessions.otp_hash, so swapping/adding/removing a provider
 // here never touches how a code is confirmed.
-
-async function sendViaTwilio(phone: string, message: string): Promise<void> {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_FROM_NUMBER;
-  if (!sid || !token || !from) throw new Error('Twilio not configured');
-
-  const client = twilio(sid, token);
-  await client.messages.create({ to: phone, from, body: message });
-}
 
 async function sendViaTermii(phone: string, message: string): Promise<void> {
   const apiKey = process.env.TERMII_API_KEY;
@@ -86,7 +75,7 @@ async function sendViaAfricasTalking(phone: string, message: string): Promise<vo
   }
 }
 
-type ProviderId = 'africastalking' | 'termii' | 'twilio';
+type ProviderId = 'africastalking' | 'termii';
 
 interface Provider {
   id: ProviderId;
@@ -101,18 +90,14 @@ const PROVIDERS: Record<ProviderId, Provider> = {
     configured: () => !!process.env.AFRICASTALKING_API_KEY && !!process.env.AFRICASTALKING_USERNAME,
   },
   termii: { id: 'termii', name: 'Termii', send: sendViaTermii, configured: () => !!process.env.TERMII_API_KEY },
-  twilio: {
-    id: 'twilio', name: 'Twilio', send: sendViaTwilio,
-    configured: () => !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN && !!process.env.TWILIO_FROM_NUMBER,
-  },
 };
 
 // ─── Routing ──────────────────────────────────────────────────────────────────
-// Cheapest sensible provider first for the destination, Twilio (priciest in Africa) always last.
+// Cheapest sensible provider first for the destination; the other is the failover.
 // Override with SMS_ROUTES, e.g. {"234":["termii","africastalking"],"default":["africastalking","termii"]}
 const DEFAULT_ROUTES: Record<string, ProviderId[]> = {
-  '234': ['termii', 'africastalking', 'twilio'],
-  default: ['africastalking', 'termii', 'twilio'],
+  '234': ['termii', 'africastalking'],
+  default: ['africastalking', 'termii'],
 };
 
 function loadRoutes(): Record<string, ProviderId[]> {
