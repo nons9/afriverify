@@ -6,13 +6,38 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+# a newer push to the same ref supersedes an older run
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  typecheck-api:
-    name: Typecheck API
+  api:
+    name: API (typecheck, tests, migrations, build)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: api
+    services:
+      # a real Postgres so the migration chain is exercised on every change (it once failed unnoticed for weeks)
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: av
+          POSTGRES_PASSWORD: av
+          POSTGRES_DB: scratch
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U av"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://av:av@localhost:5432/scratch
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,10 +45,13 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm run typecheck
+      - run: npm test
+      - run: npm run build   # same step the production image runs
 
-  typecheck-portal:
-    name: Typecheck Portal
+  web:
+    name: Web (typecheck, production build)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: web
@@ -34,3 +62,20 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm run typecheck
+      - run: npm run build
+
+  liveness-engine:
+    name: Liveness engine (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: liveness-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-dev.txt
+      # model-dependent tests skip themselves when the model files are absent; the rest always run
+      - run: python -m pytest -q

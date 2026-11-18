@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { query } from '../db';
 import { sha256 } from '../utils/crypto';
 import { sendOpsAlert } from './alerting.service';
+import { claimCooldown } from '../utils/metrics';
 import logger from '../utils/logger';
 
 const TOLERANCE_SECONDS = 5 * 60;
@@ -80,7 +81,6 @@ const RECORDED_TYPES = new Set([
 // These hurt sender reputation or mean a user did not get their code: page someone.
 const ALERT_TYPES = new Set(['email.bounced', 'email.complained', 'email.failed']);
 const ALERT_COOLDOWN_MS = 10 * 60 * 1000;
-const lastAlert = new Map<string, number>();
 
 export function isPermanentBounce(ev: ResendEvent): boolean {
   return ev.type === 'email.bounced' && (ev.data?.bounce?.type ?? '').toLowerCase() === 'permanent';
@@ -116,8 +116,7 @@ export async function recordResendEvent(svixId: string, ev: ResendEvent): Promis
 
   if (stored && ALERT_TYPES.has(type)) {
     const key = type + (isPermanentBounce(ev) ? ':permanent' : '');
-    if (Date.now() - (lastAlert.get(key) ?? 0) >= ALERT_COOLDOWN_MS) {
-      lastAlert.set(key, Date.now());
+    if (await claimCooldown(`resend:${key}`, ALERT_COOLDOWN_MS / 1000)) {
       const what = isPermanentBounce(ev) ? 'permanent bounce' : type.replace('email.', '');
       await sendOpsAlert(
         `AfriVerify email: ${what}${ev.data?.subject ? ` on "${ev.data.subject}"` : ''}` +

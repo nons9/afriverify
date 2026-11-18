@@ -1,0 +1,34 @@
+name: Smoke (production)
+
+# Synthetic monitoring: every 15 minutes, and on demand, run the read-only smoke test against production.
+# A failing run marks the workflow red (GitHub emails watchers) and, if SLACK_WEBHOOK_URL is set as a repo
+# secret, posts to Slack.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-production
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Smoke test
+        id: smoke
+        run: ./scripts/smoke.sh
+      - name: Notify Slack on failure
+        if: failure() && env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -sS -X POST -H 'content-type: application/json' \
+            -d "{\"text\":\"AfriVerify production smoke test FAILED: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            "$SLACK_WEBHOOK_URL"

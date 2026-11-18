@@ -5,9 +5,15 @@ import logger from '../utils/logger';
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 
+// Arbitrary constant: every runner takes the same session-level advisory lock, so two replicas (or a
+// pre-deploy step plus a starting container) can never apply migrations at the same time.
+const MIGRATION_LOCK_KEY = 7_340_211_049;
+
 async function migrate(): Promise<void> {
   const client = await pool.connect();
   try {
+    await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_KEY]);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version    VARCHAR(100) PRIMARY KEY,
@@ -53,8 +59,14 @@ async function migrate(): Promise<void> {
 
     logger.info('All migrations complete');
   } finally {
+    try {
+      await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]);
+    } catch {
+      /* the lock is released when the session ends anyway */
+    }
     client.release();
-    await pool.end();
+    // NOTE: the pool is deliberately NOT ended here. It used to be, which made every retry after the
+    // first fail with "Cannot use a pool after calling end on the pool" and hid the real error.
   }
 }
 
@@ -73,7 +85,12 @@ async function migrateWithRetry(maxAttempts = 5, delayMs = 4000): Promise<void> 
   }
 }
 
-migrateWithRetry().catch((err: Error) => {
-  logger.error('Migration runner failed after all retries', { error: err.message });
-  process.exit(1);
-});
+// A failed migration must FAIL the release (non-zero exit), never let the app start on a half-migrated database.
+migrateWithRetry()
+  .then(() => pool.end())
+  .then(() => process.exit(0))
+  .catch(async (err: Error) => {
+    logger.error('Migration runner failed after all retries', { error: err.message });
+    await pool.end().catch(() => undefined);
+    process.exit(1);
+  });

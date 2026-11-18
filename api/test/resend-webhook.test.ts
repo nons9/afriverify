@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import http from 'http';
 import express, { Request } from 'express';
 import * as db from '../src/db';
+import redis from '../src/redis';
 import { verifySvixSignature } from '../src/services/resend-webhook.service';
 import webhooksRouter from '../src/routes/webhooks';
 
@@ -41,6 +42,13 @@ test('route: verifies, records without raw email, dedupes, alerts, fails closed'
     const id = params[0] as string;
     if (seen.has(id)) return [];
     seen.add(id); return [{ id: 'row' }];
+  };
+
+  // the alert cooldown is cross-replica, so it lives in Redis: stand in with real SET NX semantics
+  const cooldowns = new Set<string>();
+  (redis as any).set = async (k: string, _v: string, _ex: string, _ttl: number, nx: string) => {
+    if (nx === 'NX' && cooldowns.has(k)) return null;
+    cooldowns.add(k); return 'OK';
   };
 
   const alerts: string[] = [];

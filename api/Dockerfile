@@ -23,5 +23,7 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
-# Run migrations then start server — Railway restarts on failure so this is safe
-CMD ["sh", "-c", "node dist/db/migrate.js; node dist/index.js"]
+# Migrate, THEN start. `&&` (not `;`) so a failed migration stops the container: the deploy fails its health
+# check and the previous, working version keeps serving. (It used to be `;`, which started the app anyway on a
+# half-migrated database and hid migration failures for weeks.) Concurrent replicas serialise on an advisory lock.
+CMD ["sh", "-c", "node dist/db/migrate.js && node dist/index.js"]

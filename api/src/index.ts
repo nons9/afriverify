@@ -6,6 +6,9 @@ import pool from './db';
 import { connectRedis } from './redis';
 import { rateLimitGlobal } from './middleware/rateLimit';
 import { requestId } from './middleware/requestId';
+import { requestMetrics } from './middleware/requestMetrics';
+import { getMigrationStatus } from './db/migration-status';
+import redis from './redis';
 import authRouter from './routes/auth';
 import verifyRouter from './routes/verify';
 import identityRouter from './routes/identity';
@@ -29,7 +32,7 @@ import publicRouter from './routes/public';
 import webhooksRouter from './routes/webhooks';
 import logger from './utils/logger';
 import { initSentry, captureError } from './utils/sentry';
-import { startFailureRateMonitor } from './services/alerting.service';
+import { startFailureRateMonitor, startHttpHealthMonitor } from './services/alerting.service';
 import { startRetentionPurge } from './services/retention.service';
 import { startBillingCron } from './services/billing.service';
 import { startAmlRescreenWorker } from './workers/aml-rescreen.worker';
@@ -40,6 +43,7 @@ const app = express();
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 
 app.use(requestId);
+app.use(requestMetrics);
 
 app.use(helmet());
 app.set('trust proxy', 1);
@@ -79,6 +83,36 @@ app.get('/health', async (_req: Request, res: Response) => {
   } catch {
     res.status(503).json({ status: 'degraded', service: 'afriverify-api' });
   }
+});
+
+// Readiness: the release gate. Railway only promotes a new deployment once this returns 200, so a build whose
+// migrations did not apply (or whose database/Redis is unreachable) never replaces the version that works.
+app.get('/health/ready', async (_req: Request, res: Response) => {
+  const checks: Record<string, unknown> = {};
+  let ok = true;
+  try {
+    await pool.query('SELECT 1');
+    checks.database = 'ok';
+  } catch (err) {
+    checks.database = 'down';
+    ok = false;
+  }
+  try {
+    checks.redis = (await redis.ping()) === 'PONG' ? 'ok' : 'down';
+    if (checks.redis !== 'ok') ok = false;
+  } catch {
+    checks.redis = 'down';
+    ok = false;
+  }
+  try {
+    const m = await getMigrationStatus();
+    checks.migrations = m.current ? 'current' : { pending: m.pending };
+    if (!m.current) ok = false;
+  } catch {
+    checks.migrations = 'unknown';
+    ok = false;
+  }
+  res.status(ok ? 200 : 503).json({ status: ok ? 'ready' : 'not_ready', service: 'afriverify-api', checks });
 });
 
 app.use(rateLimitGlobal);
@@ -151,6 +185,7 @@ async function bootstrap(): Promise<void> {
   process.on('SIGINT', () => shutdown('SIGINT'));
 
   startFailureRateMonitor();
+  startHttpHealthMonitor();
   startRetentionPurge();
   startBillingCron();
   startAmlRescreenWorker();
