@@ -42,12 +42,12 @@ function Verdict({ r }: { r: DemoResult }) {
       <div className="flex items-center gap-3">
         <cfg.Icon className="w-6 h-6 shrink-0" />
         <div>
-          <p className="text-lg font-semibold">{cfg.title}</p>
-          <p className="text-sm opacity-90 mt-0.5">{cfg.body}</p>
+          <p className="text-xl font-semibold">{cfg.title}</p>
+          <p className="text-base opacity-90 mt-0.5">{cfg.body}</p>
         </div>
         <div className="ml-auto text-right shrink-0">
           <p className="text-3xl font-bold leading-none">{Math.round(r.score)}</p>
-          <p className="text-xs opacity-80 mt-1">out of 100</p>
+          <p className="text-sm opacity-90 mt-1">out of 100</p>
         </div>
       </div>
     </div>
@@ -61,13 +61,13 @@ function Results({ r, onAgain }: { r: DemoResult; onAgain: () => void }) {
       <Verdict r={r} />
 
       <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-        <h3 className="text-sm font-semibold text-white mb-3">Prompts detected</h3>
+        <h3 className="text-base font-semibold text-white mb-3">Prompts detected</h3>
         <ol className="space-y-2">
           {r.challenges.map((c, i) => (
-            <li key={i} className="flex items-center gap-3 text-sm">
-              {c.passed ? <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" /> : <XCircle className="w-4 h-4 text-red-400 shrink-0" />}
+            <li key={i} className="flex items-center gap-3 text-base">
+              {c.passed ? <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" /> : <XCircle className="w-5 h-5 text-red-400 shrink-0" />}
               <span className="text-slate-300">{i + 1}. {CHALLENGE_TEXT[c.type as ChallengeType] ?? c.type}</span>
-              <span className={`ml-auto text-xs ${c.passed ? 'text-green-400' : 'text-red-400'}`}>{c.passed ? 'seen' : 'not seen'}</span>
+              <span className={`ml-auto text-sm font-medium ${c.passed ? 'text-green-400' : 'text-red-400'}`}>{c.passed ? 'seen' : 'not seen'}</span>
             </li>
           ))}
         </ol>
@@ -75,10 +75,10 @@ function Results({ r, onAgain }: { r: DemoResult; onAgain: () => void }) {
 
       {flags.length > 0 && (
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-          <h3 className="text-sm font-semibold text-white mb-3">What the engine flagged</h3>
+          <h3 className="text-base font-semibold text-white mb-3">What the engine flagged</h3>
           <div className="flex flex-wrap gap-2">
             {flags.map((f) => (
-              <span key={f} className="text-xs text-slate-300 bg-white/5 border border-white/10 rounded px-2 py-1">{REASON_LABEL[f] ?? f.replace(/_/g, ' ')}</span>
+              <span key={f} className="text-sm text-slate-200 bg-white/5 border border-white/10 rounded px-2.5 py-1.5">{REASON_LABEL[f] ?? f.replace(/_/g, ' ')}</span>
             ))}
           </div>
         </div>
@@ -86,22 +86,22 @@ function Results({ r, onAgain }: { r: DemoResult; onAgain: () => void }) {
 
       <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
         <div className="flex items-baseline justify-between mb-3">
-          <h3 className="text-sm font-semibold text-white">Passive checks</h3>
-          <span className="text-xs text-slate-400">score {Math.round(r.passive.score * 100)} / 100</span>
+          <h3 className="text-base font-semibold text-white">Passive checks</h3>
+          <span className="text-sm text-slate-300">score {Math.round(r.passive.score * 100)} / 100</span>
         </div>
         <dl className="divide-y divide-white/[0.06]">
           {SIGNALS.filter((s) => r.passive.signals[s.key] !== undefined).map((s) => (
-            <div key={s.key} className="py-2.5 grid grid-cols-[9rem_5rem_1fr] gap-3 text-sm items-baseline">
+            <div key={s.key} className="py-3 grid grid-cols-[1fr_auto] md:grid-cols-[9rem_5rem_1fr] gap-x-3 gap-y-1 text-base items-baseline">
               <dt className="text-slate-300">{s.label}</dt>
               <dd className="font-mono text-white">{s.fmt ? s.fmt(r.passive.signals[s.key]) : r.passive.signals[s.key]}</dd>
-              <dd className="text-xs text-slate-500">{s.hint}</dd>
+              <dd className="col-span-2 md:col-span-1 text-sm text-slate-400">{s.hint}</dd>
             </div>
           ))}
         </dl>
       </div>
 
-      <p className="text-xs text-slate-500 flex items-center gap-2">
-        <ShieldCheck className="w-3.5 h-3.5" />
+      <p className="text-sm text-slate-400 flex items-start gap-2">
+        <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
         Analysed {r.frame_stats.frames} frames in {r.processing_ms} ms. Nothing was stored: no images, no video, no session.
       </p>
 
@@ -176,7 +176,7 @@ export default function LiveScanLabPage() {
                   <Link href="/docs" className="text-indigo-400 hover:underline">docs</Link>.
                 </p>
               </div>
-              <p className="text-xs text-slate-500">Limited to 30 scans per hour per developer. Nothing is stored.</p>
+              <p className="text-sm text-slate-400">Limited to 30 scans per hour per developer. Nothing is stored.</p>
             </div>
           )}
         </div>
