@@ -45,3 +45,12 @@ code does not undo them, so prefer forward fixes for schema problems.
 A job with an empty runner name and 0 ms billable time never started: it is an Actions **billing / spending-limit**
 problem on the GitHub account (Settings -> Billing and plans), not a code problem. Until that is fixed CI gives no
 protection, which is why the gates above also live inside the deploy itself and in `scripts/verify.sh`.
+
+## SMS routing (OTP delivery)
+`api/src/services/otp.service.ts` routes each OTP by destination country code and fails over automatically.
+
+- **Order:** Nigeria (+234) tries Termii first; everywhere else tries Africa's Talking first. Twilio (the priciest for Africa) is always last and only used if configured. Providers with no credentials are skipped without an attempt.
+- **Override:** set `SMS_ROUTES` to JSON, e.g. `{"233":["termii","africastalking"],"default":["africastalking","termii"]}` (longest country-code prefix wins; bad JSON falls back to the defaults).
+- **Circuit breaker:** 3 failures in 2 minutes skips that provider for the rest of the window (shared across replicas through Redis), so an outage does not add a 10 second timeout to every verification. If every provider is tripped they are all still tried.
+- **Measure cost and delivery:** every send writes one row to `sms_messages` (hash and masked phone only). Example: `SELECT provider, status, count(*) FROM sms_messages WHERE created_at > now() - interval '7 days' GROUP BY 1,2;`
+- **Cheapest option is no SMS:** offer email OTP first where the product allows it.
