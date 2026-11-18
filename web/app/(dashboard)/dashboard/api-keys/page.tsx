@@ -99,7 +99,7 @@ export default function ApiKeysPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-ink text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" /> New key
         </button>
@@ -169,7 +169,7 @@ export default function ApiKeysPage() {
                 <button
                   type="submit"
                   disabled={creating}
-                  className="flex-1 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white py-2.5 rounded-lg text-sm font-medium transition-colors"
+                  className="flex-1 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-ink py-2.5 rounded-lg text-sm font-medium transition-colors"
                 >
                   {creating ? 'Creating...' : 'Create key'}
                 </button>

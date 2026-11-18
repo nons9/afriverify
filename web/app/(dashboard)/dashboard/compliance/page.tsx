@@ -247,7 +247,7 @@ export default function CompliancePage() {
             )}
             <button
               onClick={() => { setShowCaseForm((v) => !v); if (cases === null) loadCases(); }}
-              className="flex items-center gap-1.5 text-xs bg-indigo-500 hover:bg-indigo-400 text-white px-3 py-1.5 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 text-xs bg-indigo-500 hover:bg-indigo-400 text-ink px-3 py-1.5 rounded-lg transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Open case
@@ -311,7 +311,7 @@ export default function CompliancePage() {
                 <button
                   type="submit"
                   disabled={caseSaving}
-                  className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+                  className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-ink px-5 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
                   {caseSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {caseSaving ? 'Opening…' : 'Open case'}

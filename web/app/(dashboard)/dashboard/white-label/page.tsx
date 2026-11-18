@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Paintbrush, Save, ExternalLink, AlertCircle, CheckCircle2, Loader2, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
+import { readableOn } from '@/lib/color';
 
 interface Config {
   company_name: string;
@@ -11,7 +12,7 @@ interface Config {
   button_color: string | null;
 }
 
-const DEFAULT_COLOR = '#4F46E5';
+const DEFAULT_COLOR = '#C9960E';
 
 export default function WhiteLabelPage() {
   const [config, setConfig] = useState<Config>({
@@ -164,7 +165,7 @@ export default function WhiteLabelPage() {
                       if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setConfig(c => ({ ...c, button_color: v || null }));
                     }}
                     maxLength={7}
-                    placeholder="#4F46E5"
+                    placeholder="#C9960E"
                     className="flex-1 bg-slate-800 border border-white/10 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -182,7 +183,7 @@ export default function WhiteLabelPage() {
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-ink text-sm font-medium rounded-lg transition-colors"
           >
             {saving
               ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -214,7 +215,7 @@ export default function WhiteLabelPage() {
                     className="w-9 h-9 rounded-xl flex items-center justify-center"
                     style={{ background: primary }}
                   >
-                    <Shield className="w-4.5 h-4.5 text-white" />
+                    <Shield className="w-4.5 h-4.5" style={{ color: readableOn(primary) }} />
                   </div>
                 )}
                 {config.company_name && (
@@ -231,18 +232,18 @@ export default function WhiteLabelPage() {
                         className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
                         style={
                           i === 0
-                            ? { background: primary, color: '#fff' }
+                            ? { background: primary, color: readableOn(primary) }
                             : i === 1
                               ? { background: primary + '22', color: primary, border: `2px solid ${primary}` }
-                              : { background: '#1e293b', color: '#64748b', border: '2px solid #334155' }
+                              : { background: '#2A241B', color: '#A0967F', border: '2px solid #3F372B' }
                         }
                       >
                         {i === 0 ? '✓' : i + 1}
                       </div>
-                      <span className="text-[9px]" style={{ color: i <= 1 ? primary : '#475569' }}>{label}</span>
+                      <span className="text-[9px]" style={{ color: i <= 1 ? primary : '#A0967F' }}>{label}</span>
                     </div>
                     {i < 2 && (
-                      <div className="w-6 h-px mt-[-10px]" style={{ background: i === 0 ? primary : '#334155' }} />
+                      <div className="w-6 h-px mt-[-10px]" style={{ background: i === 0 ? primary : '#3F372B' }} />
                     )}
                   </div>
                 ))}
@@ -259,7 +260,7 @@ export default function WhiteLabelPage() {
                 </div>
                 <div
                   className="w-full py-2 rounded-lg text-white text-xs font-medium text-center"
-                  style={{ background: btnColor }}
+                  style={{ background: btnColor, color: readableOn(btnColor) }}
                 >
                   Confirm →
                 </div>

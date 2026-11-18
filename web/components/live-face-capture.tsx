@@ -7,6 +7,7 @@
  * every frame comes straight from the live camera stream.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { readableOn } from '@/lib/color';
 import { Camera, CheckCircle2, Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import {
   CHALLENGE_TEXT, ChallengeTracker, ChallengeType, FaceSample, friendlyReasons, median, positionHint,
@@ -314,7 +315,7 @@ export default function LiveFaceCapture({ token, api, btnColor, required, onSubm
           {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
           <button type="button" disabled={!consent} onClick={begin}
             className="w-full py-3 rounded-xl text-white font-medium disabled:opacity-40 flex items-center justify-center gap-2"
-            style={{ background: btnColor }}>
+            style={{ background: btnColor, color: readableOn(btnColor) }}>
             <Camera className="w-4 h-4" /> Start camera
           </button>
           {!required && onFallbackUpload && (
@@ -357,7 +358,7 @@ export default function LiveFaceCapture({ token, api, btnColor, required, onSubm
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /><span role="alert">{feedback}</span>
           </div>
           {attemptsLeft !== null && <p className="text-xs text-slate-500">{attemptsLeft} attempt{attemptsLeft === 1 ? '' : 's'} left.</p>}
-          <button type="button" onClick={begin} className="w-full py-3 rounded-xl text-white font-medium" style={{ background: btnColor }}>Try again</button>
+          <button type="button" onClick={begin} className="w-full py-3 rounded-xl text-white font-medium" style={{ background: btnColor, color: readableOn(btnColor) }}>Try again</button>
         </div>
       )}
 
@@ -367,7 +368,7 @@ export default function LiveFaceCapture({ token, api, btnColor, required, onSubm
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
             <span role="alert">We couldn't access your camera. Allow camera access in your browser's site settings and try again.</span>
           </div>
-          <button type="button" onClick={begin} className="w-full py-3 rounded-xl text-white font-medium" style={{ background: btnColor }}>Try again</button>
+          <button type="button" onClick={begin} className="w-full py-3 rounded-xl text-white font-medium" style={{ background: btnColor, color: readableOn(btnColor) }}>Try again</button>
           {!required && onFallbackUpload && (
             <button type="button" onClick={onFallbackUpload} className="w-full text-xs text-slate-500 hover:text-slate-300 underline">Upload a photo instead</button>
           )}

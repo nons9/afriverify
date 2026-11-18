@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Shield, AlertTriangle, Clock, Search, Bell, RefreshCw, FileText, ArrowLeft, CheckCircle } from 'lucide-react';
+import { AlertTriangle, Clock, Search, Bell, RefreshCw, FileText, ArrowLeft, CheckCircle } from 'lucide-react';
+import { AfriVerifyLogo } from '@/components/logo';
 
 const phases = [
   {
@@ -158,12 +159,7 @@ export default function BreachResponsePage() {
       {/* Nav */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/10 bg-slate-950/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
-              <Shield className="w-4 h-4" />
-            </div>
-            <span className="font-bold text-lg tracking-tight">AfriVerify</span>
-          </Link>
+          <AfriVerifyLogo size={28} />
           <div className="hidden md:flex items-center gap-8 text-sm text-slate-400">
             <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
             <Link href="/login" className="hover:text-white transition-colors">Sign in</Link>

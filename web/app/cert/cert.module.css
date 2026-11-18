@@ -2,42 +2,48 @@
 .page {
   margin: 0;
   font-family: 'DM Sans', system-ui, sans-serif;
-  background: var(--bg, #05081A);
-  color: var(--fg, #D6E0F8);
+  background: var(--bg, #0D0B08);
+  color: var(--fg, #EDE0C8);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Tokens ── */
+/* ── Tokens (AfriVerify brand v1: ink / ivory / gold) ── */
 .page {
-  --bg: #05081A;
-  --surf2: #101530;
-  --surf3: #17203D;
-  --border: rgba(110,135,255,0.09);
-  --border-hi: rgba(110,135,255,0.18);
-  --fg: #D6E0F8;
-  --fg-muted: #566082;
-  --fg-dim: #273055;
-  --lv1: #3B82F6;
+  --bg: #0D0B08;
+  --surf2: #16120C;
+  --surf3: #1E1810;
+  --border: rgba(237,224,200,0.10);
+  --border-hi: rgba(201,150,14,0.30);
+  --fg: #EDE0C8;
+  --fg-muted: #A89F8C;
+  --fg-dim: #8F8570;
+  --lv1: #60A5FA;
   --lv2: #34D399;
-  --lv3: #F59E0B;
-  --ok: #22C55E;
-  --danger: #EF4444;
-  --neutral: #6B7280;
+  --lv3: #C9960E;
+  --ok: #34D399;
+  --danger: #F87171;
+  --neutral: #A89F8C;
 }
 
 @media (prefers-color-scheme: light) {
   .page:not([data-theme="dark"]) {
-    --bg: #EDF1FF;
-    --surf2: #F3F6FF;
-    --surf3: #E8EDFF;
-    --border: rgba(70,90,210,0.10);
-    --border-hi: rgba(70,90,210,0.22);
-    --fg: #0A1030;
-    --fg-muted: #4A5C85;
-    --fg-dim: #B5C2E0;
+    --bg: #FAF7F0;
+    --surf2: #FFFFFF;
+    --surf3: #F1EBDD;
+    --border: rgba(26,22,18,0.12);
+    --border-hi: rgba(138,101,8,0.40);
+    --fg: #1A1612;
+    --fg-muted: #5F564A;
+    --fg-dim: #6E6455;
+    --lv1: #1D4ED8;
+    --lv2: #047857;
+    --lv3: #8A6508;
+    --ok: #047857;
+    --danger: #B91C1C;
+    --neutral: #5F564A;
   }
 }
 
@@ -149,7 +155,7 @@
 }
 .lb1 { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.28); color: var(--lv1); }
 .lb2 { background: rgba(52,211,153,0.1); border-color: rgba(52,211,153,0.28); color: var(--lv2); }
-.lb3 { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.28); color: var(--lv3); }
+.lb3 { background: rgba(201,150,14,0.1); border-color: rgba(201,150,14,0.28); color: var(--lv3); }
 
 .certName {
   font-family: 'DM Serif Display', Georgia, serif;
@@ -261,7 +267,7 @@
 }
 .footer a { color: var(--fg-muted); text-decoration: none; }
 .footer a:hover { color: var(--fg); }
-.footerNote { display: block; font-size: 10px; opacity: 0.55; margin-top: 4px; }
+.footerNote { display: block; font-size: 11px; margin-top: 4px; }   /* no opacity: it dropped the note to ~2.3:1 */
 
 /* ── Toast ── */
 .toast {

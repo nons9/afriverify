@@ -199,13 +199,13 @@ export default function UsagePage() {
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={chartData} barSize={20}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="day" tick={{ fill: '#475569', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#475569', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <XAxis dataKey="day" tick={{ fill: '#A0967F', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#A0967F', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 12 }}
+                  contentStyle={{ backgroundColor: '#1A1612', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 12 }}
                   cursor={{ fill: 'rgba(255,255,255,0.02)' }}
                 />
-                <Bar dataKey="calls" fill="#6366f1" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="calls" fill="#C9960E" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
             {!hasActivity && (
@@ -268,7 +268,7 @@ export default function UsagePage() {
                         <button
                           onClick={() => handleSubscribe(key.id, 'starter')}
                           disabled={subscribingKeyId === key.id && subscribingPlan === 'starter'}
-                          className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors"
+                          className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-ink text-xs font-medium px-4 py-2 rounded-lg transition-colors"
                         >
                           <CreditCard className="w-3.5 h-3.5" />
                           {subscribingKeyId === key.id && subscribingPlan === 'starter'

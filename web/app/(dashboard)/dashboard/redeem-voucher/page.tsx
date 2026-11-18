@@ -120,7 +120,7 @@ export default function RedeemVoucherPage() {
             <button
               onClick={handleCheck}
               disabled={step === 'checking' || !code.trim()}
-              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-semibold text-white transition-colors flex items-center gap-2"
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-semibold text-ink transition-colors flex items-center gap-2"
             >
               {step === 'checking' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Check
@@ -171,7 +171,7 @@ export default function RedeemVoucherPage() {
             <button
               onClick={handleRedeem}
               disabled={step === 'redeeming'}
-              className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-semibold text-white transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-semibold text-ink transition-colors flex items-center justify-center gap-2"
             >
               {step === 'redeeming' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Redeem - credit ${creditUsd.toFixed(2)}

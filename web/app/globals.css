@@ -5,7 +5,37 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: dark;
+  }
+
   body {
-    @apply font-sans antialiased;
+    @apply bg-ink font-sans text-ivory antialiased;
+  }
+
+  /* Brand selection + a visible keyboard focus ring everywhere (WCAG 2.4.7) */
+  ::selection {
+    @apply bg-gold-500 text-ink;
+  }
+
+  :focus-visible {
+    outline: 2px solid theme('colors.gold.400');
+    outline-offset: 2px;
+  }
+
+  /* Form controls get their own focus styling in most pages; keep the outline off mouse clicks */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

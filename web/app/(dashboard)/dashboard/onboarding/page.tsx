@@ -330,7 +330,7 @@ export default function OnboardingPage() {
             <div className="flex gap-3">
               <Link
                 href="/dashboard/api-keys"
-                className="inline-flex items-center gap-2 text-xs font-medium bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg px-3 py-2 transition-colors"
+                className="inline-flex items-center gap-2 text-xs font-medium bg-indigo-500 hover:bg-indigo-600 text-ink rounded-lg px-3 py-2 transition-colors"
               >
                 <Key className="w-3.5 h-3.5" />
                 Create production key

@@ -2,8 +2,9 @@
 
 import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { setAdminSession, getAdminSession } from '@/lib/admin-auth';
+import { AfriVerifyLogo } from '@/components/logo';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -43,11 +44,8 @@ export default function AdminLoginPage() {
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-rose-600 flex items-center justify-center">
-            <Shield className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <div className="font-bold text-white text-lg leading-tight">AfriVerify</div>
+          <div className="flex flex-col items-center gap-2">
+            <AfriVerifyLogo size={34} href="/" />
             <div className="text-xs font-semibold text-rose-400 uppercase tracking-widest">Admin Portal</div>
           </div>
         </div>

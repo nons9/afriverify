@@ -112,7 +112,7 @@ export default function LandingPage() {
           </div>
           <Link
             href="/register"
-            className="bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+            className="bg-indigo-500 hover:bg-indigo-400 text-ink text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
           >
             Get API key
           </Link>
@@ -129,7 +129,7 @@ export default function LandingPage() {
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1] mb-6">
             Africa&apos;s identity
             <br />
-            <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-gold-300 to-gold-500 bg-clip-text text-transparent">
               infrastructure layer
             </span>
           </h1>
@@ -140,7 +140,7 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               href="/register"
-              className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white font-semibold px-8 py-4 rounded-xl text-lg transition-colors"
+              className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-ink font-semibold px-8 py-4 rounded-xl text-lg transition-colors"
             >
               Start building free <ArrowRight className="w-5 h-5" />
             </Link>
@@ -280,7 +280,7 @@ export default function LandingPage() {
                   href={plan.href}
                   className={`block text-center py-3 rounded-xl font-semibold text-sm transition-colors ${
                     plan.highlight
-                      ? 'bg-indigo-500 hover:bg-indigo-400 text-white'
+                      ? 'bg-indigo-500 hover:bg-indigo-400 text-ink'
                       : 'border border-white/20 hover:border-white/40 text-white'
                   }`}
                 >
@@ -299,7 +299,7 @@ export default function LandingPage() {
           <p className="text-slate-400 mb-8">100 free verifications. No credit card required.</p>
           <Link
             href="/register"
-            className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white font-semibold px-8 py-4 rounded-xl text-lg transition-colors"
+            className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-ink font-semibold px-8 py-4 rounded-xl text-lg transition-colors"
           >
             Create your account <ArrowRight className="w-5 h-5" />
           </Link>

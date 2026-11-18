@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { CheckCircle2, XCircle, Loader2, Shield, ChevronRight, Camera, Upload, Eye, EyeOff } from 'lucide-react';
 import LiveFaceCapture from '@/components/live-face-capture';
+import { readableOn, resolveBrandColor } from '@/lib/color';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -208,8 +209,9 @@ export default function HostedVerifyPage() {
     }
   }
 
-  const primary = branding?.primary_color ?? '#4F46E5';
-  const btnColor = branding?.button_color ?? primary;
+  const primary = resolveBrandColor(branding?.primary_color);
+  const btnColor = resolveBrandColor(branding?.button_color ?? branding?.primary_color);
+  const onPrimary = readableOn(primary);
 
   if (step === 'loading') {
     return (
@@ -234,7 +236,7 @@ export default function HostedVerifyPage() {
             className="w-10 h-10 rounded-xl flex items-center justify-center"
             style={{ background: primary }}
           >
-            <Shield className="w-5 h-5 text-white" />
+            <Shield className="w-5 h-5" style={{ color: onPrimary }} />
           </div>
         )}
         {branding?.company_name && (
@@ -374,17 +376,17 @@ function StepProgress({ current, primary }: { current: Step; primary: string }) 
                 className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors"
                 style={
                   done
-                    ? { background: primary, color: '#fff' }
+                    ? { background: primary, color: readableOn(primary) }
                     : active
                       ? { background: primary + '22', color: primary, border: `2px solid ${primary}` }
-                      : { background: '#1e293b', color: '#64748b', border: '2px solid #334155' }
+                      : { background: '#2A241B', color: '#A0967F', border: '2px solid #3F372B' }
                 }
               >
                 {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : i + 1}
               </div>
               <span
                 className="text-[10px] font-medium"
-                style={{ color: active ? primary : done ? '#94a3b8' : '#475569' }}
+                style={{ color: active ? primary : done ? '#B8AF9B' : '#8F8570' }}
               >
                 {s.label}
               </span>
@@ -392,7 +394,7 @@ function StepProgress({ current, primary }: { current: Step; primary: string }) 
             {i < steps.length - 1 && (
               <div
                 className="w-8 h-px mt-[-10px]"
-                style={{ background: i < currentIdx ? primary : '#334155' }}
+                style={{ background: i < currentIdx ? primary : '#3F372B' }}
               />
             )}
           </div>
@@ -447,7 +449,7 @@ function OtpStep({
         onClick={onConfirm}
         disabled={otpCode.length !== 6 || busy}
         className="w-full py-2.5 rounded-lg font-medium text-white flex items-center justify-center gap-2 transition-opacity disabled:opacity-50"
-        style={{ background: btnColor }}
+        style={{ background: btnColor, color: readableOn(btnColor) }}
       >
         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Confirm <ChevronRight className="w-4 h-4" /></>}
       </button>
@@ -577,7 +579,7 @@ function IdUploadStep({
         type="submit"
         disabled={busy}
         className="w-full py-2.5 rounded-lg font-medium text-white flex items-center justify-center gap-2 transition-opacity disabled:opacity-50"
-        style={{ background: btnColor }}
+        style={{ background: btnColor, color: readableOn(btnColor) }}
       >
         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Continue <ChevronRight className="w-4 h-4" /></>}
       </button>
@@ -652,7 +654,7 @@ function FaceStep({
         onClick={onSubmit}
         disabled={!selfiePreview || busy}
         className="w-full py-2.5 rounded-lg font-medium text-white flex items-center justify-center gap-2 transition-opacity disabled:opacity-50"
-        style={{ background: btnColor }}
+        style={{ background: btnColor, color: readableOn(btnColor) }}
       >
         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Submit <ChevronRight className="w-4 h-4" /></>}
       </button>
