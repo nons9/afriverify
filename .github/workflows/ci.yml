@@ -1,10 +1,10 @@
 name: CI
 
+# MANUAL ONLY, on purpose: the owner does not want any GitHub Actions spend. Run the same gates for free
+# on your own machine with ./scripts/verify.sh. To re-enable automatic runs, restore the push and
+# pull_request triggers here (only after Actions billing is deliberately set up).
 on:
-  push:
-    branches: ['**']
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read

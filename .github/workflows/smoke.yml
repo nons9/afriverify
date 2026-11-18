@@ -1,11 +1,11 @@
 name: Smoke (production)
 
-# Synthetic monitoring: every 15 minutes, and on demand, run the read-only smoke test against production.
+# Synthetic monitoring, MANUAL ONLY: a 15-minute schedule is ~2,900 runs a month, which would exceed the
+# free Actions minutes and cost money. Run ./scripts/smoke.sh yourself, or use a free external uptime
+# monitor on /health/ready (see docs/RELEASE.md).
 # A failing run marks the workflow red (GitHub emails watchers) and, if SLACK_WEBHOOK_URL is set as a repo
 # secret, posts to Slack.
 on:
-  schedule:
-    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions:

@@ -13,7 +13,7 @@
 4. **Readiness gate.** Railway only promotes the new deployment when `GET /health/ready` returns 200, meaning the
    database and Redis are reachable **and every migration shipped in this build has been applied**. A deploy that
    fails the gate never replaces the working version.
-5. **Smoke test.** `./scripts/smoke.sh` (also run every 15 minutes by `.github/workflows/smoke.yml`) checks the live API
+5. **Smoke test.** `./scripts/smoke.sh` (the `smoke.yml` workflow is manual-only so it can never cost Actions minutes) checks the live API
    and website, including the exact failure modes we have hit before (a 500 where a 404 is expected, missing assets).
 
 ## One-time Railway settings
@@ -28,7 +28,7 @@
 | Liveness engine unreachable (>= 3 failures in 10 min) | `liveness_engine_error` counter | `ALERT_WEBHOOK_URL` |
 | Verification / OTP / liveness failure rate | `verification_events` table | `ALERT_WEBHOOK_URL` |
 | Email bounces, complaints, failures | Resend webhook -> `email_events` | `ALERT_WEBHOOK_URL` |
-| Site or API down, or a known regression returns | `smoke.yml` every 15 minutes | failed workflow run (+ Slack if `SLACK_WEBHOOK_URL` secret set) |
+| Site or API down, or a known regression returns | a free external uptime monitor on `/health/ready`, or run `scripts/smoke.sh` | monitor's email alert |
 | Unhandled exceptions with stack traces | Sentry | needs `SENTRY_DSN` |
 
 Alerts fire once per incident across all replicas (Redis cooldown), not once per replica or per check.
