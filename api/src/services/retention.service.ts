@@ -2,6 +2,7 @@ import { query } from '../db';
 import { deleteFromS3 } from '../utils/s3';
 import logger from '../utils/logger';
 import { purgeLivenessEvidence } from './liveness.service';
+import { purgeExpiredEvalFrames } from './liveness-eval.service';
 import { runOncePerInterval } from '../utils/job-lock';
 
 const RETENTION_DAYS = parseInt(process.env.SESSION_MEDIA_RETENTION_DAYS ?? '30', 10);
@@ -66,6 +67,9 @@ export function startRetentionPurge(): void {
       );
       await purgeLivenessEvidence(LIVENESS_EVIDENCE_DAYS).catch((err) =>
         logger.error('Liveness evidence purge errored', { error: (err as Error).message })
+      );
+      await purgeExpiredEvalFrames().catch((err) =>
+        logger.error('Evaluation frame purge errored', { error: (err as Error).message })
       );
     }).catch((err) => logger.error('Retention job errored', { error: (err as Error).message }));
   }, CHECK_INTERVAL_MS);

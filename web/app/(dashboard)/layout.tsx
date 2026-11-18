@@ -25,6 +25,7 @@ import {
   Users,
   Gauge,
   ScanFace,
+  ClipboardList,
 } from 'lucide-react';
 import { getSession, clearSession, Developer } from '@/lib/auth';
 import { AfriVerifyLogo, AfriVerifyMark } from '@/components/logo';
@@ -41,6 +42,7 @@ const nav = [
   { href: '/dashboard/ussd', label: 'USSD', icon: Smartphone },
   { href: '/dashboard/sandbox', label: 'Sandbox', icon: FlaskConical },
   { href: '/dashboard/live-scan', label: 'Live Scan Lab', icon: ScanFace },
+  { href: '/dashboard/evaluation', label: 'Accuracy Studies', icon: ClipboardList },
   { href: '/dashboard/redeem-voucher', label: 'Redeem Voucher', icon: Ticket },
   { href: '/dashboard/afriapp', label: 'AfriApp Store', icon: Store },
   { href: '/dashboard/inquiries', label: 'Inquiries', icon: Link2 },

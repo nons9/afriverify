@@ -66,6 +66,9 @@ export interface LiveFaceCaptureProps {
   onFallbackUpload?: () => void;
   /** Dashboard lab mode: no session, nothing stored, result handed to the page. */
   demo?: DemoTransport;
+  /** Evaluation studies keep the frames, so the lab's "nothing is stored" wording must be replaced. */
+  introText?: string;
+  consentLabel?: string;
 }
 
 const TICK_MS = 125;              // ~8 fps
@@ -104,7 +107,7 @@ function sampleFrom(result: any, brightness: number): FaceSample {
   };
 }
 
-export default function LiveFaceCapture({ token = '', api = '', btnColor, required = false, onSubmitted, onFailed, onFallbackUpload, demo }: LiveFaceCaptureProps) {
+export default function LiveFaceCapture({ token = '', api = '', btnColor, required = false, onSubmitted, onFailed, onFallbackUpload, demo, introText, consentLabel }: LiveFaceCaptureProps) {
   const [phase, setPhase] = useState<Phase>('intro');
   const [consent, setConsent] = useState(false);
   const [prompt, setPrompt] = useState('');
@@ -362,7 +365,9 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
         <div className="space-y-4">
           <div className="rounded-xl border border-white/10 bg-slate-800/50 p-4 text-sm text-slate-300 space-y-2">
             <div className="flex items-center gap-2 text-white font-medium"><ShieldCheck className="w-4 h-4" /> Before we start</div>
-            {demo ? (
+            {demo && introText ? (
+              <p>{introText}</p>
+            ) : demo ? (
               <p>This lab sends a short burst of camera frames to the liveness engine and shows you its verdict. <strong>Nothing is stored:</strong> no images, no video, no session. The frames are discarded as soon as the result is computed.</p>
             ) : (
               <p>We capture a short video of your face from your camera to check that you are live and to match you to your ID. Frames are encrypted, used only for this verification, and deleted after a short retention period.</p>
@@ -379,7 +384,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
           <label className="flex items-start gap-2 text-sm text-slate-300 cursor-pointer">
             <input type="checkbox" className="mt-1" checked={consent}
               onChange={(e) => { setConsent(e.target.checked); consentRef.current = e.target.checked; }} />
-            <span>{demo ? 'I agree to my camera frames being analysed for this test.' : 'I agree to AfriVerify capturing and processing my face biometrics for identity verification.'}</span>
+            <span>{demo ? (consentLabel ?? 'I agree to my camera frames being analysed for this test.') : 'I agree to AfriVerify capturing and processing my face biometrics for identity verification.'}</span>
           </label>
           {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
           <button type="button" disabled={!consent} onClick={begin}
