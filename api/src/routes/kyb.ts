@@ -24,7 +24,7 @@ const registerSchema = z.object({
   registration_number: z.string().min(2).max(100),
   registration_country: z.string().length(2),
   registration_type: registrationTypeEnum,
-  business_address: z.record(z.unknown()).optional()
+  business_address: z.record(z.string(), z.unknown()).optional()
 });
 
 router.post(

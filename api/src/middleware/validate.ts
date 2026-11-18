@@ -8,8 +8,8 @@ export function validateBody(schema: ZodSchema) {
       res.status(400).json({
         error: 'validation_error',
         message: 'Invalid request body',
-        details: (result.error as ZodError).errors.map((e) => ({
-          field: e.path.join('.'),
+        details: (result.error as ZodError).issues.map((e) => ({
+          field: e.path.map(String).join('.'),
           message: e.message
         }))
       });
@@ -27,8 +27,8 @@ export function validateQuery(schema: ZodSchema) {
       res.status(400).json({
         error: 'validation_error',
         message: 'Invalid query parameters',
-        details: (result.error as ZodError).errors.map((e) => ({
-          field: e.path.join('.'),
+        details: (result.error as ZodError).issues.map((e) => ({
+          field: e.path.map(String).join('.'),
           message: e.message
         }))
       });

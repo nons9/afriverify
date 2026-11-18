@@ -668,7 +668,7 @@ const riskRuleSchema = z.object({
   })),
   conditions_mode: z.enum(['all', 'any']).optional().default('all'),
   action: z.enum(['trust_delta', 'flag']),
-  action_params: z.record(z.unknown()).nullable().optional(),
+  action_params: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 router.post('/risk-rules', adminAuth, validateBody(riskRuleSchema), async (req: Request, res: Response) => {
@@ -698,7 +698,7 @@ const riskRulePatchSchema = z.object({
   })).optional(),
   conditions_mode: z.enum(['all', 'any']).optional(),
   action: z.enum(['trust_delta', 'flag']).optional(),
-  action_params: z.record(z.unknown()).nullable().optional(),
+  action_params: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 router.patch('/risk-rules/:id', adminAuth, validateBody(riskRulePatchSchema), async (req: Request, res: Response) => {

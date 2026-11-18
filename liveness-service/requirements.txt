@@ -1,6 +1,6 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-python-multipart==0.0.20
+fastapi==0.164.0
+uvicorn[standard]==0.54.0
+python-multipart==0.0.34
 numpy>=1.26,<3
 opencv-python-headless>=4.10,<5
 onnxruntime>=1.19,<2

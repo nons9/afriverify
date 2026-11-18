@@ -582,7 +582,7 @@ const vtSchema = z.object({
   api_key_id: z.string().uuid(),
   allowed_flows: z.array(z.string()).default(['kyc']),
   ttl_seconds: z.number().int().min(60).max(86400).default(3600),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
 });
 
 router.post('/verification-tokens', sessionAuth, validateBody(vtSchema), async (req: Request, res: Response): Promise<void> => {
