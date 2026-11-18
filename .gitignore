@@ -11,6 +11,8 @@ coverage/
 .next/
 next-env.d.ts
 package-lock.json
+!api/package-lock.json
+!web/package-lock.json
 !mcp/package-lock.json
 !vit/package-lock.json
 !sdk/javascript/package-lock.json

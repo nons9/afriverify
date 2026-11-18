@@ -142,7 +142,7 @@ router.post('/cases', sessionAuth, async (req: Request, res: Response): Promise<
     api_key_id: z.string().uuid().optional(),
     reason: z.string().min(5).max(2000),
     priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
-    metadata: z.record(z.unknown()).default({}),
+    metadata: z.record(z.string(), z.unknown()).default({}),
   });
 
   const parsed = bodySchema.safeParse(req.body);

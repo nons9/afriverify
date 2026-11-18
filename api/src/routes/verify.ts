@@ -627,7 +627,7 @@ router.post(
   '/face/liveness/start',
   validateBody(z.object({
     session_token: z.string().length(64),
-    consent: z.literal(true, { errorMap: () => ({ message: 'consent must be true: the user must agree to biometric capture' }) }),
+    consent: z.literal(true, { error: () => 'consent must be true: the user must agree to biometric capture' }),
     // Opt in to the screen-light check: the response then carries a `flash` plan your UI must display.
     flash: z.boolean().optional().default(false),
   })),

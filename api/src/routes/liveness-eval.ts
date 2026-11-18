@@ -106,7 +106,7 @@ const participantSchema = z.object({
   skin_tone: z.number().int().min(1).max(10).optional(),
   country: z.string().length(2).toUpperCase().optional(),
   // The operator confirms they explained purpose, what is captured, retention and the right to withdraw, and got consent.
-  consent_confirmed: z.literal(true, { errorMap: () => ({ message: 'You must confirm informed consent was obtained before adding a participant' }) }),
+  consent_confirmed: z.literal(true, { error: () => 'You must confirm informed consent was obtained before adding a participant' }),
 });
 
 router.post('/studies/:id/participants', validateBody(participantSchema), async (req: Request, res: Response): Promise<void> => {
