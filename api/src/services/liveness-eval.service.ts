@@ -60,6 +60,8 @@ export interface MetricRow {
   skin_tone: number | null;
   flash_verdict: string | null;
   capture_profile?: string | null;
+  device?: string | null;
+  created_at?: string | Date | null;
 }
 
 export interface Metrics {
@@ -146,6 +148,74 @@ export function toCsv(header: string[], rows: (string | number | null)[][]): str
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [header, ...rows].map((r) => r.map(esc).join(',')).join('\n') + '\n';
+}
+
+// ─── Recruitment coverage: what to record next ──────────────────────────────
+
+/** Quotas that make the headline numbers credible. A rate from one lighting condition, one phone or one skin group is an anecdote. */
+export const TARGETS = {
+  genuine: MIN_GENUINE,
+  perSkinGroup: 30,
+  perLighting: 10,
+  devices: 5,
+  attacksPerType: MIN_ATTACKS_PER_TYPE,
+  attackLightings: 2,
+  attackDevices: 3,
+};
+export const COVERED_ATTACK_TYPES: readonly string[] = ['print_photo', 'screen_photo', 'screen_video', 'screen_live_video', 'mask'];
+
+export interface Quota { have: number; target: number }
+export interface Coverage {
+  genuine: { total: Quota; by_skin_group: Record<string, Quota>; by_lighting: Record<string, Quota>; devices: Quota };
+  attacks: Record<string, { count: Quota; lightings: Quota; devices: Quota }>;
+  next_up: { text: string; shortfall: number }[];
+  complete: boolean;
+}
+
+const norm = (d?: string | null) => (d ?? '').trim().toLowerCase();
+
+export function computeCoverage(rows: MetricRow[]): Coverage {
+  const genuine = rows.filter((r) => r.label === 'genuine');
+  const attacks = rows.filter((r) => r.label === 'attack');
+  const q = (have: number, target: number): Quota => ({ have, target });
+
+  const skin: Record<string, Quota> = {};
+  for (const g of ['light', 'medium', 'dark']) skin[g] = q(genuine.filter((r) => skinGroup(r.skin_tone) === g).length, TARGETS.perSkinGroup);
+  const light: Record<string, Quota> = {};
+  for (const l of LIGHTING) light[l] = q(genuine.filter((r) => r.lighting === l).length, TARGETS.perLighting);
+  const devs = new Set(genuine.map((r) => norm(r.device)).filter(Boolean));
+
+  const att: Coverage['attacks'] = {};
+  for (const t of COVERED_ATTACK_TYPES) {
+    const g = attacks.filter((r) => (r.attack_type ?? 'other') === t);
+    att[t] = {
+      count: q(g.length, TARGETS.attacksPerType),
+      lightings: q(new Set(g.map((r) => r.lighting)).size, TARGETS.attackLightings),
+      devices: q(new Set(g.map((r) => norm(r.device)).filter(Boolean)).size, TARGETS.attackDevices),
+    };
+  }
+
+  const next: { text: string; shortfall: number }[] = [];
+  const need = (x: Quota) => Math.max(0, x.target - x.have);
+  if (need({ have: genuine.length, target: TARGETS.genuine }) > 0) next.push({ text: `Record ${need({ have: genuine.length, target: TARGETS.genuine })} more genuine captures (${genuine.length} of ${TARGETS.genuine}).`, shortfall: need({ have: genuine.length, target: TARGETS.genuine }) });
+  const groupLabel: Record<string, string> = { light: 'light skin tones (Monk 1-3)', medium: 'medium skin tones (Monk 4-6)', dark: 'dark skin tones (Monk 7-10)' };
+  for (const [g, x] of Object.entries(skin)) if (need(x)) next.push({ text: `Record ${need(x)} more genuine captures with ${groupLabel[g]} (${x.have} of ${x.target}).`, shortfall: need(x) + (g === 'dark' ? 5 : 0) });
+  for (const [l, x] of Object.entries(light)) if (need(x)) next.push({ text: `Record ${need(x)} more genuine captures in ${l.replace(/_/g, ' ')} light (${x.have} of ${x.target}).`, shortfall: need(x) });
+  if (devs.size < TARGETS.devices) next.push({ text: `Use more phone models for genuine captures (${devs.size} of ${TARGETS.devices}, include cheap Android).`, shortfall: TARGETS.devices - devs.size });
+  for (const [t, a] of Object.entries(att)) {
+    if (need(a.count)) next.push({ text: `Record ${need(a.count)} more "${t.replace(/_/g, ' ')}" attacks (${a.count.have} of ${a.count.target}).`, shortfall: need(a.count) });
+    else {
+      if (need(a.lightings)) next.push({ text: `Try "${t.replace(/_/g, ' ')}" attacks in another lighting condition (${a.lightings.have} of ${a.lightings.target}).`, shortfall: need(a.lightings) * 3 });
+      if (need(a.devices)) next.push({ text: `Try "${t.replace(/_/g, ' ')}" attacks on more phone models (${a.devices.have} of ${a.devices.target}).`, shortfall: need(a.devices) * 3 });
+    }
+  }
+  next.sort((a, b) => b.shortfall - a.shortfall);
+  return {
+    genuine: { total: q(genuine.length, TARGETS.genuine), by_skin_group: skin, by_lighting: light, devices: q(devs.size, TARGETS.devices) },
+    attacks: att,
+    next_up: next.slice(0, 6),
+    complete: next.length === 0,
+  };
 }
 
 // ─── Storage ────────────────────────────────────────────────────────────────

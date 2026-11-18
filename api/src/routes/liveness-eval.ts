@@ -17,7 +17,7 @@ import {
   livenessMetaSchema, ChallengeType, FlashPlan, MAX_FRAMES, MAX_FRAME_BYTES,
 } from '../services/liveness.service';
 import {
-  ATTACK_TYPES, LIGHTING, EVAL_CONSENT_VERSION, computeMetrics, toCsv, storeCaptureFrames, withdrawParticipant, newCaptureId, MetricRow,
+  ATTACK_TYPES, LIGHTING, EVAL_CONSENT_VERSION, computeMetrics, computeCoverage, toCsv, storeCaptureFrames, withdrawParticipant, newCaptureId, MetricRow,
 } from '../services/liveness-eval.service';
 import { incrMetric } from '../utils/metrics';
 import logger from '../utils/logger';
@@ -252,7 +252,7 @@ router.post('/runs/complete', frameUpload.array('frames', MAX_FRAMES), async (re
 
 async function metricRows(studyId: string): Promise<MetricRow[]> {
   return query<MetricRow>(
-    `SELECT c.label, c.attack_type, c.verdict, c.lighting, p.skin_tone, c.flash_verdict, c.capture_profile
+    `SELECT c.label, c.attack_type, c.verdict, c.lighting, p.skin_tone, c.flash_verdict, c.capture_profile, c.device, c.created_at
      FROM liveness_eval_captures c JOIN liveness_eval_participants p ON p.id = c.participant_id
      WHERE c.study_id = $1`,
     [studyId]
@@ -268,7 +268,19 @@ router.get('/studies/:id/metrics', async (req: Request, res: Response): Promise<
      WHERE c.study_id = $1 ORDER BY c.created_at DESC LIMIT 25`,
     [study.id]
   );
-  res.json({ study: { id: study.id, name: study.name }, metrics: computeMetrics(await metricRows(study.id)), recent });
+  const rows = await metricRows(study.id);
+  const span = await queryOne<{ first: string | null; last: string | null; participants: number; devices: number }>(
+    `SELECT MIN(c.created_at) AS first, MAX(c.created_at) AS last,
+            COUNT(DISTINCT c.participant_id)::int AS participants,
+            COUNT(DISTINCT LOWER(TRIM(c.device)))::int AS devices
+     FROM liveness_eval_captures c WHERE c.study_id = $1`,
+    [study.id]
+  );
+  res.json({
+    study: { id: study.id, name: study.name, purpose: study.purpose, retention_days: study.retention_days, status: study.status, consent_version: EVAL_CONSENT_VERSION },
+    metrics: computeMetrics(rows), coverage: computeCoverage(rows), period: { from: span?.first ?? null, to: span?.last ?? null },
+    participants_with_captures: span?.participants ?? 0, distinct_devices: span?.devices ?? 0, recent,
+  });
 });
 
 router.get('/studies/:id/export.csv', async (req: Request, res: Response): Promise<void> => {

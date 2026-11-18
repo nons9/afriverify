@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Download, Loader2, ShieldAlert, Trash2, UserPlus } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, FileText, Printer, Target, CheckCircle2, Download, Loader2, ShieldAlert, Trash2, UserPlus } from 'lucide-react';
 import LiveFaceCapture, { DemoResult } from '@/components/live-face-capture';
-import { evalCall } from '@/lib/eval-api';
+import { evalCall, type Rate, type Metrics, type Coverage, type Quota } from '@/lib/eval-api';
 import { getSession } from '@/lib/auth';
 import type { ChallengeType } from '@/lib/liveness-logic';
 
@@ -13,17 +13,6 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 interface Participant { id: string; code: string; age_band: string | null; gender: string | null; skin_tone: number | null; country: string | null; withdrawn_at: string | null; captures: number }
 interface Study { id: string; name: string; purpose: string; retention_days: number; status: string; consent_version: string; participants: Participant[]; attack_types: string[]; lighting: string[] }
-interface Rate { k: number; n: number; rate: number | null; low: number | null; high: number | null }
-interface Metrics {
-  totals: { genuine: number; attacks: number };
-  bpcer: { strict: Rate; hard: Rate };
-  apcer: { overall: Rate; by_attack_type: Record<string, Rate>; worst_attack_type: string | null };
-  by_skin_group: Record<string, { genuine: number; bpcer_strict: Rate; bpcer_hard: Rate }>;
-  by_lighting: Record<string, { genuine: number; attacks: number; bpcer_strict: Rate; apcer: Rate }>;
-  by_profile: Record<string, { genuine: number; attacks: number; bpcer_strict: Rate; apcer: Rate }>;
-  flash: { genuine: Record<string, number>; attacks: Record<string, number> };
-  adequacy: { ok: boolean; notes: string[] };
-}
 interface Recent { id: string; participant: string; label: string; attack_type: string | null; lighting: string; device: string | null; verdict: string; liveness_score: number | null; created_at: string }
 type EvalResult = Omit<DemoResult, 'stored'> & { stored: boolean; capture_id: string; outcome: 'accepted' | 'stopped_for_review' | 'rejected' | 'BREACH' | 'defended'; ground_truth: { label: string; attack_type: string | null } };
 
@@ -62,12 +51,13 @@ export default function StudyPage() {
   const [study, setStudy] = useState<Study | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [recent, setRecent] = useState<Recent[]>([]);
+  const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     try {
-      const [s, m] = await Promise.all([evalCall<Study>(`/studies/${id}`), evalCall<{ metrics: Metrics; recent: Recent[] }>(`/studies/${id}/metrics`)]);
-      setStudy(s); setMetrics(m.metrics); setRecent(m.recent);
+      const [s, m] = await Promise.all([evalCall<Study>(`/studies/${id}`), evalCall<{ metrics: Metrics; coverage: Coverage; recent: Recent[] }>(`/studies/${id}/metrics`)]);
+      setStudy(s); setMetrics(m.metrics); setCoverage(m.coverage); setRecent(m.recent);
     } catch (e) { setError((e as Error).message); }
   }, [id]);
   useEffect(() => { void load(); }, [load]);
@@ -86,6 +76,8 @@ export default function StudyPage() {
             <p className="text-base text-slate-400 mt-1">Images kept {study.retention_days} days · consent wording {study.consent_version}</p>
           </div>
           <div className="flex gap-2 shrink-0">
+            <Link href={`/dashboard/evaluation/${study.id}/consent`} className="inline-flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg border border-white/15 text-slate-200 hover:bg-white/5"><FileText className="w-4 h-4" aria-hidden /> Consent sheet</Link>
+            <Link href={`/dashboard/evaluation/${study.id}/report`} className="inline-flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg border border-white/15 text-slate-200 hover:bg-white/5"><Printer className="w-4 h-4" aria-hidden /> Report</Link>
             <ExportButton id={study.id} />
             <button onClick={async () => { await evalCall(`/studies/${study.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: study.status === 'open' ? 'closed' : 'open' }) }); void load(); }}
               className="text-sm px-4 py-2.5 rounded-lg border border-white/15 text-slate-200 hover:bg-white/5">{study.status === 'open' ? 'Close study' : 'Reopen study'}</button>
@@ -93,6 +85,7 @@ export default function StudyPage() {
         </div>
       </div>
 
+      {coverage && <CoveragePanel c={coverage} />}
       <Results m={metrics} />
       {study.status === 'open' ? <CapturePanel study={study} onDone={load} /> : <p className="text-base text-slate-400">This study is closed. Reopen it to add participants or captures.</p>}
       <Participants study={study} onChange={load} />
@@ -136,6 +129,54 @@ function ExportButton({ id }: { id: string }) {
     setBusy(false);
   }
   return <button onClick={download} disabled={busy} className="inline-flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg border border-white/15 text-slate-200 hover:bg-white/5 disabled:opacity-50"><Download className="w-4 h-4" /> Export CSV</button>;
+}
+
+function QuotaRow({ label, q }: { label: string; q: Quota }) {
+  const done = q.have >= q.target;
+  const w = Math.min(100, Math.round((q.have / Math.max(1, q.target)) * 100));
+  return (
+    <li className="text-base">
+      <div className="flex justify-between gap-3 text-slate-200"><span>{label}</span><span className={done ? 'text-green-300' : 'text-amber-200'}>{q.have} of {q.target}{done ? ' (done)' : ''}</span></div>
+      <div className="mt-1 h-2 rounded-full bg-white/10" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={q.target} aria-valuenow={Math.min(q.have, q.target)}>
+        <div className={`h-2 rounded-full ${done ? 'bg-green-400' : 'bg-amber-400'}`} style={{ width: `${w}%` }} />
+      </div>
+    </li>
+  );
+}
+
+function CoveragePanel({ c }: { c: Coverage }) {
+  const skin: Record<string, string> = { light: 'Light skin (Monk 1-3)', medium: 'Medium skin (Monk 4-6)', dark: 'Dark skin (Monk 7-10)' };
+  return (
+    <section className="space-y-4">
+      <h2 className="text-xl font-semibold text-white flex items-center gap-2"><Target className="w-5 h-5" aria-hidden /> Who to record next</h2>
+      <p className="text-base text-slate-300">A rate is only believable if it holds across skin tones, lighting and phones. These quotas are what we need before quoting numbers.</p>
+      {c.complete ? (
+        <p className="rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-base text-green-200">All quotas are met. You can generate the report.</p>
+      ) : (
+        <ol className="list-decimal pl-6 space-y-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 pl-10 text-base text-amber-100">
+          {c.next_up.map((n) => <li key={n.text}>{n.text}</li>)}
+        </ol>
+      )}
+      <div className="grid gap-5 lg:grid-cols-3">
+        <div className="rounded-xl border border-white/10 bg-slate-900 p-5">
+          <h3 className="text-base font-semibold text-white mb-3">Real people</h3>
+          <ul className="space-y-3">
+            <QuotaRow label="Total" q={c.genuine.total} />
+            {Object.entries(c.genuine.by_skin_group).map(([g, q]) => <QuotaRow key={g} label={skin[g] ?? g} q={q} />)}
+            <QuotaRow label="Different phone models" q={c.genuine.devices} />
+          </ul>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-slate-900 p-5">
+          <h3 className="text-base font-semibold text-white mb-3">Lighting (real people)</h3>
+          <ul className="space-y-3">{Object.entries(c.genuine.by_lighting).map(([l, q]) => <QuotaRow key={l} label={pretty(l)} q={q} />)}</ul>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-slate-900 p-5">
+          <h3 className="text-base font-semibold text-white mb-3">Attacks</h3>
+          <ul className="space-y-3">{Object.entries(c.attacks).map(([t, a]) => <QuotaRow key={t} label={pretty(t)} q={a.count} />)}</ul>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function Results({ m }: { m: Metrics }) {
