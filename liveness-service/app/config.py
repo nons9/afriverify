@@ -55,3 +55,11 @@ FRINGE_FLAG = _f("FRINGE_FLAG", 0.35)
 # Face match (cosine similarity of ArcFace embeddings)
 MATCH_PASS = _f("MATCH_PASS", 0.40)
 MATCH_REVIEW = _f("MATCH_REVIEW", 0.28)
+
+# Screen-light (flash) challenge. FLASH_MODE: off | advisory (flag only) | required (no pass => at most "review")
+FLASH_MODE = os.environ.get("FLASH_MODE", "advisory")
+FLASH_MIN_R = _f("FLASH_MIN_R", 0.6)               # mean Pearson r(emitted, observed) over R,G,B
+FLASH_MAX_P = _f("FLASH_MAX_P", 0.01)               # chance a random colour order fits this well
+FLASH_MIN_EFFECT = _f("FLASH_MIN_EFFECT", 2.0)      # mean 8-bit swing of the face colour; below it the light is unmeasurable
+FLASH_BG_RATIO_MAX = _f("FLASH_BG_RATIO_MAX", 0.45)  # background swing / face swing at or above this = whole picture tinted (simulated real faces 0.12-0.17, replays 0.62-0.87)
+FLASH_FAIL_ACTION = os.environ.get("FLASH_FAIL_ACTION", "review")   # review | fail (a measurable but wrong response)

@@ -57,10 +57,17 @@ class VerifyResource:
             data={"session_token": session_token},
         )
 
-    def start_liveness(self, session_token: str, *, consent: bool) -> dict[str, Any]:
+    def start_liveness(self, session_token: str, *, consent: bool, flash: bool = False) -> dict[str, Any]:
         """Start a live face scan. `consent` must be True (user agreed to biometric capture).
-        Returns liveness_id and the random challenge sequence the user must perform."""
-        return self._http.post("/verify/face/liveness/start", {"session_token": session_token, "consent": consent})
+        Returns liveness_id and the random challenge sequence the user must perform.
+
+        `flash=True` opts in to the screen-light check (stronger against replays): the response then carries a
+        `flash` plan (colours, lead_ms, hold_ms) your UI must show full screen while capturing, and you pass the
+        times each colour was really on screen to `complete_liveness(..., flash=...)`."""
+        return self._http.post(
+            "/verify/face/liveness/start",
+            {"session_token": session_token, "consent": consent, **({"flash": True} if flash else {})},
+        )
 
     def complete_liveness(
         self,
@@ -69,11 +76,15 @@ class VerifyResource:
         frames: "list[bytes | BinaryIO | Path]",
         timestamps_ms: "list[float]",
         windows: "list[dict[str, float]] | None" = None,
+        flash: "dict[str, Any] | None" = None,
     ) -> dict[str, Any]:
-        """Submit UNMIRRORED JPEG frames (capture order) + one capture-relative ms timestamp per frame."""
+        """Submit UNMIRRORED JPEG frames (capture order) + one capture-relative ms timestamp per frame.
+
+        `flash` (when the start call returned a plan): {"lead": {"start_ms", "end_ms"}, "windows": [...one per colour]}
+        with when each colour was ACTUALLY on screen, or {"skipped": True} if the user opted out."""
         import json
 
-        meta = _compact({"timestamps_ms": timestamps_ms, "windows": windows})
+        meta = _compact({"timestamps_ms": timestamps_ms, "windows": windows, "flash": flash})
         return self._http.post_files(
             "/verify/face/liveness/complete",
             files=[("frames", _to_bytes(f)) for f in frames],

@@ -71,15 +71,19 @@ class Verify
      * Start a live face scan. The server returns a random challenge sequence
      * (turn / blink / smile) the user must perform in front of a live camera.
      * `$consent` must be true: the user has agreed to biometric capture.
+     * `$flash = true` opts in to the screen-light check (stronger against replays): the response then carries a
+     * `flash` plan your UI must show full screen while capturing; report when each colour was really on screen
+     * via completeLiveness(..., $flash).
      *
-     * @return array<string, mixed> liveness_id, challenges[], attempt, max_attempts, capture{}
+     * @return array<string, mixed> liveness_id, challenges[], flash?, attempt, max_attempts, capture{}
      */
-    public function startLiveness(string $sessionToken, bool $consent): array
+    public function startLiveness(string $sessionToken, bool $consent, bool $flash = false): array
     {
-        return $this->http->post('/verify/face/liveness/start', [
+        return $this->http->post('/verify/face/liveness/start', array_filter([
             'session_token' => $sessionToken,
             'consent'       => $consent,
-        ]);
+            'flash'         => $flash ?: null,
+        ], fn($v) => $v !== null));
     }
 
     /**
@@ -90,7 +94,11 @@ class Verify
      *
      * @param  list<string> $framePaths
      * @param  list<int|float> $timestampsMs
+     * `$flash` (when the start call returned a plan): ['lead' => [start_ms, end_ms], 'windows' => [...one per colour]]
+     * with when each colour was ACTUALLY on screen, or ['skipped' => true] if the user opted out.
+     *
      * @param  list<array{start_ms: int|float, end_ms: int|float}>|null $windows
+     * @param  array<string, mixed>|null $flash
      * @return array<string, mixed> decision (approved|retry|rejected|manual_review), liveness{}, attempts_remaining
      */
     public function completeLiveness(
@@ -99,12 +107,13 @@ class Verify
         array  $framePaths,
         array  $timestampsMs,
         ?array $windows = null,
+        ?array $flash = null,
     ): array {
         $parts = [
             ['name' => 'session_token', 'contents' => $sessionToken],
             ['name' => 'liveness_id',   'contents' => $livenessId],
             ['name' => 'meta', 'contents' => json_encode(
-                array_filter(['timestamps_ms' => $timestampsMs, 'windows' => $windows], fn($v) => $v !== null),
+                array_filter(['timestamps_ms' => $timestampsMs, 'windows' => $windows, 'flash' => $flash], fn($v) => $v !== null),
                 JSON_THROW_ON_ERROR
             )],
         ];

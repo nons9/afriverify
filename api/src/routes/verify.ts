@@ -23,7 +23,7 @@ import { checkBlacklist } from '../services/blacklist.service';
 import { recordUsage } from '../services/billing.service';
 import { scanImage } from '../services/orbitshield/deepscan.service';
 import {
-  livenessEnabled, isLivenessRequired, startLiveness, completeLiveness, attachLivenessVideo,
+  livenessEnabled, isLivenessRequired, startLiveness, completeLiveness, attachLivenessVideo, livenessMetaSchema,
   MAX_FRAMES, MAX_FRAME_BYTES, MAX_VIDEO_BYTES,
 } from '../services/liveness.service';
 import { evaluateNetworkRisk } from '../services/orbitshield/fraud-graph.service';
@@ -628,13 +628,15 @@ router.post(
   validateBody(z.object({
     session_token: z.string().length(64),
     consent: z.literal(true, { errorMap: () => ({ message: 'consent must be true: the user must agree to biometric capture' }) }),
+    // Opt in to the screen-light check: the response then carries a `flash` plan your UI must display.
+    flash: z.boolean().optional().default(false),
   })),
   async (req: Request, res: Response): Promise<void> => {
     if (!livenessEnabled()) {
       res.status(501).json({ error: 'liveness_unavailable', message: 'Live face scanning is not enabled.' });
       return;
     }
-    const { session_token } = req.body as { session_token: string };
+    const { session_token, flash } = req.body as { session_token: string; flash: boolean };
     const session = await queryOne<VerificationSession>(
       `SELECT * FROM verification_sessions
        WHERE session_token = $1 AND api_key_id = $2 AND step = 'face_scan' AND expires_at > NOW()`,
@@ -644,7 +646,7 @@ router.post(
       res.status(404).json({ error: 'session_not_found', message: 'Session not found or wrong step' });
       return;
     }
-    const out = await startLiveness(session, true);
+    const out = await startLiveness(session, true, { flash });
     if (!out.ok) {
       res.status(out.status).json({ error: out.error, message: out.message });
       return;
@@ -664,12 +666,9 @@ router.post(
     }
     const body = req.body as { session_token?: string; liveness_id?: string; meta?: string };
     const files = (req.files as Express.Multer.File[] | undefined) ?? [];
-    let meta: { timestamps_ms: number[]; windows?: { start_ms: number; end_ms: number }[] };
+    let meta: z.infer<typeof livenessMetaSchema>;
     try {
-      meta = z.object({
-        timestamps_ms: z.array(z.number().finite()).min(2).max(MAX_FRAMES),
-        windows: z.array(z.object({ start_ms: z.number().finite(), end_ms: z.number().finite() })).max(8).optional(),
-      }).parse(JSON.parse(body.meta ?? ''));
+      meta = livenessMetaSchema.parse(JSON.parse(body.meta ?? ''));
     } catch {
       res.status(400).json({ error: 'validation_error', message: 'meta must be JSON with timestamps_ms[] (and optional windows[])' });
       return;
@@ -700,6 +699,7 @@ router.post(
         frames: files.map((f) => f.buffer),
         timestampsMs: meta.timestamps_ms,
         windows: meta.windows,
+        flash: meta.flash,
       });
       if (out.kind === 'bad_request') {
         res.status(out.status).json({ error: out.error, message: out.message });

@@ -9,15 +9,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { readableOn } from '@/lib/color';
 import { Camera, CheckCircle2, Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { FlashPlan, FlashTiming, prefersReducedMotion, rgbCss, runFlash } from '@/lib/flash-plan';
 import {
   CHALLENGE_TEXT, ChallengeTracker, ChallengeType, FaceSample, friendlyReasons, median, positionHint,
 } from '@/lib/liveness-logic';
 
-type Phase = 'intro' | 'starting' | 'align' | 'baseline' | 'challenge' | 'uploading' | 'feedback' | 'camera_error';
+type Phase = 'intro' | 'starting' | 'align' | 'baseline' | 'flash' | 'challenge' | 'uploading' | 'feedback' | 'camera_error';
 
 interface StartResponse {
   liveness_id: string;
   challenges: ChallengeType[];
+  flash?: FlashPlan | null;
   attempt: number;
   max_attempts: number;
   capture: { max_frames: number; target_fps: number };
@@ -38,6 +40,11 @@ export interface DemoResult {
   challenges: { type: string; passed: boolean }[];
   reasons: string[];
   passive: { score: number; flags: string[]; signals: Record<string, number> };
+  flash?: {
+    verdict: 'pass' | 'fail' | 'inconclusive' | 'skipped' | 'missing';
+    correlation: number | null; p_value: number | null; effect: number | null; bg_ratio: number | null;
+    steps_used: number; flags: string[];
+  } | null;
   frame_stats: Record<string, number>;
   processing_ms: number;
 }
@@ -117,6 +124,11 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
   const recorderRef = useRef<MediaRecorder | null>(null);
   const videoChunks = useRef<Blob[]>([]);
   const consentRef = useRef(false);
+  const skipFlashRef = useRef(false);
+  const [skipFlash, setSkipFlash] = useState(false);
+  const [flashing, setFlashing] = useState(false);
+  const flashAbortRef = useRef(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const stopAll = useCallback(() => {
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
@@ -199,7 +211,8 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
     const frames: Blob[] = [];
     const stamps: number[] = [];   // frames[i] <-> stamps[i]; pushed together in toBlob's callback
     const windows: { start_ms: number; end_ms: number }[] = [];
-    type LocalPhase = 'align' | 'baseline' | 'challenge' | 'finishing';
+    type LocalPhase = 'align' | 'baseline' | 'flash' | 'challenge' | 'finishing';
+    let flashMeta: FlashTiming | { skipped: true } | undefined;
     let t0 = 0, localPhase = 'align' as LocalPhase;
     let alignOk = 0, baselineStart = 0, idx = 0, tracker: ChallengeTracker | null = null;
     let windowStart = 0, doneAt = 0;
@@ -213,7 +226,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
       if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
       try { if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); } catch { /* ignore */ }
       setPhase('uploading'); setPrompt('Analysing your scan…');
-      await submit(start, frames, stamps, windows);
+      await submit(start, frames, stamps, windows, flashMeta);
     };
 
     const nextChallenge = (now: number) => {
@@ -257,7 +270,24 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
 
         if (localPhase === 'baseline') {
           if (sample.hasFace) baselineNose.push(sample.noseRatio);
-          if (now - baselineStart >= BASELINE_MS) { localPhase = 'challenge'; nextChallenge(now); }
+          if (now - baselineStart >= BASELINE_MS) {
+            if (start.flash && !skipFlashRef.current && !prefersReducedMotion()) {
+              localPhase = 'flash'; flashAbortRef.current = false; setFlashing(true);
+              setPhase('flash'); setPrompt('Hold still and look at the camera. The screen will flash colours for a few seconds.');
+              const apply = (rgb: [number, number, number] | null) => {
+                const el = rootRef.current;
+                if (el) el.style.background = rgb ? rgbCss(rgb) : '';
+              };
+              void runFlash(start.flash, t0, apply, () => flashAbortRef.current).then((timing) => {
+                setFlashing(false);
+                flashMeta = timing ?? { skipped: true };
+                localPhase = 'challenge'; nextChallenge(performance.now());
+              });
+            } else {
+              flashMeta = start.flash ? { skipped: true } : undefined;
+              localPhase = 'challenge'; nextChallenge(now);
+            }
+          }
         } else if (localPhase === 'challenge' && tracker) {
           const h = positionHint(sample);
           setHint(h && h !== 'Move back a little' ? h : '');
@@ -272,7 +302,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
     }, TICK_MS);
   }
 
-  async function submit(start: StartResponse, frames: Blob[], stamps: number[], windows: { start_ms: number; end_ms: number }[]) {
+  async function submit(start: StartResponse, frames: Blob[], stamps: number[], windows: { start_ms: number; end_ms: number }[], flash?: FlashTiming | { skipped: true }) {
     // toBlob is async: wait until every captured frame has landed
     await new Promise((r) => setTimeout(r, 300));
     // toBlob callbacks may finish out of order: re-sort the (frame, timestamp) pairs by time
@@ -285,7 +315,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
       const fd = new FormData();
       fd.append('session_token', token);
       fd.append('liveness_id', start.liveness_id);
-      fd.append('meta', JSON.stringify({ timestamps_ms: stamps.slice(0, n), windows }));
+      fd.append('meta', JSON.stringify({ timestamps_ms: stamps.slice(0, n), windows, ...(flash ? { flash } : {}) }));
       frames.slice(0, n).forEach((b, i) => fd.append('frames', b, `f${i}.jpg`));
       if (demo) { demo.onResult(await demo.complete(fd)); return; }
       const res: CompleteResponse = await post(api, '/face/liveness/complete', { method: 'POST', body: fd });
@@ -315,11 +345,15 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
     } catch { /* evidence video is best-effort */ }
   }
 
-  const capturing = ['starting', 'align', 'baseline', 'challenge', 'uploading'].includes(phase);
+  const capturing = ['starting', 'align', 'baseline', 'flash', 'challenge', 'uploading'].includes(phase);
 
   return (
-    <div className="space-y-5">
-      <div>
+    <div
+      ref={rootRef}
+      className={flashing ? 'fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 p-6 overflow-auto' : 'space-y-5'}
+      style={flashing ? { background: 'rgb(24, 24, 24)' } : undefined}
+    >
+      <div className={flashing ? 'hidden' : ''}>
         <h2 className="text-white font-semibold text-lg">Live face scan</h2>
         <p className="text-slate-400 text-sm mt-1">We'll ask you to follow a few quick on-screen prompts to prove you're a real person.</p>
       </div>
@@ -333,6 +367,14 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
             ) : (
               <p>We capture a short video of your face from your camera to check that you are live and to match you to your ID. Frames are encrypted, used only for this verification, and deleted after a short retention period.</p>
             )}
+          </div>
+          <div className="rounded-xl border border-white/10 bg-slate-800/50 p-4 text-sm text-slate-300 space-y-2">
+            <p><strong className="text-white">Coloured light.</strong> Part of the scan briefly flashes coloured light on your screen (about 5 seconds, slow changes). It checks that a real face is in front of the camera.</p>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" className="mt-1" checked={skipFlash}
+                onChange={(e) => { setSkipFlash(e.target.checked); skipFlashRef.current = e.target.checked; }} />
+              <span>I am sensitive to flashing lights: skip the coloured light. A person may need to review my scan.</span>
+            </label>
           </div>
           <label className="flex items-start gap-2 text-sm text-slate-300 cursor-pointer">
             <input type="checkbox" className="mt-1" checked={consent}
@@ -352,7 +394,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
       )}
 
       {/* camera stage stays mounted from 'starting' on so refs exist */}
-      <div className={capturing ? 'space-y-3' : 'hidden'}>
+      <div className={capturing ? (flashing ? 'space-y-3 w-full max-w-[15rem]' : 'space-y-3') : 'hidden'}>
         <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3]">
           <video ref={videoRef} playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
           <svg viewBox="0 0 100 75" className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden>
@@ -365,12 +407,21 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
           )}
         </div>
         <canvas ref={canvasRef} className="hidden" />
-        <div className="text-center min-h-[3.25rem]" aria-live="polite">
+        <div className={`text-center min-h-[3.25rem] ${flashing ? 'rounded-xl bg-black/75 px-4 py-3' : ''}`} aria-live="polite">
           <p className="text-white font-semibold">{phase === 'starting' ? 'Starting camera…' : prompt}</p>
           {hint && <p className="text-amber-300 text-sm mt-1">{hint}</p>}
           {!guidanceOn && phase !== 'starting' && <p className="text-slate-500 text-xs mt-1">Follow each prompt, then wait for the next.</p>}
         </div>
-        {challenges.length > 0 && (
+        {flashing && (
+          <button
+            type="button"
+            onClick={() => { flashAbortRef.current = true; }}
+            className="w-full rounded-xl bg-black/85 px-4 py-3 text-sm font-medium text-white border border-white/30"
+          >
+            Stop the colour flash
+          </button>
+        )}
+        {challenges.length > 0 && !flashing && (
           <div className="flex justify-center gap-2" aria-label="progress">
             {challenges.map((c, i) => (
               <span key={c + i} className={`h-1.5 w-10 rounded-full ${i < doneCount ? '' : 'bg-white/15'}`} style={i < doneCount ? { background: btnColor } : undefined} />

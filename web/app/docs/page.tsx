@@ -72,10 +72,13 @@ const curlLivenessStart = `curl -X POST ${BASE_URL}/verify/face/liveness/start \
   -H "Authorization: Bearer av_live_YOUR_KEY" \\
   -H "X-Platform: YourPlatformName" \\
   -H "Content-Type: application/json" \\
-  -d '{ "session_token": "SESSION_TOKEN", "consent": true }'
+  -d '{ "session_token": "SESSION_TOKEN", "consent": true, "flash": true }'
+# "flash": true turns on the screen-light check: the best defence against a video replay on another device.
 # {
 #   "liveness_id": "5f0c...",
 #   "challenges": ["blink", "turn_right", "smile"],   <- random order, random direction, single use
+#   "flash": { "neutral": [24,24,24], "lead_ms": 500, "hold_ms": 700,
+#              "steps": [[255,80,80], [80,255,110], ...] },   <- show these full screen while capturing
 #   "attempt": 1, "max_attempts": 3, "expires_in_seconds": 180,
 #   "capture": { "min_frames": 8, "max_frames": 120, "target_fps": 8 }
 # }`;
@@ -87,7 +90,8 @@ curl -X POST ${BASE_URL}/verify/face/liveness/complete \\
   -H "X-Platform: YourPlatformName" \\
   -F "session_token=SESSION_TOKEN" \\
   -F "liveness_id=LIVENESS_ID" \\
-  -F 'meta={"timestamps_ms":[0,125,250],"windows":[{"start_ms":0,"end_ms":3000}]}' \\
+  -F 'meta={"timestamps_ms":[0,125,250],"windows":[{"start_ms":0,"end_ms":3000}],
+           "flash":{"lead":{"start_ms":0,"end_ms":500},"windows":[{"start_ms":500,"end_ms":1200}, ...one per colour]}}' \\
   -F "frames=@f0.jpg" -F "frames=@f1.jpg" -F "frames=@f2.jpg"
 # {
 #   "decision": "approved",            <- approved | retry | rejected | manual_review

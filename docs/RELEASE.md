@@ -54,3 +54,9 @@ protection, which is why the gates above also live inside the deploy itself and 
 - **Circuit breaker:** 3 failures in 2 minutes skips that provider for the rest of the window (shared across replicas through Redis), so an outage does not add a 10 second timeout to every verification. If every provider is tripped they are all still tried.
 - **Measure cost and delivery:** every send writes one row to `sms_messages` (hash and masked phone only). Example: `SELECT provider, status, count(*) FROM sms_messages WHERE created_at > now() - interval '7 days' GROUP BY 1,2;`
 - **Cheapest option is no SMS:** offer email OTP first where the product allows it.
+
+## Screen-light challenge (replay defence)
+- Liveness service: `FLASH_MODE` = `off` | `advisory` (default) | `required`; tuning `FLASH_MIN_R`, `FLASH_MAX_P`, `FLASH_MIN_EFFECT`, `FLASH_BG_RATIO_MAX`, `FLASH_FAIL_ACTION` (see `docs/ANTISPOOF.md`).
+- API: `LIVENESS_FLASH=off` stops issuing the colour plan (kill switch). Migration 056 adds `liveness_sessions.flash_plan`.
+- Metrics: `liveness_flash_pass`, `_fail`, `_inconclusive`, `_skipped`, `_missing`, `_not_issued`.
+- Roll out in `advisory`, test on real phones in the Live Scan Lab, then set `FLASH_MODE=required`.

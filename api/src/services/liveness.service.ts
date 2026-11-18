@@ -11,6 +11,7 @@
  * only used here as a fallback for borderline ("review") outcomes.
  */
 import axios from 'axios';
+import { z } from 'zod';
 import FormData from 'form-data';
 import { randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
@@ -68,10 +69,87 @@ export function generateChallenges(): ChallengeType[] {
   return shuffle<ChallengeType>([turn, 'blink', 'smile']);
 }
 
+// ─── Screen-light (flash) challenge ──────────────────────────────────────────
+// The server picks a random order of 6 colours per attempt. The browser shows them full-screen one after
+// another while it films; the engine checks that the face's colour tracks OUR sequence. A photo or a replay
+// on another device cannot know the order. Safety: each colour is held 700 ms (about 1.4 changes a second,
+// under the 3 per second general flash limit), no fully saturated red, and users can skip it.
+
+export type RGB = [number, number, number];
+export const FLASH_NEUTRAL: RGB = [24, 24, 24];
+export const FLASH_PALETTE: RGB[] = [
+  [255, 80, 80], [80, 255, 110], [90, 120, 255], [255, 230, 80], [255, 90, 230], [80, 235, 255],
+];
+export interface FlashPlan { neutral: RGB; lead_ms: number; hold_ms: number; steps: RGB[] }
+
+export function flashEnabled(): boolean {
+  return process.env.LIVENESS_FLASH !== 'off';
+}
+
+export function generateFlashPlan(): FlashPlan {
+  return { neutral: FLASH_NEUTRAL, lead_ms: 500, hold_ms: 700, steps: shuffle(FLASH_PALETTE) };
+}
+
+const windowSchema = z.object({ start_ms: z.number().finite(), end_ms: z.number().finite() });
+
+/** What the browser sends with the frames. One schema for the hosted, API and lab routes. */
+export const livenessMetaSchema = z.object({
+  timestamps_ms: z.array(z.number().finite()).min(2).max(MAX_FRAMES),
+  windows: z.array(windowSchema).max(8).optional(),
+  flash: z
+    .union([
+      z.object({ skipped: z.literal(true) }),
+      z.object({ lead: windowSchema, windows: z.array(windowSchema).min(1).max(8) }),
+    ])
+    .optional(),
+});
+export type LivenessMeta = z.infer<typeof livenessMetaSchema>;
+
+export type EngineFlash =
+  | { colors: RGB[]; lead: { start_ms: number; end_ms: number }; windows: { start_ms: number; end_ms: number }[] }
+  | { skipped: true }
+  | { not_issued: true };
+
+/**
+ * Turn the stored plan + what the client reports into the engine's flash block.
+ * Colours ALWAYS come from the stored plan. Windows come from the client but must be plausible:
+ * one per step, in order, not overlapping, each roughly the planned hold. Returns undefined when the
+ * client sent nothing although a plan WAS issued (an old or tampered client): the engine records
+ * "flash missing". If no plan was issued for this attempt (an API integration that did not opt in), the
+ * engine is told so and does not hold it against the scan.
+ */
+export function buildFlashMeta(plan: FlashPlan | null, client: LivenessMeta['flash']): EngineFlash | undefined {
+  if (!plan) return { not_issued: true };
+  if (!client) return undefined;
+  if ('skipped' in client) return { skipped: true };
+  const { lead, windows } = client;
+  if (windows.length !== plan.steps.length) return undefined;
+  let prevEnd = lead.end_ms;
+  if (!(lead.end_ms > lead.start_ms)) return undefined;
+  for (const w of windows) {
+    const len = w.end_ms - w.start_ms;
+    if (len < plan.hold_ms * 0.6 || len > plan.hold_ms * 1.6) return undefined;   // not the planned hold
+    if (w.start_ms < prevEnd - 150) return undefined;                              // overlaps the previous step
+    prevEnd = w.end_ms;
+  }
+  return { colors: plan.steps, lead, windows };
+}
+
 // ─── Engine client ───────────────────────────────────────────────────────────
+
+export interface EngineFlashResult {
+  verdict: 'pass' | 'fail' | 'inconclusive' | 'skipped' | 'missing' | 'not_issued';
+  correlation: number | null;
+  p_value: number | null;
+  effect: number | null;
+  bg_ratio: number | null;
+  steps_used: number;
+  flags: string[];
+}
 
 export interface EngineLivenessResult {
   verdict: 'pass' | 'review' | 'fail';
+  flash?: EngineFlashResult;
   liveness_score: number;
   challenges: { type: string; passed: boolean; frame_index: number | null; detail: string }[];
   passive: { score: number; signals: Record<string, number>; flags: string[] };
@@ -103,10 +181,11 @@ export async function engineAnalyze(
   frames: Buffer[],
   challenges: ChallengeType[],
   timestampsMs: number[],
-  windows?: { start_ms: number; end_ms: number }[]
+  windows?: { start_ms: number; end_ms: number }[],
+  flash?: EngineFlash
 ): Promise<EngineLivenessResult> {
   const form = new FormData();
-  form.append('meta', JSON.stringify({ challenges, timestamps_ms: timestampsMs, windows }));
+  form.append('meta', JSON.stringify({ challenges, timestamps_ms: timestampsMs, windows, flash }));
   frames.forEach((buf, i) => form.append('frames', buf, { filename: `f${i}.jpg`, contentType: 'image/jpeg' }));
   try {
     const { data } = await axios.post<EngineLivenessResult>(
@@ -171,15 +250,17 @@ export interface LivenessRow {
   identity_id: string | null;
   attempt: number;
   challenges: ChallengeType[];
+  flash_plan: FlashPlan | null;
   status: string;
   expires_at: Date;
 }
 
 export async function startLiveness(
   session: VerificationSession,
-  consent: boolean
+  consent: boolean,
+  opts: { flash?: boolean } = {}
 ): Promise<
-  | { ok: true; liveness_id: string; challenges: ChallengeType[]; attempt: number; max_attempts: number; expires_in_seconds: number; capture: Record<string, number> }
+  | { ok: true; liveness_id: string; challenges: ChallengeType[]; flash: FlashPlan | null; attempt: number; max_attempts: number; expires_in_seconds: number; capture: Record<string, number> }
   | { ok: false; status: number; error: string; message: string }
 > {
   if (!consent) {
@@ -201,19 +282,23 @@ export async function startLiveness(
   );
 
   const challenges = generateChallenges();
+  // the hosted page always runs the screen-light check; API integrations opt in with `flash: true`
+  const flash = flashEnabled() && opts.flash !== false ? generateFlashPlan() : null;
   const rows = await query<{ id: string }>(
     `INSERT INTO liveness_sessions
-       (session_id, identity_id, attempt, challenges, expires_at, consent_at, consent_version, engine_version)
-     VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7) RETURNING id`,
+       (session_id, identity_id, attempt, challenges, expires_at, consent_at, consent_version, engine_version, flash_plan)
+     VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,$8) RETURNING id`,
     [
       session.id, session.identity_id, attempt, JSON.stringify(challenges),
       new Date(Date.now() + CHALLENGE_TTL_MS), CONSENT_VERSION, ENGINE_VERSION,
+      flash ? JSON.stringify(flash) : null,
     ]
   );
   return {
     ok: true,
     liveness_id: rows[0].id,
     challenges,
+    flash,
     attempt,
     max_attempts: MAX_ATTEMPTS,
     expires_in_seconds: CHALLENGE_TTL_MS / 1000,
@@ -227,6 +312,7 @@ export interface CompleteInput {
   frames: Buffer[];
   timestampsMs: number[];
   windows?: { start_ms: number; end_ms: number }[];
+  flash?: LivenessMeta['flash'];
 }
 
 export type CompleteOutcome =
@@ -245,7 +331,7 @@ export async function completeLiveness(input: CompleteInput): Promise<CompleteOu
   const claimed = await query<LivenessRow>(
     `UPDATE liveness_sessions SET completed_at = NOW()
      WHERE id = $1 AND session_id = $2 AND status = 'issued' AND expires_at > NOW() AND completed_at IS NULL
-     RETURNING id, session_id, identity_id, attempt, challenges, status, expires_at`,
+     RETURNING id, session_id, identity_id, attempt, challenges, flash_plan, status, expires_at`,
     [input.livenessId, session.id]
   );
   if (claimed.length === 0) {
@@ -256,7 +342,8 @@ export async function completeLiveness(input: CompleteInput): Promise<CompleteOu
 
   let live: EngineLivenessResult;
   try {
-    live = await engineAnalyze(input.frames, row.challenges, input.timestampsMs, input.windows);
+    live = await engineAnalyze(input.frames, row.challenges, input.timestampsMs, input.windows, buildFlashMeta(row.flash_plan, input.flash));
+    if (live.flash) void incrMetric(`liveness_flash_${live.flash.verdict}`);
   } catch (err) {
     if (err instanceof EngineCaptureError) {
       await query(`UPDATE liveness_sessions SET status = 'failed', verdict = 'fail', reasons = $2, decision = 'rejected' WHERE id = $1`,
@@ -326,7 +413,7 @@ export async function completeLiveness(input: CompleteInput): Promise<CompleteOu
      WHERE id = $1`,
     [
       row.id, status, live.verdict, live.liveness_score, JSON.stringify(live.reasons),
-      JSON.stringify({ challenges: live.challenges, passive: live.passive, frame_stats: live.frame_stats }),
+      JSON.stringify({ challenges: live.challenges, passive: live.passive, flash: live.flash, frame_stats: live.frame_stats }),
       match?.verdict ?? null, match?.confidence ?? null, finalDecision,
       bestKey, JSON.stringify(frameKeys),
     ]

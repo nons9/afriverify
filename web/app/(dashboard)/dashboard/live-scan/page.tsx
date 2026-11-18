@@ -32,6 +32,33 @@ const SIGNALS: { key: string; label: string; hint: string; fmt?: (v: number) => 
   { key: 'duplicate_frame_ratio', label: 'Repeated frames', hint: 'Share of identical frames. High means frozen or looped video.', fmt: (v) => `${(v * 100).toFixed(0)}%` },
 ];
 
+const FLASH_TEXT: Record<string, { title: string; body: string; cls: string }> = {
+  pass: { title: 'Screen light reflected', body: 'The face changed colour in step with the random colours flashed on your screen. A photo or a video on another device cannot do this.', cls: 'text-green-300' },
+  fail: { title: 'Screen light NOT reflected', body: 'Light was measurable but the face did not follow our colour order. This is what a replay on another screen looks like.', cls: 'text-red-300' },
+  inconclusive: { title: 'Could not measure the screen light', body: 'Usually bright surroundings (sunlight) or a dim screen. Not a rejection, but it cannot count as proof: it goes to review.', cls: 'text-amber-300' },
+  skipped: { title: 'Colour flash skipped', body: 'You chose to skip it (or reduced motion is on). The scan can continue but goes to review.', cls: 'text-slate-300' },
+  missing: { title: 'No colour flash data', body: 'The browser did not send the flash timing (an old page version). Reload and try again.', cls: 'text-amber-300' },
+};
+
+function FlashCard({ f }: { f: NonNullable<DemoResult['flash']> }) {
+  const t = FLASH_TEXT[f.verdict] ?? FLASH_TEXT.missing;
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
+      <h3 className="text-base font-semibold text-white mb-1">Screen-light check</h3>
+      <p className={`text-base font-medium ${t.cls}`}>{t.title}</p>
+      <p className="text-sm text-slate-400 mt-1">{t.body}</p>
+      {f.effect !== null && (
+        <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm">
+          <dt className="text-slate-300">Colour swing on the face</dt><dd className="font-mono text-white">{f.effect}</dd>
+          {f.correlation !== null && (<><dt className="text-slate-300">Match with our colours (0 to 1)</dt><dd className="font-mono text-white">{f.correlation}</dd></>)}
+          {f.p_value !== null && (<><dt className="text-slate-300">Chance a random order fits this well</dt><dd className="font-mono text-white">{f.p_value}</dd></>)}
+          {f.bg_ratio !== null && (<><dt className="text-slate-300">Background swing vs face</dt><dd className="font-mono text-white">{f.bg_ratio}</dd></>)}
+        </dl>
+      )}
+    </div>
+  );
+}
+
 function Verdict({ r }: { r: DemoResult }) {
   const cfg = {
     pass: { Icon: CheckCircle2, cls: 'border-green-500/30 bg-green-500/10 text-green-300', title: 'Live person detected', body: 'Every prompt was followed in order and the passive checks look natural. In a real verification this would go on to the ID photo match.' },
@@ -84,6 +111,8 @@ function Results({ r, onAgain }: { r: DemoResult; onAgain: () => void }) {
           </div>
         </div>
       )}
+
+      {r.flash && <FlashCard f={r.flash} />}
 
       <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
         <div className="flex items-baseline justify-between mb-3">

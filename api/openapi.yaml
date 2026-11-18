@@ -513,6 +513,14 @@ paths:
                 consent:
                   type: boolean
                   enum: [true]
+                flash:
+                  type: boolean
+                  default: false
+                  description: |
+                    Opt in to the **screen-light check** (strongly recommended: it is the defence against a
+                    live video or replay shown on another device). The response then carries a `flash` plan.
+                    Your UI must show each colour full screen while capturing and report when each one was
+                    really on screen (see `/verify/face/liveness/complete`). Hosted verification always uses it.
       responses:
         '200':
           description: Challenge issued
@@ -525,6 +533,17 @@ paths:
                   challenges:
                     type: array
                     items: { type: string, enum: [turn_left, turn_right, blink, smile] }
+                  flash:
+                    nullable: true
+                    description: 'Present when `flash: true` was requested. Show `neutral` for `lead_ms`, then each colour in `steps` for `hold_ms`, full screen.'
+                    type: object
+                    properties:
+                      neutral: { type: array, items: { type: integer }, minItems: 3, maxItems: 3 }
+                      lead_ms: { type: integer, example: 500 }
+                      hold_ms: { type: integer, example: 700 }
+                      steps:
+                        type: array
+                        items: { type: array, items: { type: integer }, minItems: 3, maxItems: 3 }
                   attempt: { type: integer }
                   max_attempts: { type: integer }
                   expires_in_seconds: { type: integer }
@@ -551,6 +570,14 @@ paths:
         **unmirrored JPEGs captured live from the camera**, in capture order, at roughly 8 fps
         (8-120 frames, 3-60 seconds, max 1.5 MB each). `meta` is a JSON string:
         `{"timestamps_ms": [..one per frame..], "windows": [{"start_ms":0,"end_ms":3000}, ..one per challenge..]}`.
+
+        **Screen-light check** (when the start call returned `flash`): add
+        `"flash": {"lead": {"start_ms":.., "end_ms":..}, "windows": [{"start_ms":.., "end_ms":..}, ..one per colour..]}`
+        with the capture-clock times each colour was actually on screen (record the time right after you set the
+        colour). Colours always come from the server's plan, never from the client. If the user opts out (for
+        example because they are sensitive to flashing lights) send `"flash": {"skipped": true}`: the scan then
+        cannot be auto-approved and goes to review. Safety: the plan holds each colour 700 ms (about 1.4 changes a
+        second, under the 3 per second limit), uses no fully saturated red, and you must let users stop it.
 
         The engine re-analyses every frame server-side (it never trusts client measurements),
         verifies the challenge sequence, runs passive presentation-attack checks, then matches the

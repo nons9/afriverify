@@ -57,10 +57,22 @@ export interface SubmitFaceParams {
 export interface SubmitFaceResponse { submitted: boolean; result: VerificationResult; trust_score?: number }
 
 export type LivenessChallenge = 'turn_left' | 'turn_right' | 'blink' | 'smile';
-export interface StartLivenessParams { session_token: string; /** user agreed to biometric capture */ consent: true }
+export type RGB = [number, number, number];
+/** Screen-light challenge: show `lead_ms` of `neutral`, then each colour in `steps` for `hold_ms`, full screen. */
+export interface FlashPlan { neutral: RGB; lead_ms: number; hold_ms: number; steps: RGB[] }
+export interface FlashWindow { start_ms: number; end_ms: number }
+export interface StartLivenessParams {
+  session_token: string;
+  /** user agreed to biometric capture */
+  consent: true;
+  /** opt in to the screen-light check (stronger against replays); your UI must then display the returned `flash` plan */
+  flash?: boolean;
+}
 export interface StartLivenessResponse {
   liveness_id: string;
   challenges: LivenessChallenge[];
+  /** present when you passed `flash: true`: display it while capturing, then send `flash` windows to completeLiveness */
+  flash?: FlashPlan | null;
   attempt: number;
   max_attempts: number;
   expires_in_seconds: number;
@@ -75,6 +87,8 @@ export interface CompleteLivenessParams {
   timestamps_ms: number[];
   /** optional: when each challenge was shown, one per challenge */
   windows?: { start_ms: number; end_ms: number }[];
+  /** when each flash colour was ACTUALLY on screen (capture clock), or `{ skipped: true }` if the user opted out */
+  flash?: { lead: FlashWindow; windows: FlashWindow[] } | { skipped: true };
 }
 export interface CompleteLivenessResponse {
   decision: 'approved' | 'retry' | 'rejected' | 'manual_review' | 'processing';
