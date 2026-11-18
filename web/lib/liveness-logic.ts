@@ -89,3 +89,23 @@ export function friendlyReasons(reasons: string[]): string {
   const msgs = reasons.map((r) => REASON_TEXT[r]).filter(Boolean);
   return msgs.length ? msgs.join(' ') : "We couldn't verify the scan. Please try again in good lighting.";
 }
+
+/** Short developer-facing labels for the engine's reason codes and passive-check flags. */
+export const REASON_LABEL: Record<string, string> = {
+  face_not_consistently_visible: 'Face not visible',
+  multiple_faces: 'Multiple faces',
+  face_too_small: 'Face too small',
+  challenge_failed: 'Prompts not followed',
+  passive_checks_failed: 'Image checks failed',
+  invalid_capture: 'Invalid capture',
+  frozen_or_looped_frames: 'Frozen or looped video',
+  no_natural_motion: 'No natural motion',
+  moire_pattern: 'Screen pattern (replay?)',
+  screen_glare: 'Screen glare',
+  blurry: 'Blurry',
+  too_dark: 'Too dark',
+  overexposed: 'Overexposed',
+  low_contrast: 'Low contrast',
+  low_chroma: 'Low colour',
+  no_analysable_faces: 'No usable face',
+};

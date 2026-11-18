@@ -1,5 +1,15 @@
 import Link from 'next/link';
-import { Code2, Terminal, Book, ArrowRight, Key, Zap, Lock, Building2 } from 'lucide-react';
+import {
+  Code2,
+  Terminal,
+  Book,
+  ArrowRight,
+  Key,
+  Zap,
+  Lock,
+  Building2,
+  ScanFace,
+} from 'lucide-react';
 import { AfriVerifyLogo } from '@/components/logo';
 
 const BASE_URL = 'https://api.afriverify.sankofaapp.com/v1';
@@ -49,6 +59,42 @@ const curlStatus = `curl ${BASE_URL}/verify/status/SESSION_TOKEN \\
   -H "Authorization: Bearer av_live_YOUR_KEY" \\
   -H "X-Platform: YourPlatformName"
 # { "status": "complete", "vit": "...", "verification_level": 2, "identity_id": "..." }`;
+
+const curlLivenessInitiate = `curl -X POST ${BASE_URL}/verify/initiate \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "phone": "+2348012345678", "require_liveness": true }'
+# Or set "Require live face scan" on a verification flow and pass its flow_id.
+# With liveness required, POST /verify/face/submit (photo upload) returns 400 "liveness_required".`;
+
+const curlLivenessStart = `curl -X POST ${BASE_URL}/verify/face/liveness/start \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "session_token": "SESSION_TOKEN", "consent": true }'
+# {
+#   "liveness_id": "5f0c...",
+#   "challenges": ["blink", "turn_right", "smile"],   <- random order, random direction, single use
+#   "attempt": 1, "max_attempts": 3, "expires_in_seconds": 180,
+#   "capture": { "min_frames": 8, "max_frames": 120, "target_fps": 8 }
+# }`;
+
+const curlLivenessComplete = `# Frames: UNMIRRORED JPEGs captured live from the camera, in capture order (about 8 per second).
+# timestamps_ms: one capture-relative millisecond value per frame.
+curl -X POST ${BASE_URL}/verify/face/liveness/complete \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -F "session_token=SESSION_TOKEN" \\
+  -F "liveness_id=LIVENESS_ID" \\
+  -F 'meta={"timestamps_ms":[0,125,250],"windows":[{"start_ms":0,"end_ms":3000}]}' \\
+  -F "frames=@f0.jpg" -F "frames=@f1.jpg" -F "frames=@f2.jpg"
+# {
+#   "decision": "approved",            <- approved | retry | rejected | manual_review
+#   "next_step": "complete",
+#   "liveness": { "verdict": "pass", "score": 91.5, "reasons": [], "challenges": [ ... ] },
+#   "attempts_remaining": 2
+# }`;
 
 const curlKybRegister = `curl -X POST ${BASE_URL}/kyb/register \\
   -H "Authorization: Bearer av_live_YOUR_KEY" \\
@@ -297,6 +343,7 @@ export default function DocsPage() {
               {[
                 { href: '#authentication', label: 'Authentication' },
                 { href: '#verify-flow', label: 'Verify a person' },
+                { href: '#live-scan', label: 'Live face scan' },
                 { href: '#kyb-flow', label: 'Verify a business' },
                 { href: '#sandbox', label: 'Sandbox testing' },
                 { href: '#api-reference', label: 'API reference' },
@@ -376,6 +423,45 @@ export default function DocsPage() {
                   <CodeBlock lang="bash" code={curlStatus} />
                 </div>
               </div>
+            </section>
+
+            {/* Live face scan */}
+            <section id="live-scan">
+              <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
+                <ScanFace className="w-5 h-5 text-indigo-400" /> Live face scan
+              </h2>
+              <p className="text-slate-400 text-sm leading-relaxed mb-4">
+                Instead of uploading a selfie, the user performs three random prompts on a live camera: one head turn,
+                one blink and one smile, in random order. Every frame is re-analysed on our server, checked for screen
+                replays and loops, and the best frame is matched to the ID photo. Most integrations simply use the hosted
+                page, which does all of this for you. Use the endpoints below only if you build your own capture UI (for
+                example in a native app).
+              </p>
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300 mb-6">
+                <strong className="text-white">Try it first:</strong> the{' '}
+                <Link href="/dashboard/live-scan" className="text-indigo-400 hover:underline">Live Scan Lab</Link> in your
+                dashboard runs the real scan with your camera and shows why it passes or fails. Nothing is stored.
+              </div>
+              <div className="space-y-5">
+                <div>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">1. Require it</p>
+                  <CodeBlock lang="bash" code={curlLivenessInitiate} />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">2. Start a scan (after the ID upload)</p>
+                  <CodeBlock lang="bash" code={curlLivenessStart} />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">3. Submit the captured frames</p>
+                  <CodeBlock lang="bash" code={curlLivenessComplete} />
+                </div>
+              </div>
+              <ul className="mt-6 space-y-2 text-sm text-slate-400 list-disc pl-5">
+                <li>A challenge is single use and expires after 3 minutes. Up to 3 attempts per session.</li>
+                <li>The user must consent to biometric capture: send <code className="text-slate-200">consent: true</code>.</li>
+                <li>Borderline scans return <code className="text-slate-200">manual_review</code> and appear in your review queue.</li>
+                <li>Each attempt, with its score and failure reasons, is listed under Verifications in your dashboard.</li>
+              </ul>
             </section>
 
             {/* Verify a business */}

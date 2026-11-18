@@ -9,6 +9,7 @@ import {
   Check,
   ArrowRight,
   Code2,
+  ScanFace,
 } from 'lucide-react';
 import { AfriVerifyLogo, AfriVerifyMark } from '@/components/logo';
 import { Copyright } from '@/components/copyright';
@@ -194,6 +195,64 @@ export default function LandingPage() {
                 <p className="text-slate-400 text-sm leading-relaxed">{f.desc}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Live face scan */}
+      <section id="live-scan" className="py-24 px-6 border-t border-white/10">
+        <div className="max-w-5xl mx-auto grid gap-12 md:grid-cols-2 items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 text-xs font-medium text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-3 py-1 mb-5">
+              <ScanFace className="w-3.5 h-3.5" /> New: live face scan
+            </div>
+            <h2 className="text-4xl font-bold mb-4">Know a real person is there</h2>
+            <p className="text-slate-400 text-lg leading-relaxed mb-6">
+              A photo, a screen replay or a deepfake can fool a selfie upload. Our own liveness engine asks the user to
+              follow a short, random set of prompts on a live camera, then matches that face to their ID.
+            </p>
+            <ul className="space-y-3 text-slate-300 mb-8">
+              {[
+                'Random turn, blink and smile prompts that a recording cannot predict',
+                'Every frame re-checked on the server, plus screen-replay and loop detection',
+                'Matched to the ID photo, with evidence encrypted and deleted on schedule',
+              ].map((t) => (
+                <li key={t} className="flex gap-3">
+                  <Check className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap items-center gap-4">
+              <Link href="/register" className="bg-indigo-500 hover:bg-indigo-400 text-ink font-semibold px-6 py-3 rounded-xl transition-colors">
+                Try it free
+              </Link>
+              <Link href="/docs#live-scan" className="text-slate-300 hover:text-white transition-colors">
+                Read the docs
+              </Link>
+            </div>
+          </div>
+
+          {/* illustration: the scan viewfinder with the three prompts */}
+          <div className="relative mx-auto w-full max-w-sm" aria-hidden="true">
+            <div className="rounded-3xl border border-white/10 bg-slate-900 p-6">
+              <div className="relative aspect-[4/3] rounded-2xl bg-slate-950 overflow-hidden">
+                <svg viewBox="0 0 100 75" className="absolute inset-0 w-full h-full">
+                  <ellipse cx="50" cy="37" rx="19" ry="26" fill="none" stroke="#C9960E" strokeWidth="0.8" />
+                  <ellipse cx="50" cy="31" rx="9" ry="11" fill="#2A241B" />
+                  <path d="M30 70c3-14 12-20 20-20s17 6 20 20z" fill="#2A241B" />
+                  <g fill="#C9960E">
+                    <path d="M6 6h12v3H9v9H6z" /><path d="M94 6H82v3h9v9h3z" />
+                    <path d="M6 69h12v-3H9v-9H6z" /><path d="M94 69H82v-3h9v-9h3z" />
+                  </g>
+                </svg>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2 justify-center text-xs">
+                <span className="rounded-full border border-white/10 px-3 py-1.5 text-slate-300">1 Turn your head</span>
+                <span className="rounded-full border border-white/10 px-3 py-1.5 text-slate-300">2 Blink slowly</span>
+                <span className="rounded-full border border-[#C9960E]/50 bg-[#C9960E]/10 px-3 py-1.5 text-[#E0BE66]">3 Smile</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>

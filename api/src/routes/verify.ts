@@ -138,9 +138,10 @@ router.post(
 
     // Validate flow if provided - must belong to this developer's account.
     let resolvedFlowId: string | null = null;
+    let flowRequiresLiveness = false;
     if (flow_id) {
-      const flow = await queryOne<{ id: string }>(
-        `SELECT id FROM verification_flows WHERE id = $1 AND developer_email = $2 AND is_active = true`,
+      const flow = await queryOne<{ id: string; require_liveness: boolean }>(
+        `SELECT id, require_liveness FROM verification_flows WHERE id = $1 AND developer_email = $2 AND is_active = true`,
         [flow_id, apiKey.platform_email]
       );
       if (!flow) {
@@ -148,6 +149,11 @@ router.post(
         return;
       }
       resolvedFlowId = flow.id;
+      flowRequiresLiveness = flow.require_liveness;
+      if (flowRequiresLiveness && !livenessEnabled()) {
+        res.status(501).json({ error: 'liveness_unavailable', message: 'This flow requires a live face scan, which is not enabled on this deployment.' });
+        return;
+      }
     }
 
     const sessionToken = generateSecureToken(32);
@@ -169,7 +175,7 @@ router.post(
         platform_user_id ?? null,
         resolvedFlowId,
         lang ?? 'en',
-        livenessEnabled() && req.body.require_liveness === true,
+        livenessEnabled() && (req.body.require_liveness === true || flowRequiresLiveness),
         redirect_url ?? null,
       ]
     );
@@ -753,6 +759,7 @@ router.get(
         flow_allowed_id_types?: string[];
         flow_allowed_countries?: string[] | null;
         flow_min_verification_level?: number;
+        flow_require_liveness?: boolean;
         flow_success_url?: string | null;
         flow_failure_url?: string | null;
         flow_brand_name?: string | null;
@@ -766,6 +773,7 @@ router.get(
               vf.allowed_id_types  AS flow_allowed_id_types,
               vf.allowed_countries AS flow_allowed_countries,
               vf.min_verification_level AS flow_min_verification_level,
+              vf.require_liveness  AS flow_require_liveness,
               vf.success_url       AS flow_success_url,
               vf.failure_url       AS flow_failure_url,
               vf.brand_name        AS flow_brand_name,
@@ -798,6 +806,7 @@ router.get(
         allowed_id_types:       row.flow_allowed_id_types       ?? null,
         allowed_countries:      row.flow_allowed_countries      ?? null,
         min_verification_level: row.flow_min_verification_level ?? null,
+        require_liveness:       row.flow_require_liveness       ?? false,
         success_url:            row.flow_success_url            ?? null,
         failure_url:            row.flow_failure_url            ?? null,
         brand_name:             row.flow_brand_name             ?? null,

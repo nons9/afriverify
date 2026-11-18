@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, Clock, Filter } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Filter, ScanFace } from 'lucide-react';
 import { api } from '@/lib/api';
+import { REASON_LABEL } from '@/lib/liveness-logic';
 
 interface VerificationEvent {
   id?: string;
@@ -13,6 +14,76 @@ interface VerificationEvent {
 
 interface OverviewData {
   recent_events: VerificationEvent[];
+}
+
+interface LivenessInfo {
+  required: boolean;
+  attempts: number;
+  verdict: 'pass' | 'review' | 'fail' | null;
+  score: number | null;
+  decision: string | null;
+  reasons: string[];
+  passive_flags: string[];
+  face_match: string | null;
+  face_match_score: number | null;
+}
+
+interface SessionRow {
+  id: string;
+  created_at: string;
+  step: string;
+  phone_masked: string;
+  platform_user_id: string | null;
+  flow_name: string | null;
+  liveness: LivenessInfo | null;
+}
+
+const STEP_BADGE: Record<string, { label: string; cls: string }> = {
+  complete: { label: 'Verified', cls: 'text-green-400 bg-green-500/10' },
+  failed: { label: 'Failed', cls: 'text-red-400 bg-red-500/10' },
+  processing: { label: 'Processing', cls: 'text-blue-400 bg-blue-500/10' },
+  face_scan: { label: 'At face step', cls: 'text-amber-400 bg-amber-500/10' },
+  id_upload: { label: 'At ID step', cls: 'text-amber-400 bg-amber-500/10' },
+  otp: { label: 'At OTP', cls: 'text-slate-300 bg-white/5' },
+  phone: { label: 'Started', cls: 'text-slate-300 bg-white/5' },
+};
+
+function LiveScanCell({ l }: { l: LivenessInfo | null }) {
+  if (!l) return <span className="text-xs text-slate-600">Not used</span>;
+  if (!l.verdict) {
+    return <span className="text-xs text-amber-400">{l.required ? 'Required, not attempted' : 'Not attempted'}</span>;
+  }
+  const tone =
+    l.verdict === 'pass' ? 'text-green-400 bg-green-500/10' :
+    l.verdict === 'review' ? 'text-amber-400 bg-amber-500/10' : 'text-red-400 bg-red-500/10';
+  const chips = [...l.reasons, ...l.passive_flags].filter((r, i, a) => a.indexOf(r) === i);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${tone}`}>
+          <ScanFace className="w-3 h-3" />
+          {l.verdict === 'pass' ? 'Passed' : l.verdict === 'review' ? 'Review' : 'Failed'}
+          {l.score !== null && <span className="opacity-80">{Math.round(l.score)}</span>}
+        </span>
+        {l.face_match && (
+          <span className="text-xs text-slate-400">
+            Match: {l.face_match.replace('_', ' ')}
+            {l.face_match_score !== null && ` (${Math.round(l.face_match_score)})`}
+          </span>
+        )}
+        {l.attempts > 1 && <span className="text-xs text-slate-500">{l.attempts} attempts</span>}
+      </div>
+      {chips.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {chips.map((c) => (
+            <span key={c} className="text-[11px] text-slate-400 bg-white/5 border border-white/10 rounded px-1.5 py-0.5">
+              {REASON_LABEL[c] ?? c.replace(/_/g, ' ')}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const STATUS: Record<string, { label: string; cls: string; Icon: typeof CheckCircle }> = {
@@ -36,6 +107,7 @@ function Badge({ type }: { type: string }) {
 
 export default function VerificationsPage() {
   const [events, setEvents] = useState<VerificationEvent[]>([]);
+  const [sessions, setSessions] = useState<SessionRow[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,6 +116,10 @@ export default function VerificationsPage() {
       .then((d) => setEvents(d.recent_events))
       .catch(console.error)
       .finally(() => setLoading(false));
+    api
+      .get<{ sessions: SessionRow[] }>('/v1/developer/sessions?limit=25')
+      .then((d) => setSessions(d.sessions))
+      .catch(() => setSessions([]));
   }, []);
 
   const fmtDate = (iso: string) =>
@@ -102,6 +178,45 @@ export default function VerificationsPage() {
           </table>
         </div>
       )}
+
+      {/* Sessions with their live-scan result */}
+      <div className="mt-12">
+        <h2 className="text-lg font-semibold text-white">Recent sessions</h2>
+        <p className="text-slate-400 text-sm mt-1 mb-4">
+          Each verification session and its live face scan result: score, face match, and why a scan failed.
+        </p>
+        {sessions === null ? (
+          <div className="h-16 flex items-center"><div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : sessions.length === 0 ? (
+          <p className="text-sm text-slate-500">No sessions yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px]">
+              <thead className="border-b border-white/[0.06]">
+                <tr>
+                  {['When', 'Session', 'Phone', 'Flow', 'Live face scan'].map((h) => (
+                    <th key={h} className="px-5 py-3.5 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.06]">
+                {sessions.map((r) => {
+                  const b = STEP_BADGE[r.step] ?? { label: r.step, cls: 'text-slate-300 bg-white/5' };
+                  return (
+                    <tr key={r.id} className="align-top hover:bg-white/[0.02] transition-colors">
+                      <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{fmtDate(r.created_at)}</td>
+                      <td className="px-5 py-4"><span className={`inline-flex text-xs px-2.5 py-1 rounded-full font-medium ${b.cls}`}>{b.label}</span></td>
+                      <td className="px-5 py-4 text-sm text-slate-300 font-mono">{r.phone_masked}</td>
+                      <td className="px-5 py-4 text-sm text-slate-400">{r.flow_name ?? '-'}</td>
+                      <td className="px-5 py-4"><LiveScanCell l={r.liveness} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

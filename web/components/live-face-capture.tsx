@@ -29,14 +29,36 @@ interface CompleteResponse {
   review_pending: boolean;
 }
 
+/** Result of a Live Scan Lab run (nothing is stored server-side). */
+export interface DemoResult {
+  demo: true;
+  stored: false;
+  verdict: 'pass' | 'review' | 'fail';
+  score: number;
+  challenges: { type: string; passed: boolean }[];
+  reasons: string[];
+  passive: { score: number; flags: string[]; signals: Record<string, number> };
+  frame_stats: Record<string, number>;
+  processing_ms: number;
+}
+
+/** Lets a page other than the hosted flow (the dashboard lab) supply its own server calls and receive the raw result. */
+export interface DemoTransport {
+  start: () => Promise<StartResponse>;
+  complete: (form: FormData) => Promise<DemoResult>;
+  onResult: (result: DemoResult) => void;
+}
+
 export interface LiveFaceCaptureProps {
-  token: string;
-  api: string;
+  token?: string;
+  api?: string;
   btnColor: string;
-  required: boolean;
-  onSubmitted: (r: { decision: CompleteResponse['decision']; reviewPending: boolean }) => void;
-  onFailed: (message: string) => void;
+  required?: boolean;
+  onSubmitted?: (r: { decision: CompleteResponse['decision']; reviewPending: boolean }) => void;
+  onFailed?: (message: string) => void;
   onFallbackUpload?: () => void;
+  /** Dashboard lab mode: no session, nothing stored, result handed to the page. */
+  demo?: DemoTransport;
 }
 
 const TICK_MS = 125;              // ~8 fps
@@ -75,7 +97,7 @@ function sampleFrom(result: any, brightness: number): FaceSample {
   };
 }
 
-export default function LiveFaceCapture({ token, api, btnColor, required, onSubmitted, onFailed, onFallbackUpload }: LiveFaceCaptureProps) {
+export default function LiveFaceCapture({ token = '', api = '', btnColor, required = false, onSubmitted, onFailed, onFallbackUpload, demo }: LiveFaceCaptureProps) {
   const [phase, setPhase] = useState<Phase>('intro');
   const [consent, setConsent] = useState(false);
   const [prompt, setPrompt] = useState('');
@@ -125,7 +147,7 @@ export default function LiveFaceCapture({ token, api, btnColor, required, onSubm
     setPhase('starting');
     let start: StartResponse;
     try {
-      start = await post(api, '/face/liveness/start', {
+      start = demo ? await demo.start() : await post(api, '/face/liveness/start', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_token: token, consent: consentRef.current }),
       });
@@ -265,17 +287,18 @@ export default function LiveFaceCapture({ token, api, btnColor, required, onSubm
       fd.append('liveness_id', start.liveness_id);
       fd.append('meta', JSON.stringify({ timestamps_ms: stamps.slice(0, n), windows }));
       frames.slice(0, n).forEach((b, i) => fd.append('frames', b, `f${i}.jpg`));
+      if (demo) { demo.onResult(await demo.complete(fd)); return; }
       const res: CompleteResponse = await post(api, '/face/liveness/complete', { method: 'POST', body: fd });
 
       if (res.decision === 'retry') {
         setFeedback(friendlyReasons(res.liveness.reasons)); setAttemptsLeft(res.attempts_remaining); setPhase('feedback'); return;
       }
-      if (res.decision === 'rejected') { onFailed(friendlyReasons(res.liveness.reasons)); return; }
+      if (res.decision === 'rejected') { onFailed?.(friendlyReasons(res.liveness.reasons)); return; }
       void uploadVideo(start.liveness_id);
-      onSubmitted({ decision: res.decision, reviewPending: res.review_pending });
+      onSubmitted?.({ decision: res.decision, reviewPending: res.review_pending });
     } catch (e) {
       const err = e as Error & { code?: string };
-      if (err.code === 'too_many_attempts') { onFailed('Too many attempts. Please start again later.'); return; }
+      if (err.code === 'too_many_attempts') { onFailed?.('Too many attempts. Please start again later.'); return; }
       setFeedback(err.message || 'Something went wrong. Please try again.'); setPhase('feedback');
     }
   }
@@ -305,12 +328,16 @@ export default function LiveFaceCapture({ token, api, btnColor, required, onSubm
         <div className="space-y-4">
           <div className="rounded-xl border border-white/10 bg-slate-800/50 p-4 text-sm text-slate-300 space-y-2">
             <div className="flex items-center gap-2 text-white font-medium"><ShieldCheck className="w-4 h-4" /> Before we start</div>
-            <p>We capture a short video of your face from your camera to check that you are live and to match you to your ID. Frames are encrypted, used only for this verification, and deleted after a short retention period.</p>
+            {demo ? (
+              <p>This lab sends a short burst of camera frames to the liveness engine and shows you its verdict. <strong>Nothing is stored:</strong> no images, no video, no session. The frames are discarded as soon as the result is computed.</p>
+            ) : (
+              <p>We capture a short video of your face from your camera to check that you are live and to match you to your ID. Frames are encrypted, used only for this verification, and deleted after a short retention period.</p>
+            )}
           </div>
           <label className="flex items-start gap-2 text-sm text-slate-300 cursor-pointer">
             <input type="checkbox" className="mt-1" checked={consent}
               onChange={(e) => { setConsent(e.target.checked); consentRef.current = e.target.checked; }} />
-            <span>I agree to AfriVerify capturing and processing my face biometrics for identity verification.</span>
+            <span>{demo ? 'I agree to my camera frames being analysed for this test.' : 'I agree to AfriVerify capturing and processing my face biometrics for identity verification.'}</span>
           </label>
           {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
           <button type="button" disabled={!consent} onClick={begin}
