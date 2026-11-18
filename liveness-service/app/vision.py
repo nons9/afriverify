@@ -21,6 +21,12 @@ _NOSE_TIP = 1
 _MOUTH_L, _MOUTH_R = 61, 291
 _IRIS_A, _IRIS_B = 468, 473     # iris centres (need refine => 478 points)
 
+# Depth test (see depth.py): landmarks that lie roughly on ONE plane of the face (forehead, brows, eye
+# corners, temples, cheeks, mouth corners, jaw) versus landmarks that stand proud of it (the nose).
+# A flat picture, however it is tilted, keeps the nose on the same plane as the rest; a real head does not.
+PLANE_IDX = [10, 152, 234, 454, 33, 263, 133, 362, 61, 291, 70, 300, 105, 334, 127, 356, 172, 397, 54, 284]
+RELIEF_IDX = [1, 4, 5, 195, 197, 6, 168, 98, 327]
+
 
 @dataclass
 class FrameFeatures:
@@ -36,6 +42,8 @@ class FrameFeatures:
     blink: float = 0.0   # 0 open .. 1 closed
     smile: float = 0.0   # 0 neutral .. 1 broad smile
     points5: Optional[np.ndarray] = field(default=None, repr=False)  # 5x2 px, for alignment
+    plane_pts: Optional[np.ndarray] = field(default=None, repr=False)   # Nx2 px, near-planar face landmarks
+    relief_pts: Optional[np.ndarray] = field(default=None, repr=False)  # Mx2 px, nose landmarks (stand proud)
 
     @property
     def has_face(self) -> bool:
@@ -110,6 +118,9 @@ def extract(img_bgr: np.ndarray) -> FrameFeatures:
     left, right = min(ca, cb), max(ca, cb)
     span = max(right - left, 1e-6)
     feat.nose_ratio = float((xs[_NOSE_TIP] - left) / span)
+
+    feat.plane_pts = np.stack([xs[PLANE_IDX], ys[PLANE_IDX]], axis=1).astype(np.float32)
+    feat.relief_pts = np.stack([xs[RELIEF_IDX], ys[RELIEF_IDX]], axis=1).astype(np.float32)
 
     if res.face_blendshapes:
         bs = res.face_blendshapes[0]

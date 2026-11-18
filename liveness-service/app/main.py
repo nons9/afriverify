@@ -131,6 +131,9 @@ def analyze(meta: str = Form(...), frames: List[UploadFile] = File(...)):
     results = ch.verify_sequence(feats, ts, challenges, windows)
     if not all(r.passed for r in results):
         reasons.append("challenge_failed")
+    flat_turn = any(r.flat_suspected for r in results) and config.FLAT_TURN_ACTION != "off"
+    if flat_turn and config.FLAT_TURN_ACTION == "fail":
+        reasons.append("flat_face_turn")
 
     report = passive.combine(sigs, hashes, motion)
 
@@ -157,6 +160,10 @@ def analyze(meta: str = Form(...), frames: List[UploadFile] = File(...)):
         verdict = "fail"
     if report.flags and verdict == "fail" and not structural_fail:
         reasons.append("passive_checks_failed")
+    if flat_turn:
+        report.flags.append("flat_face_turn")
+        if verdict == "pass":
+            verdict = "review"   # never auto-approve a suspected flat turn; never hard-reject on an uncalibrated cue
 
     out = {
         "verdict": verdict,

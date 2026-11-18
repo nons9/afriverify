@@ -15,6 +15,7 @@ from typing import Optional, Sequence
 import cv2
 import numpy as np
 
+from . import config
 from .vision import FrameFeatures
 
 
@@ -26,6 +27,7 @@ class FrameSignals:
     glare: float        # fraction of near-saturated pixels
     moire: float        # 0..1, periodic high-frequency structure (screen replay)
     chroma_std: float
+    fringe: float = 0.0  # 0..1, low-frequency beat fringes (a screen re-photographed at ordinary phone-camera resolution)
 
 
 def _face_crop(img: np.ndarray, bbox) -> np.ndarray:
@@ -65,6 +67,38 @@ def _moire_score(gray: np.ndarray) -> float:
     return float(np.clip((float(local.max()) - 4.5) / 3.5, 0.0, 1.0))
 
 
+def _fringe_score(gray: np.ndarray) -> float:
+    """Low-frequency moire beats.
+
+    Captures arrive at ~640x480, so a face crop is ~200-300 px: a phone screen's pixel grid is then about one
+    output pixel in size and cannot be seen directly (_moire_score upsamples such crops and loses it). What
+    survives is the BEAT between the screen grid and the camera's sampling: broad periodic fringes, 4-30 px
+    apart. Natural skin/hair has a smooth, noisy spectrum (strongest bin ~3x its neighbourhood); fringes are
+    isolated peaks. JPEG's 8x8 block frequency (and harmonics) is masked out."""
+    h0, w0 = gray.shape
+    N = 192
+    if min(h0, w0) >= N:   # native resolution: resizing DOWN would average the finer fringes away
+        y0, x0 = (h0 - N) // 2, (w0 - N) // 2
+        g = gray[y0:y0 + N, x0:x0 + N].astype(np.float32)
+        bx = by = N / 8.0
+    else:                  # small crop: resize UP (cannot create peaks); block grid scales with the crop
+        g = cv2.resize(gray, (N, N), interpolation=cv2.INTER_LINEAR).astype(np.float32)
+        bx, by = w0 / 8.0, h0 / 8.0
+    g -= cv2.GaussianBlur(g, (0, 0), 8)   # drop illumination / shading; keeps r >= ~6 cycles
+    win = np.outer(np.hanning(N), np.hanning(N)).astype(np.float32)
+    spec = np.abs(np.fft.fftshift(np.fft.fft2(g * win)))
+    yy, xx = np.indices(spec.shape)
+    c = N // 2
+    fy, fx = np.abs(yy - c), np.abs(xx - c)
+    r = np.hypot(fy, fx)
+    near = lambda f, b: np.abs(f - b * np.round(f / max(b, 1e-6))) <= 2.0
+    band = (r >= 9) & (r <= 90) & ~(near(fx, bx) | near(fy, by)) & ~((fx <= 2) | (fy <= 2))
+    local = (spec / (cv2.blur(spec, (9, 9)) + 1e-6))[band]
+    if local.size == 0:
+        return 0.0
+    return float(np.clip((float(local.max()) - 5.0) / 4.0, 0.0, 1.0))
+
+
 def frame_signals(img_bgr: np.ndarray, feat: FrameFeatures) -> Optional[FrameSignals]:
     if not feat.has_face:
         return None
@@ -79,6 +113,7 @@ def frame_signals(img_bgr: np.ndarray, feat: FrameFeatures) -> Optional[FrameSig
         contrast=float(gray.std()),
         glare=float((gray >= 250).mean()),
         moire=_moire_score(gray),
+        fringe=_fringe_score(gray),
         chroma_std=float(ycc[:, :, 1:].std()),
     )
 
@@ -113,17 +148,30 @@ def combine(
     sharp, bright, contrast = med("sharpness"), med("brightness"), med("contrast")
     glare, moire = med("glare"), float(np.percentile([s.moire for s in sigs], 75))
     chroma = med("chroma_std")
+    fringe = float(np.percentile([s.fringe for s in sigs], 75))
 
     score = 1.0
     if sharp < 25:            score -= 0.25; flags.append("blurry")
     if bright < 45:           score -= 0.15; flags.append("too_dark")
     if bright > 215:          score -= 0.15; flags.append("overexposed")
     if contrast < 18:         score -= 0.10; flags.append("low_contrast")
-    if glare > 0.04:          score -= 0.20; flags.append("screen_glare")
+    # Glare is the screen's most common tell (a lit screen blows out pixels). One tier is a hint, the
+    # higher one is enough on its own to stop an auto-pass (verdict becomes "review", never a hard fail).
+    if glare > 0.06:          score -= 0.45; flags.append("screen_glare")
+    elif glare > 0.04:        score -= 0.20; flags.append("screen_glare")
     if chroma < 4.0:          score -= 0.15; flags.append("low_chroma")
     if moire > 0.35:
         score -= 0.45 * min(1.0, moire / 0.7)
         flags.append("moire_pattern")
+
+    if fringe > config.FRINGE_FLAG:
+        score -= 0.45 * min(1.0, fringe / 0.7)
+        flags.append("screen_fringes")
+    # Two independent screen cues together are a strong signal even when each is mild.
+    screen_cues = sum(f in flags for f in ("screen_glare", "moire_pattern", "screen_fringes"))
+    if screen_cues >= 2:
+        score -= 0.25
+        flags.append("multiple_screen_cues")
 
     uniq = len(set(hashes))
     dup_ratio = 1.0 - uniq / max(len(hashes), 1)
@@ -138,7 +186,7 @@ def combine(
         score,
         {
             "sharpness": round(sharp, 1), "brightness": round(bright, 1), "contrast": round(contrast, 1),
-            "glare": round(glare, 4), "moire": round(moire, 3), "chroma_std": round(chroma, 2),
+            "glare": round(glare, 4), "moire": round(moire, 3), "fringe": round(fringe, 3), "chroma_std": round(chroma, 2),
             "duplicate_frame_ratio": round(dup_ratio, 3), "mean_motion": round(mean_motion, 3),
         },
         flags,
