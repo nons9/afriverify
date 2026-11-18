@@ -28,9 +28,9 @@ class HttpClient:
             res = client.get(self._url(path), params=params, headers=self._headers)
         return self._parse(res)
 
-    def post(self, path: str, json: Any) -> Any:
+    def post(self, path: str, json: Any, extra_headers: dict[str, str] | None = None) -> Any:
         with httpx.Client(timeout=self._timeout) as client:
-            res = client.post(self._url(path), json=json, headers=self._headers)
+            res = client.post(self._url(path), json=json, headers={**self._headers, **(extra_headers or {})})
         return self._parse(res)
 
     def post_files(self, path: str, files: dict[str, Any] | list[tuple[str, Any]], data: dict[str, Any]) -> Any:

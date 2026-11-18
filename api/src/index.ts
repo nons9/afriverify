@@ -17,6 +17,7 @@ import trustRouter from './routes/trust';
 import developerRouter from './routes/developer';
 import livenessDemoRouter from './routes/liveness-demo';
 import livenessEvalRouter from './routes/liveness-eval';
+import openapiRouter from './routes/openapi';
 import billingRouter from './routes/billing';
 import identityPortalRouter from './routes/identity-portal';
 import ussdRouter from './routes/ussd';
@@ -63,7 +64,8 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
       cb(new Error(`Origin ${origin} not allowed`));
     },
-    credentials: true
+    credentials: true,
+    exposedHeaders: ['RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset', 'Retry-After', 'Idempotency-Replayed', 'X-Request-Id']
   })
 );
 
@@ -128,6 +130,7 @@ app.use('/v1/kyb', kybRouter);
 app.use('/v1/trust', trustRouter);
 app.use('/v1/developer/liveness-demo', livenessDemoRouter);
 app.use('/v1/developer/liveness-eval', livenessEvalRouter);
+app.use('/v1', openapiRouter);
 app.use('/v1/developer', developerRouter);
 app.use('/v1/developer/billing', billingRouter);
 app.use('/v1/identity-portal', identityPortalRouter);

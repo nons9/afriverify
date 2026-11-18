@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { idempotency } from '../middleware/idempotency';
 import multer from 'multer';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
@@ -54,6 +55,7 @@ const NETWORK_RISK_BLOCK_THRESHOLD = 70;
 router.use(authenticate);
 router.use(rateLimitApiKey);
 router.use(requirePermission('verify'));
+router.use(idempotency);
 
 // ─── POST /verify/initiate ────────────────────────────────────────────────────────────────────────────────
 const initiateSchema = z

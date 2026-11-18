@@ -13,8 +13,12 @@ import type {
 export class VerifyResource {
   constructor(private readonly http: HttpClient) {}
 
-  initiate(params: InitiateParams): Promise<InitiateResponse> {
-    return this.http.post('/verify/initiate', params);
+  /**
+   * Start a verification session. Pass `idempotencyKey` (8-128 chars, unique per logical request) so a retry
+   * after a timeout returns the SAME session instead of creating and billing a second one.
+   */
+  initiate(params: InitiateParams, options: { idempotencyKey?: string } = {}): Promise<InitiateResponse> {
+    return this.http.post('/verify/initiate', params, options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {});
   }
 
   sendOtp(params: SendOtpParams): Promise<SendOtpResponse> {
