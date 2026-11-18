@@ -79,3 +79,11 @@ jobs:
       - run: pip install -r requirements-dev.txt
       # model-dependent tests skip themselves when the model files are absent; the rest always run
       - run: python -m pytest -q
+
+  hygiene:
+    name: Repo hygiene (no em-dashes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/check-no-emdash.sh

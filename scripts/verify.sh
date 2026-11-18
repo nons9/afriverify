@@ -9,6 +9,10 @@ cd "$(dirname "$0")/.."
 want="${1:-all}"
 run() { echo; echo "== $*"; }
 
+if [ "$want" = all ] || [ "$want" = hygiene ]; then
+  run "Hygiene: no em-dashes"
+  ./scripts/check-no-emdash.sh
+fi
 if [ "$want" = all ] || [ "$want" = api ]; then
   run "API: typecheck, tests, build"
   (cd api && npm run typecheck && npm test && npm run build)
