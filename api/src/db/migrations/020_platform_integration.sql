@@ -10,7 +10,7 @@ CREATE INDEX IF NOT EXISTS idx_vs_platform_user
   ON verification_sessions(platform_user_id)
   WHERE platform_user_id IS NOT NULL;
 
--- Webhook delivery log — APPEND-ONLY, every push attempt is a permanent record
+-- Webhook delivery log - APPEND-ONLY, every push attempt is a permanent record
 CREATE TABLE platform_webhook_deliveries (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   api_key_id       UUID NOT NULL REFERENCES api_keys(id),

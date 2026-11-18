@@ -1,5 +1,5 @@
 -- Migration 048: human-readable certificate ID on VIT records.
--- AVT-{level}-{year}-{8-digit-zero-padded-sequence} — generated at insert time.
+-- AVT-{level}-{year}-{8-digit-zero-padded-sequence} - generated at insert time.
 ALTER TABLE verified_identity_tokens
   ADD COLUMN IF NOT EXISTS cert_id VARCHAR(32) UNIQUE;
 

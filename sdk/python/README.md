@@ -43,26 +43,26 @@ asyncio.run(main())
 ## Verification flow
 
 ```python
-# 1 — initiate
+# 1 - initiate
 session = client.verify.initiate(reference="user_123", country="NG")
 session_id = session["session_id"]
 
-# 2 — send OTP
+# 2 - send OTP
 client.verify.send_otp(session_id=session_id, channel="sms", phone="+2348012345678")
 
-# 3 — confirm OTP
+# 3 - confirm OTP
 client.verify.confirm_otp(session_id=session_id, otp="123456")
 
-# 4 — upload ID document (bytes, file-like, or pathlib.Path)
+# 4 - upload ID document (bytes, file-like, or pathlib.Path)
 from pathlib import Path
 client.verify.upload_id(session_id=session_id,
                         document_type="national_id",
                         front=Path("id_front.jpg"))
 
-# 5 — submit face / selfie
+# 5 - submit face / selfie
 client.verify.submit_face(session_id=session_id, image=Path("selfie.jpg"))
 
-# 6 — poll status
+# 6 - poll status
 status = client.verify.get_status(session_id)
 print(status["status"])  # "completed"
 ```
@@ -112,7 +112,7 @@ def webhook():
 
 | Option | Description | Default |
 |---|---|---|
-| `api_key` | Your AfriVerify API key (required) | — |
+| `api_key` | Your AfriVerify API key (required) | - |
 | `base_url` | Override the API base URL | `https://api.afriverify.sankofaapp.com/v1` |
 | `timeout` | Request timeout in seconds | `30.0` |
 

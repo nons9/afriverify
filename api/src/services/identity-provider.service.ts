@@ -40,7 +40,7 @@ export interface ProviderResult {
   face_match_confidence?: number;
   liveness_passed?: boolean;
   provider: ProviderName;
-  /** Onfido async: check submitted but not yet complete — store check_id and resolve via webhook */
+  /** Onfido async: check submitted but not yet complete - store check_id and resolve via webhook */
   pending?: boolean;
   check_id?: string;
 }

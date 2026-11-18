@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { AfriVerifyLogo } from '@/components/logo';
+import { Copyright } from '@/components/copyright';
 
 export const metadata: Metadata = {
   title: 'Terms of Service - AfriVerify',
@@ -56,7 +57,7 @@ export default function TermsPage() {
                 ['"API Key"', 'the credential pair (key + secret) issued to your account for authenticating API requests'],
                 ['"End-User"', 'an individual whose identity is verified through the Service at your direction'],
                 ['"Verification"', 'the process of confirming an End-User\'s identity using government-issued documents, biometrics, or official registries'],
-                ['"VIT"', 'Verified Identity Token — a signed, portable attestation of a completed verification'],
+                ['"VIT"', 'Verified Identity Token: a signed, portable attestation of a completed verification'],
                 ['"USSD Verification"', 'an identity verification initiated via Unstructured Supplementary Service Data (USSD) that confirms phone possession and reaches AfriVerify Level 1 trust without requiring an app or internet connection'],
                 ['"Inquiry Link"', 'a no-code, shareable URL created by a developer through the dashboard that directs End-Users through a hosted verification flow without requiring any API integration'],
                 ['"White-Label Flow"', 'the hosted verification experience rendered with a developer\'s custom branding (company name, logo, brand colour) at a dedicated session URL'],
@@ -327,7 +328,7 @@ export default function TermsPage() {
 
       <footer className="border-t border-white/10 py-8 px-6 mt-16">
         <div className="max-w-4xl mx-auto flex items-center justify-between text-xs text-slate-600">
-          <span>{COMPANY} &copy; {new Date().getFullYear()}</span>
+          <Copyright />
           <div className="flex gap-6">
             <Link href="/privacy" className="hover:text-slate-400 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-slate-400 transition-colors">Terms</Link>

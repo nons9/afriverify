@@ -21,7 +21,7 @@ ALTER TABLE verification_sessions
   ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 
 -- Back-fill completed_at for already-finished sessions (no updated_at on the table;
--- created_at is a rough proxy — better than NULL for display purposes).
+-- created_at is a rough proxy - better than NULL for display purposes).
 UPDATE verification_sessions
 SET completed_at = created_at
 WHERE step IN ('complete', 'failed') AND completed_at IS NULL;
@@ -60,17 +60,17 @@ CREATE INDEX idx_risk_flags_created ON risk_flags(created_at DESC);
 
 -- Seed sensible defaults.
 INSERT INTO risk_rules (name, description, priority, conditions, conditions_mode, action, action_params) VALUES
-  ('AML flagged — trust penalty',
+  ('AML flagged - trust penalty',
    'Reduce trust score by 50 when AML screening returns flagged.',
    10,
    '[{"field":"aml_status","operator":"eq","value":"flagged"}]',
    'all', 'trust_delta', '{"delta":-50}'),
-  ('AML blocked — flag for review',
+  ('AML blocked - flag for review',
    'Flag identity for manual admin review when AML screen returns blocked.',
    5,
    '[{"field":"aml_status","operator":"eq","value":"blocked"}]',
    'all', 'flag', null),
-  ('Low trust score — flag for review',
+  ('Low trust score - flag for review',
    'Flag any identity whose trust score falls below 150.',
    50,
    '[{"field":"trust_score","operator":"lt","value":150}]',

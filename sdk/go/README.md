@@ -8,7 +8,7 @@ Official Go SDK for the [AfriVerify](https://afriverify.sankofaapp.com) identity
 go get github.com/nons9/afriverify/sdk/go
 ```
 
-Go 1.21+ required. No external dependencies — pure standard library.
+Go 1.21+ required. No external dependencies - pure standard library.
 
 ## Quick start
 
@@ -31,30 +31,30 @@ fmt.Println(session.SessionToken)
 ```go
 ctx := context.Background()
 
-// 1 — initiate
+// 1 - initiate
 session, _ := client.Verify.Initiate(ctx, afriverify.InitiateParams{
     Phone:      "+2348012345678",
     OtpChannel: "sms",
 })
 token := session.SessionToken
 
-// 2 — send OTP
+// 2 - send OTP
 client.Verify.SendOtp(ctx, afriverify.SendOtpParams{SessionToken: token})
 
-// 3 — confirm OTP
+// 3 - confirm OTP
 client.Verify.ConfirmOtp(ctx, afriverify.ConfirmOtpParams{SessionToken: token, Code: "123456"})
 
-// 4 — upload ID document (any io.Reader)
+// 4 - upload ID document (any io.Reader)
 front, _ := os.Open("id_front.jpg")
 defer front.Close()
 client.Verify.UploadID(ctx, token, front, nil)
 
-// 5 — submit selfie
+// 5 - submit selfie
 selfie, _ := os.Open("selfie.jpg")
 defer selfie.Close()
 client.Verify.SubmitFace(ctx, token, selfie)
 
-// 6 — poll status
+// 6 - poll status
 status, _ := client.Verify.GetStatus(ctx, token)
 fmt.Println(status.Status) // "completed"
 ```

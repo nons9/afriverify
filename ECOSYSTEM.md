@@ -331,7 +331,7 @@ review.submitted
   - Implement atomic ledger writes with idempotency
   - Connect OrbitMart escrow, Niloticus settlement to ledger
   
-- [ ] **Sika Admin — complete:**
+- [ ] **Sika Admin - complete:**
   - Finish database schema (KYC review, disputes, payouts)
   - Add admin portal (merchant onboarding, system health)
   - Integrate email delivery (Resend or SMTP)

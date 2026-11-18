@@ -1,5 +1,5 @@
 -- Migration 016: fraud_graph
--- OrbitShield: FraudGraph — Cross-Platform Fraud Intelligence Network
+-- OrbitShield: FraudGraph - Cross-Platform Fraud Intelligence Network
 -- Nodes represent entities (identities, devices, IP subnets).
 -- Edges represent co-occurrence during fraud events.
 -- Every /identity/flag call updates the graph. Every /identity/check queries it.
@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS fraud_graph_nodes (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   node_type            VARCHAR(20)  NOT NULL,   -- 'identity' | 'device' | 'ip_subnet'
-  node_hash            VARCHAR(64)  NOT NULL,   -- SHA-256 of "type:value" — never raw values
+  node_hash            VARCHAR(64)  NOT NULL,   -- SHA-256 of "type:value" - never raw values
   risk_score           INTEGER      NOT NULL DEFAULT 0 CHECK (risk_score BETWEEN 0 AND 100),
   fraud_reports_count  INTEGER      NOT NULL DEFAULT 0,
   first_seen           TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),

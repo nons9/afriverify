@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import s from '../cert.module.css';
+import { Copyright } from '@/components/copyright';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -398,6 +399,8 @@ export default function CertPage() {
         {' '}&nbsp;·&nbsp;{' '}
         <a href="/terms">Terms</a>
         <small className={s.footerNote}>
+          <Copyright />
+          <br />
           This page does not store personal data. Certificate status is fetched live on every visit and cannot be cached or faked.
         </small>
       </footer>

@@ -60,7 +60,7 @@ export default function AdminOverviewPage() {
         <p className="text-slate-400 text-sm mt-1">Platform health and key metrics at a glance.</p>
       </div>
 
-      {/* Revenue + accounts — flat stats */}
+      {/* Revenue + accounts - flat stats */}
       {revenue && s && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-8 mb-14">
           <div>
@@ -86,7 +86,7 @@ export default function AdminOverviewPage() {
         </div>
       )}
 
-      {/* Ops — flat stats */}
+      {/* Ops - flat stats */}
       {s && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-8 mb-14">
           <div>
@@ -114,7 +114,7 @@ export default function AdminOverviewPage() {
         </div>
       )}
 
-      {/* Plan breakdown — table only, no card wrapper */}
+      {/* Plan breakdown - table only, no card wrapper */}
       {revenue && revenue.plan_breakdown.length > 0 && (
         <div>
           <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Subscriptions by plan</h2>

@@ -7,7 +7,7 @@ export class WebhooksResource {
   /**
    * Verify an incoming webhook and return the parsed event.
    *
-   * @param payload   The raw request body (string or Buffer — do NOT JSON.parse first)
+   * @param payload   The raw request body (string or Buffer - do NOT JSON.parse first)
    * @param signature The value of the `X-VerifyAfrica-Signature` header
    * @param secret    Your webhook signing secret (from the AfriVerify dashboard)
    */
@@ -30,7 +30,7 @@ export class WebhooksResource {
     // Header format: "sha512=<hex>"
     const parts = signature.split('=');
     if (parts.length !== 2 || parts[0] !== 'sha512') {
-      throw new WebhookSignatureError('Unexpected signature format — expected "sha512=<hex>"');
+      throw new WebhookSignatureError('Unexpected signature format - expected "sha512=<hex>"');
     }
     const received = parts[1];
 
@@ -47,7 +47,7 @@ export class WebhooksResource {
     }
   }
 
-  /** Type-narrowing helper — narrows to the specific event shape */
+  /** Type-narrowing helper - narrows to the specific event shape */
   isEventType<E extends WebhookEvent>(
     event: WebhookEvent,
     type: E['event'],

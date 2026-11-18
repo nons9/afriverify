@@ -28,22 +28,22 @@ console.log(session.session_id, session.verification_url);
 ## Verification flow
 
 ```ts
-// 1 — initiate
+// 1 - initiate
 const { session_id } = await client.verify.initiate({ reference: 'user_123', country: 'NG' });
 
-// 2 — send OTP
+// 2 - send OTP
 await client.verify.sendOtp({ session_id, channel: 'sms', phone: '+2348012345678' });
 
-// 3 — confirm OTP
+// 3 - confirm OTP
 await client.verify.confirmOtp({ session_id, otp: '123456' });
 
-// 4 — upload ID document
+// 4 - upload ID document
 await client.verify.uploadId({ session_id, document_type: 'national_id', front: '<base64>' });
 
-// 5 — submit face
+// 5 - submit face
 await client.verify.submitFace({ session_id, image: '<base64>' });
 
-// 6 — poll status
+// 6 - poll status
 const status = await client.verify.sessionStatus(session_id);
 console.log(status.status); // "completed"
 ```
@@ -106,7 +106,7 @@ function handle(event: WebhookEvent) {
 
 | Option | Description | Default |
 |---|---|---|
-| `apiKey` | Your AfriVerify API key (required) | — |
+| `apiKey` | Your AfriVerify API key (required) | - |
 | `baseUrl` | Override the API base URL | `https://api.afriverify.sankofaapp.com/v1` |
 | `timeout` | Request timeout in milliseconds | `30000` |
 

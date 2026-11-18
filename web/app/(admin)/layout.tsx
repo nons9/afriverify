@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { getAdminSession, clearAdminSession, AdminUser } from '@/lib/admin-auth';
 import { AfriVerifyMark } from '@/components/logo';
+import { Copyright, CopyrightBar } from '@/components/copyright';
 
 const nav = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -148,6 +149,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         <main className="flex-1 overflow-auto">{children}</main>
+        <CopyrightBar />
       </div>
     </div>
   );

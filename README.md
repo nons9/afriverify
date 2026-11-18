@@ -1,6 +1,6 @@
 # AfriVerify
 
-Africa's identity infrastructure layer. One verified African identity — portable across every platform.
+Africa's identity infrastructure layer. One verified African identity - portable across every platform.
 
 ## Phase 1 MVP
 
@@ -11,12 +11,12 @@ This repo contains the production-ready API backend for Phase 1:
 - Government ID verification via Smile Identity (54 African countries)
 - Biometric face match (Smile Identity KYC)
 - **Live face scanning** with our own liveness engine (`liveness-service/`): random active challenges, passive spoof checks, recorded evidence, 1:1 face match. Smile/Dojah/Onfido stay as a second opinion for borderline scans.
-- Verified Identity Token (VIT) — RS256-signed JWT, portable across platforms
+- Verified Identity Token (VIT) - RS256-signed JWT, portable across platforms
 - Platform connection and identity check endpoints
-- Trust Score engine — real-time, cross-platform
+- Trust Score engine - real-time, cross-platform
 - Fraud intelligence flagging
 - API key management with per-key rate limiting
-- Zero raw ID data in DB — all hashed (SHA-256)
+- Zero raw ID data in DB - all hashed (SHA-256)
 - Append-only audit trail (verification_events, trust_events, billing_events)
 
 ## Stack
@@ -81,7 +81,7 @@ Content-Type: application/json
 
 ## VIT structure
 
-The Verified Identity Token is a signed RS256 JWT. Platforms receive only the VIT — never raw ID data, never face embeddings.
+The Verified Identity Token is a signed RS256 JWT. Platforms receive only the VIT - never raw ID data, never face embeddings.
 
 ```json
 {
@@ -106,8 +106,8 @@ The Verified Identity Token is a signed RS256 JWT. Platforms receive only the VI
 
 ## Security rules in force from day one
 
-- Raw ID numbers never stored — SHA-256 hashed only
-- API keys never stored plain — SHA-256 hashed, shown once at creation
+- Raw ID numbers never stored - SHA-256 hashed only
+- API keys never stored plain - SHA-256 hashed, shown once at creation
 - Face embeddings encrypted at rest (AES-256-GCM), never returned by any API
 - verification_events and trust_events tables are append-only (PostgreSQL RULE enforcement)
 - Sessions expire in 15 minutes; OTPs in 5 minutes with max 3 attempts

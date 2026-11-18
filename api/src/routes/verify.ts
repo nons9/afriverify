@@ -449,7 +449,7 @@ router.post(
       );
 
       if (result.pending && result.check_id) {
-        // Onfido submitted the check asynchronously — store check_id to resolve via webhook.
+        // Onfido submitted the check asynchronously - store check_id to resolve via webhook.
         smileCode = 'pending';
         providerUsed = result.provider;
         await query(
@@ -860,12 +860,12 @@ async function runBiometricProcessing(
     });
 
     if (result.pending && result.check_id) {
-      // Onfido submitted the biometric check asynchronously — resolve via webhook.
+      // Onfido submitted the biometric check asynchronously - resolve via webhook.
       await query(
         `UPDATE verified_identities SET metadata = metadata || $1::jsonb WHERE id = $2`,
         [JSON.stringify({ onfido_biometric_check_id: result.check_id, onfido_biometric_pending: true }), identityId]
       );
-      // Treat as Level 1 for now — webhook will upgrade to Level 2 when check completes.
+      // Treat as Level 1 for now - webhook will upgrade to Level 2 when check completes.
       await completeLevel1(session.id, identityId, req);
     } else if (result.success && (result.face_match_confidence ?? 0) >= 70) {
       await completeLevel2(session.id, identityId, result.face_match_confidence ?? 90, req);

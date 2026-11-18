@@ -10,7 +10,7 @@ from typing import TypedDict
 
 class InitiateParams(TypedDict, total=False):
     reference: str          # required
-    country: str            # required — ISO 3166-1 alpha-2
+    country: str            # required - ISO 3166-1 alpha-2
     redirect_url: str
     metadata: dict[str, Any]
 

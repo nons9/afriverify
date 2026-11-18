@@ -11,7 +11,7 @@ class Webhooks
     /**
      * Verify an incoming webhook and return the parsed event array.
      *
-     * @param  string $payload   Raw request body — do NOT json_decode first
+     * @param  string $payload   Raw request body - do NOT json_decode first
      * @param  string $signature Value of the X-VerifyAfrica-Signature header
      * @param  string $secret    Your webhook signing secret
      * @return array<string, mixed>
@@ -34,7 +34,7 @@ class Webhooks
     {
         $parts = explode('=', $signature, 2);
         if (count($parts) !== 2 || $parts[0] !== 'sha512') {
-            throw new WebhookSignatureException("Unexpected signature format — expected 'sha512=<hex>'");
+            throw new WebhookSignatureException("Unexpected signature format - expected 'sha512=<hex>'");
         }
 
         $expected = hash_hmac('sha512', $payload, $secret);

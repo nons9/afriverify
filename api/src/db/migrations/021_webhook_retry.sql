@@ -1,6 +1,6 @@
 -- Add correlation_id to group all retry attempts for a single webhook event,
 -- and is_final_attempt to quickly identify whether retries are exhausted.
--- APPEND-ONLY table — only adding columns, no data mutations.
+-- APPEND-ONLY table - only adding columns, no data mutations.
 
 ALTER TABLE platform_webhook_deliveries
   ADD COLUMN IF NOT EXISTS correlation_id   UUID,

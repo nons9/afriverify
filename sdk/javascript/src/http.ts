@@ -36,7 +36,7 @@ export class HttpClient {
 
   async postForm<T>(path: string, form: FormData): Promise<T> {
     const url = this.buildUrl(path);
-    // Don't set Content-Type — let the runtime set it with the boundary
+    // Don't set Content-Type - let the runtime set it with the boundary
     const res = await this.request(url, { method: 'POST', body: form });
     return this.parse<T>(res);
   }

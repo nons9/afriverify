@@ -1,6 +1,6 @@
 # @afriverify/mcp
 
-AfriVerify MCP server — identity verification tools for AI agents.
+AfriVerify MCP server - identity verification tools for AI agents.
 
 Connect Claude, GPT, Gemini, and any MCP-compatible agent to AfriVerify's
 identity, trust, and VIT verification APIs.
@@ -13,7 +13,7 @@ identity, trust, and VIT verification APIs.
 | `afriverify_verify_send_otp` | Send a 6-digit OTP via SMS or email |
 | `afriverify_verify_confirm_otp` | Confirm the OTP the user entered |
 | `afriverify_verify_status` | Poll a session for completion |
-| `afriverify_vit_verify` | Validate a Verified Identity Token (VIT) — no PII returned |
+| `afriverify_vit_verify` | Validate a Verified Identity Token (VIT) - no PII returned |
 | `afriverify_identity_check` | Check if a phone number has a verified AfriVerify identity |
 | `afriverify_trust_score` | Get trust score and history for an identity |
 | `afriverify_trust_update` | Post a trust event (transaction, fraud signal, etc.) |

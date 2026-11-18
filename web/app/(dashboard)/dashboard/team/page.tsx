@@ -211,7 +211,7 @@ export default function TeamPage() {
           { label: 'Roles', value: ROLE_ORDER.length },
         ].map(({ label, value }) => (
           <div key={label}>
-            <div className="text-2xl font-bold text-white">{loading ? '—' : value}</div>
+            <div className="text-2xl font-bold text-white">{loading ? '-' : value}</div>
             <div className="text-xs text-slate-500 mt-0.5">{label}</div>
           </div>
         ))}
@@ -287,7 +287,7 @@ export default function TeamPage() {
         ) : members.length === 0 ? (
           <div className="text-center py-8">
             <Users className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-            <p className="text-sm text-slate-500">No members yet — invite someone to get started</p>
+            <p className="text-sm text-slate-500">No members yet. Invite someone to get started</p>
           </div>
         ) : (
           <div className="divide-y divide-white/[0.06]">

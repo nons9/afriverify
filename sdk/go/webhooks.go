@@ -14,7 +14,7 @@ type WebhooksService struct{}
 
 // ConstructEvent verifies the HMAC-SHA512 signature and returns the parsed event.
 //
-//   - payload   is the raw request body — do NOT json.Unmarshal it first.
+//   - payload   is the raw request body - do NOT json.Unmarshal it first.
 //   - signature is the X-VerifyAfrica-Signature header value.
 //   - secret    is your webhook signing secret from the AfriVerify dashboard.
 //

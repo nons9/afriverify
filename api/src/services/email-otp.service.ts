@@ -55,7 +55,7 @@ function renderOtpEmail(code: string): string {
       </tr>
       <tr>
         <td style="padding:20px 4px 0;text-align:center;font-family:Arial,Helvetica,sans-serif;color:#5a5a5a;font-size:11px;">
-          AfriVerify &middot; afriverify.sankofaapp.com
+          AfriVerify &middot; afriverify.sankofaapp.com<br />&copy; ${new Date().getFullYear()} Sankofa Network. All rights reserved.
         </td>
       </tr>
     </table>

@@ -8,7 +8,7 @@ info:
 
     ## Authentication
     All API endpoints require an `Authorization: Bearer <api_key>` header.
-    Use a **sandbox** API key (prefix `avk_test_`) for testing — no real KYC
+    Use a **sandbox** API key (prefix `avk_test_`) for testing - no real KYC
     calls are made and no charges incurred.
 
     ## Base URL
@@ -31,11 +31,11 @@ tags:
   - name: Verify
     description: Step-by-step identity verification flow
   - name: VIT
-    description: Verified Identity Token — portable proof of verification
+    description: Verified Identity Token - portable proof of verification
   - name: Identity
     description: Look up an identity's verification status and signals
   - name: Trust
-    description: Decentralised trust score — updated by cross-platform behaviour
+    description: Decentralised trust score - updated by cross-platform behaviour
   - name: Flows
     description: Configurable verification flows (no-code orchestration)
   - name: Sandbox
@@ -80,7 +80,7 @@ components:
       type: object
       description: >
         Sanitised identity signals returned when a VIT is verified.
-        No raw PII (name, ID number, DOB) is included — only signals.
+        No raw PII (name, ID number, DOB) is included - only signals.
       properties:
         identity_id:
           type: string
@@ -196,7 +196,7 @@ paths:
                 platform_user_id:
                   type: string
                   maxLength: 255
-                  description: Your internal user ID — echoed back in webhooks
+                  description: Your internal user ID - echoed back in webhooks
                 flow_id:
                   type: string
                   format: uuid
@@ -296,7 +296,7 @@ paths:
         Validates the 6-digit code. On success, returns the identity ID and a VIT
         if the user is returning (already verified). New users are directed to `id_upload`.
 
-        Max 3 attempts per session — after which the session is failed.
+        Max 3 attempts per session - after which the session is failed.
       requestBody:
         required: true
         content:
@@ -365,7 +365,7 @@ paths:
         verification via Smile Identity / Dojah / Onfido.
 
         The image is pre-screened by **OrbitShield DeepScan** before it reaches
-        the external KYC provider — AI-generated documents, screen replays, and
+        the external KYC provider - AI-generated documents, screen replays, and
         photos-of-photos are blocked at this layer.
 
         Accepts `multipart/form-data`.
@@ -440,7 +440,7 @@ paths:
       summary: Submit selfie for biometric matching
       description: |
         Uploads a selfie and runs biometric face-match against the previously uploaded ID photo.
-        Processing is asynchronous — poll `GET /verify/status/{session_token}` until `status` is
+        Processing is asynchronous - poll `GET /verify/status/{session_token}` until `status` is
         `complete` or `failed`.
 
         The selfie is pre-screened by **OrbitShield DeepScan** (GAN/diffusion detection,
@@ -668,7 +668,7 @@ paths:
         Accepts a VIT JWT presented by a user, validates its signature and
         revocation status, and returns sanitised identity claims.
 
-        Your application never sees raw PII — only verification signals and
+        Your application never sees raw PII - only verification signals and
         aggregate scores. This is the correct endpoint for "accept a returning
         user who already has a VIT" flows.
       requestBody:
@@ -756,7 +756,7 @@ paths:
           description: Stable device fingerprint for fraud graph correlation
       responses:
         '200':
-          description: Identity status (unverified identities also return 200 with `verified: false`)
+          description: "Identity status (unverified identities also return 200 with `verified: false`)"
           content:
             application/json:
               schema:
@@ -848,7 +848,7 @@ paths:
       summary: Post a trust event
       description: |
         Reports a behavioural event for an identity, adjusting their trust score.
-        Events are aggregated across all platforms — this is how AfriVerify builds
+        Events are aggregated across all platforms - this is how AfriVerify builds
         a cross-platform reputation layer.
 
         Common events and their score deltas:
@@ -1032,8 +1032,8 @@ paths:
         Example test credentials:
         | Country | Document | ID | Outcome |
         |---|---|---|---|
-        | NG | NIN | `TEST_NG_PASS_001` | Pass — trust score 0.85 |
-        | NG | NIN | `TEST_NG_FAIL_001` | Fail — name mismatch |
+        | NG | NIN | `TEST_NG_PASS_001` | Pass - trust score 0.85 |
+        | NG | NIN | `TEST_NG_FAIL_001` | Fail - name mismatch |
         | KE | NATIONAL_ID | `TEST_KE_PASS_001` | Pass |
         | GH | PASSPORT | `TEST_GH_PASS_001` | Pass |
         | ZA | NATIONAL_ID | `TEST_ZA_PASS_001` | Pass |

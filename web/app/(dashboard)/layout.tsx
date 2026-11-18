@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { getSession, clearSession, Developer } from '@/lib/auth';
 import { AfriVerifyLogo, AfriVerifyMark } from '@/components/logo';
+import { Copyright, CopyrightBar } from '@/components/copyright';
 
 const nav = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -174,6 +175,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         <main className="flex-1 overflow-auto">{children}</main>
+        <CopyrightBar />
       </div>
     </div>
   );

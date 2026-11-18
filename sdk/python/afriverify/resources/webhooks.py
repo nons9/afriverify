@@ -18,9 +18,9 @@ class WebhooksResource:
         """
         Verify an incoming webhook and return the parsed event dict.
 
-        ``payload``   — the raw request body (do NOT decode/parse first)
-        ``signature`` — value of the ``X-VerifyAfrica-Signature`` header
-        ``secret``    — your webhook signing secret from the AfriVerify dashboard
+        ``payload`` - the raw request body (do NOT decode/parse first)
+        ``signature`` - value of the ``X-VerifyAfrica-Signature`` header
+        ``secret`` - your webhook signing secret from the AfriVerify dashboard
         """
         self.verify_signature(payload, signature, secret)
         body = payload if isinstance(payload, str) else payload.decode("utf-8")
@@ -35,7 +35,7 @@ class WebhooksResource:
 
         parts = signature.split("=", 1)
         if len(parts) != 2 or parts[0] != "sha512":
-            raise WebhookSignatureError("Unexpected signature format — expected 'sha512=<hex>'")
+            raise WebhookSignatureError("Unexpected signature format - expected 'sha512=<hex>'")
 
         received = parts[1]
         expected = hmac.new(secret.encode("utf-8"), payload, hashlib.sha512).hexdigest()

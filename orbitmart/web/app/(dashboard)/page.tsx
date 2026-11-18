@@ -21,17 +21,17 @@ export default function DashboardPage() {
   }, []);
 
   const stats = [
-    { label: 'Total Sales', value: seller ? String(seller.total_sales)         : '—', icon: '🛒' },
-    { label: 'Revenue',     value: seller ? KOBO(seller.total_revenue)          : '—', icon: '💰' },
-    { label: 'Rating',      value: seller ? `${Number(seller.rating).toFixed(1)} ⭐` : '—', icon: '⭐' },
-    { label: 'KYC Level',   value: seller ? `Level ${seller.kyc_level}`         : '—', icon: '✅' },
+    { label: 'Total Sales', value: seller ? String(seller.total_sales)         : '-', icon: '🛒' },
+    { label: 'Revenue',     value: seller ? KOBO(seller.total_revenue)          : '-', icon: '💰' },
+    { label: 'Rating',      value: seller ? `${Number(seller.rating).toFixed(1)} ⭐` : '-', icon: '⭐' },
+    { label: 'KYC Level',   value: seller ? `Level ${seller.kyc_level}`         : '-', icon: '✅' },
   ];
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
-          {loading ? 'Loading...' : seller ? `${seller.shop_name} — Dashboard` : 'Dashboard'}
+          {loading ? 'Loading...' : seller ? `${seller.shop_name} - Dashboard` : 'Dashboard'}
         </h1>
         {seller?.is_verified && <span className="text-sm text-teal-600 font-medium">✓ Verified Seller</span>}
       </div>

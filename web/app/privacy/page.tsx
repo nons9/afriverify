@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { AfriVerifyLogo } from '@/components/logo';
+import { Copyright } from '@/components/copyright';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy - AfriVerify',
@@ -291,7 +292,7 @@ export default function PrivacyPage() {
 
       <footer className="border-t border-white/10 py-8 px-6 mt-16">
         <div className="max-w-4xl mx-auto flex items-center justify-between text-xs text-slate-600">
-          <span>{COMPANY} &copy; {new Date().getFullYear()}</span>
+          <Copyright />
           <div className="flex gap-6">
             <Link href="/privacy" className="hover:text-slate-400 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-slate-400 transition-colors">Terms</Link>

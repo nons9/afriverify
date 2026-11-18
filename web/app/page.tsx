@@ -11,6 +11,7 @@ import {
   Code2,
 } from 'lucide-react';
 import { AfriVerifyLogo, AfriVerifyMark } from '@/components/logo';
+import { Copyright } from '@/components/copyright';
 
 const features = [
   {
@@ -316,6 +317,9 @@ export default function LandingPage() {
             <Link href="/my-identity/login" className="hover:text-white transition-colors">Manage your identity</Link>
             <a href="mailto:hello@sankofaapp.com" className="hover:text-white transition-colors">Contact</a>
           </div>
+        </div>
+        <div className="max-w-6xl mx-auto mt-6 text-center md:text-left text-xs text-slate-500">
+          <Copyright />
         </div>
       </footer>
     </div>

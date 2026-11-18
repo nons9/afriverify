@@ -8,7 +8,7 @@ export const vitToolDefs = [
       'Validate a Verified Identity Token (VIT) presented by a user. ' +
       'A VIT is a signed JWT a user received after completing AfriVerify verification. ' +
       'They present it to your service so you can trust their identity without re-verifying. ' +
-      'Returns verification signals and scores — NO raw PII (no name, ID number, or DOB). ' +
+      'Returns verification signals and scores - NO raw PII (no name, ID number, or DOB). ' +
       'Use this when a user claims they are already AfriVerify-verified.',
     inputSchema: {
       type: 'object',

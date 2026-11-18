@@ -211,7 +211,7 @@ export const onfidoProvider: IdentityProvider = {
       const applicantId = await createApplicant(params.first_name, params.last_name, params.dob);
       await uploadDocument(applicantId, docType, params.id_photo_buffer, params.country);
       const checkId = await requestCheck(applicantId, ['document']);
-      // Return immediately — Onfido resolves asynchronously via webhook (POST /webhooks/onfido).
+      // Return immediately - Onfido resolves asynchronously via webhook (POST /webhooks/onfido).
       return {
         success: false,
         result_code: 'PENDING',
@@ -247,7 +247,7 @@ export const onfidoProvider: IdentityProvider = {
 
       await uploadLivePhoto(applicantId, params.selfie_buffer);
       const checkId = await requestCheck(applicantId, reports);
-      // Return immediately — Onfido resolves asynchronously via webhook (POST /webhooks/onfido).
+      // Return immediately - Onfido resolves asynchronously via webhook (POST /webhooks/onfido).
       return {
         success: false,
         result_code: 'PENDING',

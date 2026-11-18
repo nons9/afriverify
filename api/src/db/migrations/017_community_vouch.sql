@@ -1,5 +1,5 @@
 -- Migration 017: community_vouch
--- OrbitShield: CommunityVouch — African Community-Based Identity Verification
+-- OrbitShield: CommunityVouch - African Community-Based Identity Verification
 -- Users with Trust Score >= 600 vouch for people they personally know.
 -- Three vouches from three unique vouchers = Level 2 upgrade (max via vouch path).
 -- Vouchers put their own Trust Score at stake: -75 if vouched person commits fraud.
