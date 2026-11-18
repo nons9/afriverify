@@ -34,7 +34,9 @@ export default function RedeemVoucherPage() {
     setStep('checking');
     setErrorMsg('');
     try {
-      const res = await fetch(`/api/voucher/check?code=${encodeURIComponent(trimmed)}`);
+      const res = await fetch(`/api/voucher/check?code=${encodeURIComponent(trimmed)}`, {
+        headers: { Authorization: `Bearer ${session?.token ?? ''}` },
+      });
       const data = await res.json() as VoucherInfo & { error?: string };
       if (!res.ok) {
         setErrorMsg(data.error ?? 'Failed to validate voucher');
@@ -64,8 +66,8 @@ export default function RedeemVoucherPage() {
     try {
       const res = await fetch('/api/voucher/redeem', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: code.trim().toUpperCase(), redeemedBy: session.developer.id }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+        body: JSON.stringify({ code: code.trim().toUpperCase() }),   // the account is taken from the login on the server
       });
       const data = await res.json() as { ok?: boolean; error?: string };
       if (!res.ok) {

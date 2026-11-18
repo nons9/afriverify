@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { withinLimit } from '../utils/windowed-limit';
 import { randomBytes, createHmac } from 'crypto';
 import { z } from 'zod';
 import { authenticate } from '../middleware/auth';
@@ -74,6 +75,7 @@ router.get('/keys', sessionAuth, async (req: Request, res: Response): Promise<vo
     created_at: string;
     webhook_url: string | null;
     ussd_service_code: string | null;
+    ussd_secret_set: boolean;
     scope: string;
     intent: string | null;
     allowed_flows: string[];
@@ -83,7 +85,7 @@ router.get('/keys', sessionAuth, async (req: Request, res: Response): Promise<vo
   }>(
     `SELECT k.id, k.platform_name, k.api_key_prefix, k.environment, k.tier, k.monthly_limit,
             k.verifications_this_month, k.last_used, k.is_active, k.created_at,
-            k.webhook_url, k.ussd_service_code, k.scope, k.intent, k.allowed_flows,
+            k.webhook_url, k.ussd_service_code, (k.ussd_callback_secret_hash IS NOT NULL) AS ussd_secret_set, k.scope, k.intent, k.allowed_flows,
             k.parent_key_id, k.expires_at,
             COUNT(s.id)::int AS subkey_count
      FROM api_keys k
@@ -98,6 +100,24 @@ router.get('/keys', sessionAuth, async (req: Request, res: Response): Promise<vo
 });
 
 // DELETE /developer/keys/:id - revoke a key (session auth)
+// POST /v1/developer/voucher-gate - used by the website's voucher routes (they proxy to an internal wallet service
+// with a server-side secret). It proves the caller is a logged-in developer, rate-limits them per account, and
+// returns the AUTHENTICATED account id so the website never trusts an id sent by the browser.
+const voucherGateSchema = z.object({ action: z.enum(['check', 'redeem']) });
+router.post('/voucher-gate', sessionAuth, validateBody(voucherGateSchema), async (req: Request, res: Response): Promise<void> => {
+  const { action } = req.body as { action: 'check' | 'redeem' };
+  const id = req.developer!.id;
+  // checking tells a caller whether a code is valid, so it is limited too (it is a code-guessing oracle)
+  const [perMinute, perHour] = action === 'redeem' ? [5, 20] : [15, 60];
+  const ok = (await withinLimit(`voucher:${action}:m`, id, perMinute, 60)) && (await withinLimit(`voucher:${action}:h`, id, perHour, 3600));
+  if (!ok) {
+    res.setHeader('Retry-After', '60');
+    res.status(429).json({ error: 'rate_limited', message: 'Too many voucher attempts. Please wait a minute and try again.' });
+    return;
+  }
+  res.json({ developer_id: id });
+});
+
 router.delete('/keys/:id', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
 
@@ -311,6 +331,9 @@ router.patch('/keys/:id/webhook', sessionAuth, validateBody(webhookUrlSchema), a
   res.json({ success: true });
 });
 
+const PUBLIC_API_URL = (process.env.PUBLIC_API_URL ?? 'https://api.afriverify.sankofaapp.com').replace(/\/$/, '');
+const ussdCallbackUrl = (secret: string) => `${PUBLIC_API_URL}/v1/ussd/callback?key=${secret}`;
+
 // PATCH /developer/keys/:id/ussd-code: set or clear the USSD short code this key answers on (session auth)
 const ussdCodeSchema = z.object({
   ussd_service_code: z.string().regex(/^\*\d+(\*\d+)*#$/, 'Must look like a USSD code, e.g. *384*1234#').nullable()
@@ -321,11 +344,14 @@ router.patch('/keys/:id/ussd-code', sessionAuth, validateBody(ussdCodeSchema), a
   const { ussd_service_code } = req.body as z.infer<typeof ussdCodeSchema>;
 
   try {
-    const result = await query<{ id: string }>(
-      `UPDATE api_keys SET ussd_service_code = $1
+    // Setting a code also creates its callback secret (shown ONCE; only a hash is stored). Clearing the code clears it.
+    const secret = ussd_service_code ? randomBytes(24).toString('hex') : null;
+    const result = await query<{ id: string; had_secret: boolean }>(
+      `UPDATE api_keys SET ussd_service_code = $1::varchar(20),
+              ussd_callback_secret_hash = CASE WHEN $1::varchar(20) IS NULL THEN NULL ELSE COALESCE(ussd_callback_secret_hash, $4::varchar(64)) END
        WHERE id = $2 AND platform_email = $3 AND is_active = true
-       RETURNING id`,
-      [ussd_service_code ?? null, id, req.developer!.email]
+       RETURNING id, (ussd_callback_secret_hash = $4::varchar(64)) AS had_secret`,
+      [ussd_service_code ?? null, id, req.developer!.email, secret ? sha256(secret) : null]
     );
 
     if (result.length === 0) {
@@ -334,7 +360,8 @@ router.patch('/keys/:id/ussd-code', sessionAuth, validateBody(ussdCodeSchema), a
     }
 
     logger.info('USSD service code updated', { id });
-    res.json({ success: true });
+    // had_secret is true only when THIS call stored the new secret (an existing secret is left alone)
+    res.json({ success: true, ...(secret && result[0].had_secret ? { callback_secret: secret, callback_url: ussdCallbackUrl(secret) } : {}) });
   } catch (err) {
     // Unique constraint: another key already claims this code
     if ((err as { code?: string }).code === '23505') {
@@ -343,6 +370,24 @@ router.patch('/keys/:id/ussd-code', sessionAuth, validateBody(ussdCodeSchema), a
     }
     throw err;
   }
+});
+
+// POST /developer/keys/:id/ussd-secret - generate or rotate the USSD callback secret (session auth).
+// The old URL stops working immediately; update the callback URL at your aggregator with the new one.
+router.post('/keys/:id/ussd-secret', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const secret = randomBytes(24).toString('hex');
+  const result = await query<{ id: string }>(
+    `UPDATE api_keys SET ussd_callback_secret_hash = $1
+     WHERE id = $2 AND platform_email = $3 AND is_active = true AND ussd_service_code IS NOT NULL
+     RETURNING id`,
+    [sha256(secret), req.params.id, req.developer!.email]
+  );
+  if (result.length === 0) {
+    res.status(404).json({ error: 'not_found', message: 'Key not found, or it has no USSD short code yet' });
+    return;
+  }
+  logger.info('USSD callback secret rotated', { id: req.params.id });
+  res.json({ callback_secret: secret, callback_url: ussdCallbackUrl(secret) });
 });
 
 // POST /developer/keys/:id/webhook/secret - regenerate signing secret (session auth)

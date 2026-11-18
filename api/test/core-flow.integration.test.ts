@@ -41,6 +41,7 @@ before(async () => {
   process.env.AFRICASTALKING_API_KEY = 'k'; process.env.AFRICASTALKING_USERNAME = 'u';
   process.env.FLUTTERWAVE_SECRET_HASH = 'whsec_test_hash';
   process.env.IDENTITY_SESSION_JWT_SECRET = 'portal-test-secret';
+  process.env.SESSION_JWT_SECRET = 'session-test-secret';
 
   const code = await new Promise<number>((resolve) => {
     const p = spawn(process.execPath, ['--require', 'ts-node/register/transpile-only', path.join(__dirname, '..', 'src', 'db', 'migrate.ts')], { env: process.env, stdio: 'ignore' });
@@ -73,12 +74,17 @@ before(async () => {
   const hostedRouter = (await import('../src/routes/hosted')).default;
   const billingRouter = (await import('../src/routes/billing')).default;
   const portalRouter = (await import('../src/routes/identity-portal')).default;
+  const developerRouter = (await import('../src/routes/developer')).default;
+  const ussdRouter = (await import('../src/routes/ussd')).default;
   const app = express();
   app.use(express.json());
+  app.use(express.urlencoded({ extended: false }));
   app.use('/v1/verify', verifyRouter);
   app.use('/v1/hosted', hostedRouter);
   app.use('/v1/developer/billing', billingRouter);
   app.use('/v1/identity-portal', portalRouter);
+  app.use('/v1/developer', developerRouter);
+  app.use('/v1/ussd', ussdRouter);
   app.use((err: Error, _req: any, res: any, _next: any) => {
     const c = toClientError(err);
     if (c) { res.status(c.status).json({ error: c.error }); return; }
@@ -206,6 +212,140 @@ test('portal: the response is identical for an unregistered phone, even over the
   const bodies = [] as string[];
   for (let i = 0; i < 8; i++) { const r = await api('/v1/identity-portal/login/otp/send', { phone: ghost }); bodies.push(`${r.s}:${JSON.stringify(r.j)}`); }
   assert.equal(new Set(bodies).size, 1); assert.equal(lastSms.has(ghost), false);
+});
+
+// ─── voucher gate (the website's wallet-credit routes depend on it) ───────────────────────────────
+
+test('voucher gate: no login is refused; a login returns the account id the login proves', { skip, timeout: 60_000 }, async () => {
+  const jwt = (await import('jsonwebtoken')).default;
+  const token = jwt.sign({ sub: 'dev-' + randomBytes(3).toString('hex'), email: 'v@x.test', company: 'V' }, 'session-test-secret', { expiresIn: '1h' });
+  assert.equal((await api('/v1/developer/voucher-gate', { action: 'check' })).s, 401);
+  assert.equal((await api('/v1/developer/voucher-gate', { action: 'check' }, { authorization: 'Bearer junk' })).s, 401);
+  assert.equal((await api('/v1/developer/voucher-gate', { action: 'check' }, { authorization: `Bearer av_live_x` })).s, 401, 'an API key is not a login');
+  assert.equal((await api('/v1/developer/voucher-gate', { action: 'steal' }, { authorization: `Bearer ${token}` })).s, 400);
+  const ok = await api('/v1/developer/voucher-gate', { action: 'check' }, { authorization: `Bearer ${token}` });
+  assert.equal(ok.s, 200); assert.equal(ok.j.developer_id, (jwt.decode(token) as any).sub);
+});
+
+test('voucher gate: redeeming is limited to 5 a minute per account, checking to 15, and accounts do not share limits', { skip, timeout: 60_000 }, async () => {
+  const jwt = (await import('jsonwebtoken')).default;
+  const mk = () => jwt.sign({ sub: 'dev-' + randomBytes(4).toString('hex'), email: 'v@x.test', company: 'V' }, 'session-test-secret', { expiresIn: '1h' });
+  const a = mk(), b = mk();
+  const redeem = [] as number[];
+  for (let i = 0; i < 8; i++) redeem.push((await api('/v1/developer/voucher-gate', { action: 'redeem' }, { authorization: `Bearer ${a}` })).s);
+  assert.deepEqual(redeem, [200, 200, 200, 200, 200, 429, 429, 429]);
+  const check = [] as number[];
+  for (let i = 0; i < 17; i++) check.push((await api('/v1/developer/voucher-gate', { action: 'check' }, { authorization: `Bearer ${b}` })).s);
+  assert.equal(check.filter((x) => x === 200).length, 15); assert.equal(check.filter((x) => x === 429).length, 2);
+  assert.equal((await api('/v1/developer/voucher-gate', { action: 'check' }, { authorization: `Bearer ${mk()}` })).s, 200, 'another account is unaffected');
+  const burst = await Promise.all(Array.from({ length: 30 }, () => api('/v1/developer/voucher-gate', { action: 'redeem' }, { authorization: `Bearer ${mk()}` })));
+  assert.ok(burst.every((r) => r.s === 200), 'separate accounts in parallel are all fine');
+});
+
+test('voucher gate: parallel attempts from one account cannot exceed the limit', { skip, timeout: 60_000 }, async () => {
+  const jwt = (await import('jsonwebtoken')).default;
+  const t = jwt.sign({ sub: 'dev-par-' + randomBytes(3).toString('hex'), email: 'v@x.test', company: 'V' }, 'session-test-secret', { expiresIn: '1h' });
+  const rs = await Promise.all(Array.from({ length: 30 }, () => api('/v1/developer/voucher-gate', { action: 'redeem' }, { authorization: `Bearer ${t}` })));
+  assert.equal(rs.filter((r) => r.s === 200).length, 5, 'exactly 5 get through, however they arrive');
+});
+
+// ─── USSD: a session proves SIM possession ONLY if the request really comes from the carrier aggregator ──────
+// Each API key has its OWN callback secret (shown once, stored as a hash), so one customer's secret cannot be used
+// against another customer's short code.
+
+const CODE_A = '*384*555#', CODE_B = '*384*556#';
+const ussd = (code: string, phone: string, text: string, qs = '', headers: Record<string, string> = {}) =>
+  fetch(`${base}/v1/ussd/callback${qs}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
+    body: new URLSearchParams({ sessionId: 's1', serviceCode: code, phoneNumber: phone, text }) }).then(async (r) => ({ s: r.status, t: await r.text() }));
+const identityFor = async (phone: string) => (await db.query(`SELECT verification_level FROM verified_identities WHERE phone = $1`, [phone])).rows[0];
+const ownerToken = async () => (await import('jsonwebtoken')).default.sign({ sub: 'owner', email: 'core@flow.test', company: 'CoreFlow' }, 'session-test-secret', { expiresIn: '1h' });
+const patchCode = async (id: string, code: string | null) =>
+  fetch(`${base}/v1/developer/keys/${id}/ussd-code`, { method: 'PATCH', headers: { 'content-type': 'application/json', authorization: `Bearer ${await ownerToken()}` }, body: JSON.stringify({ ussd_service_code: code }) }).then(async (r) => ({ s: r.status, j: await r.json() as any }));
+const rotate = async (id: string) =>
+  fetch(`${base}/v1/developer/keys/${id}/ussd-secret`, { method: 'POST', headers: { authorization: `Bearer ${await ownerToken()}` } }).then(async (r) => ({ s: r.status, j: await r.json() as any }));
+const secretOf = (url: string) => new URL(url).searchParams.get('key')!;
+let keyB = '';
+async function ensureKeyB() {
+  if (keyB) return keyB;
+  const r = await db.query(`INSERT INTO api_keys (platform_name, platform_email, api_key_hash, api_key_prefix, permissions, tier, monthly_limit)
+    VALUES ('CoreFlowB', 'core@flow.test', $1, 'av_live_coreb', '["verify"]', 'free', 100000) RETURNING id`, [sha('b-' + KEY)]);
+  keyB = r.rows[0].id; return keyB;
+}
+
+test('ussd: a key with a short code but NO secret (every existing setup) refuses callbacks: forged requests verify nothing', { skip, timeout: 60_000 }, async () => {
+  await db.query(`UPDATE api_keys SET ussd_service_code = $1, ussd_callback_secret_hash = NULL WHERE id = $2`, [CODE_A, keyId]);
+  const victim = newPhone();
+  const before = (await db.query(`SELECT verifications_this_month AS n FROM api_keys WHERE id = $1`, [keyId])).rows[0].n;
+  for (const qs of ['', '?key=guess', '?key=']) assert.equal((await ussd(CODE_A, victim, '1', qs)).s, 401);
+  assert.equal(await identityFor(victim), undefined, 'no identity may be created for a number nobody proved they hold');
+  assert.equal((await db.query(`SELECT verifications_this_month AS n FROM api_keys WHERE id = $1`, [keyId])).rows[0].n, before, 'and no customer quota may be burned');
+});
+
+test('ussd: the owner gets the secret ONCE; with it callbacks work (query or header); wrong or missing is refused', { skip, timeout: 60_000 }, async () => {
+  await db.query(`UPDATE api_keys SET ussd_service_code = NULL, ussd_callback_secret_hash = NULL WHERE id = $1`, [keyId]);
+  const set = await patchCode(keyId, CODE_A);
+  assert.equal(set.s, 200); assert.match(set.j.callback_url, /\/v1\/ussd\/callback\?key=[0-9a-f]{48}$/);
+  const secret = secretOf(set.j.callback_url);
+  const again = await patchCode(keyId, CODE_A);
+  assert.equal(again.j.callback_secret, undefined, 'the secret is never shown a second time');
+  const stored = (await db.query(`SELECT ussd_callback_secret_hash AS h FROM api_keys WHERE id = $1`, [keyId])).rows[0].h;
+  assert.equal(stored, sha(secret)); assert.notEqual(stored, secret, 'only a hash is stored');
+
+  const p1 = newPhone(), p2 = newPhone();
+  assert.equal((await ussd(CODE_A, p1, '1', '?key=wrong')).s, 401);
+  assert.equal((await ussd(CODE_A, p1, '1', '', { 'x-ussd-secret': 'wrong' })).s, 401);
+  assert.equal(await identityFor(p1), undefined);
+  const ok = await ussd(CODE_A, p1, '1', `?key=${secret}`);
+  assert.equal(ok.s, 200); assert.match(ok.t, /^END /); assert.equal((await identityFor(p1)).verification_level, 1);
+  assert.equal((await ussd(CODE_A, p2, '1', '', { 'x-ussd-secret': secret })).s, 200);
+});
+
+test('ussd: the status check is not an oracle for strangers', { skip, timeout: 60_000 }, async () => {
+  const known = newPhone();
+  await db.query(`INSERT INTO verified_identities (phone, verification_level, trust_level) VALUES ($1, 2, 'rising')`, [known]);
+  const r = await ussd(CODE_A, known, '2');
+  assert.equal(r.s, 401); assert.ok(!/Level|Trust level/i.test(r.t), r.t);
+});
+
+test('ussd: one customer\'s secret cannot be used against another customer\'s short code', { skip, timeout: 60_000 }, async () => {
+  await db.query(`UPDATE api_keys SET ussd_service_code = NULL, ussd_callback_secret_hash = NULL WHERE id = $1`, [keyId]);
+  const a = await patchCode(keyId, CODE_A); const b = await patchCode(await ensureKeyB(), CODE_B);
+  const secretA = secretOf(a.j.callback_url), secretB = secretOf(b.j.callback_url);
+  assert.notEqual(secretA, secretB);
+  const victim = newPhone();
+  assert.equal((await ussd(CODE_A, victim, '1', `?key=${secretB}`)).s, 401, "B's secret must not work on A's code");
+  assert.equal((await ussd(CODE_B, victim, '1', `?key=${secretA}`)).s, 401, "A's secret must not work on B's code");
+  assert.equal(await identityFor(victim), undefined);
+  assert.equal((await ussd(CODE_B, victim, '1', `?key=${secretB}`)).s, 200);
+});
+
+test('ussd: an unknown short code is refused exactly like a wrong secret (nothing to enumerate)', { skip, timeout: 60_000 }, async () => {
+  const p = newPhone();
+  const unknown = await ussd('*384*999#', p, '1', '?key=whatever');
+  const wrong = await ussd(CODE_A, p, '1', '?key=whatever');
+  assert.deepEqual([unknown.s, unknown.t], [wrong.s, wrong.t]);
+});
+
+test('ussd: rotating the secret kills the old URL at once; clearing the code clears the secret', { skip, timeout: 60_000 }, async () => {
+  await db.query(`UPDATE api_keys SET ussd_service_code = NULL, ussd_callback_secret_hash = NULL WHERE id = $1`, [keyId]);
+  const first = secretOf((await patchCode(keyId, CODE_A)).j.callback_url);
+  const rot = await rotate(keyId); assert.equal(rot.s, 200);
+  const second = secretOf(rot.j.callback_url); assert.notEqual(first, second);
+  const p = newPhone();
+  assert.equal((await ussd(CODE_A, p, '1', `?key=${first}`)).s, 401, 'the old secret is dead');
+  assert.equal((await ussd(CODE_A, p, '1', `?key=${second}`)).s, 200);
+  await patchCode(keyId, null);
+  const row = (await db.query(`SELECT ussd_service_code AS c, ussd_callback_secret_hash AS h FROM api_keys WHERE id = $1`, [keyId])).rows[0];
+  assert.deepEqual([row.c, row.h], [null, null]);
+  assert.equal((await rotate(keyId)).s, 404, 'cannot create a secret for a key with no short code');
+});
+
+test('ussd: strangers cannot use up a victim\'s allowance (limits apply only after authentication)', { skip, timeout: 60_000 }, async () => {
+  await db.query(`UPDATE api_keys SET ussd_service_code = NULL, ussd_callback_secret_hash = NULL WHERE id = $1`, [keyId]);
+  const secret = secretOf((await patchCode(keyId, CODE_A)).j.callback_url);
+  const victim = newPhone();
+  await Promise.all(Array.from({ length: 40 }, () => ussd(CODE_A, victim, '1', '?key=forged')));
+  assert.equal((await ussd(CODE_A, victim, '1', `?key=${secret}`)).s, 200, 'the real user is not locked out by forged traffic');
 });
 
 // ─── usage limits ────────────────────────────────────────────────────────────────

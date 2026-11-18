@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { sha256, timingSafeEqualHex } from '../utils/crypto';
 import { query, queryOne } from '../db';
 import { checkBlacklist } from './blacklist.service';
 import { recordUsage } from './billing.service';
@@ -12,12 +13,18 @@ interface ApiKeyRow {
   monthly_limit: number;
 }
 
-export async function resolveApiKeyByServiceCode(serviceCode: string): Promise<ApiKeyRow | null> {
-  return queryOne<ApiKeyRow>(
-    `SELECT id, tier, verifications_this_month, monthly_limit FROM api_keys
+export async function resolveApiKeyByServiceCode(serviceCode: string): Promise<(ApiKeyRow & { ussd_callback_secret_hash: string | null }) | null> {
+  return queryOne<ApiKeyRow & { ussd_callback_secret_hash: string | null }>(
+    `SELECT id, tier, verifications_this_month, monthly_limit, ussd_callback_secret_hash FROM api_keys
      WHERE ussd_service_code = $1 AND is_active = true`,
     [serviceCode]
   );
+}
+
+/** Does the secret in the callback URL match this key's stored hash? Constant time; false if the key has no secret. */
+export function callbackSecretMatches(storedHash: string | null, provided: string): boolean {
+  if (!storedHash || !provided) return false;
+  return timingSafeEqualHex(sha256(provided), storedHash);
 }
 
 const LEVEL_LABELS: Record<number, string> = {
