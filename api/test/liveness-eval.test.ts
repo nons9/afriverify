@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as s3 from '../src/utils/s3';
 import * as db from '../src/db';
 import {
-  wilson, rate, skinGroup, computeMetrics, toCsv, storeCaptureFrames, purgeExpiredEvalFrames, withdrawParticipant, MetricRow,
+  wilson, rate, skinGroup, computeMetrics, computeCoverage, toCsv, storeCaptureFrames, purgeExpiredEvalFrames, withdrawParticipant, MetricRow,
 } from '../src/services/liveness-eval.service';
 
 const near = (a: number, b: number, tol = 0.002) => assert.ok(Math.abs(a - b) <= tol, `${a} not within ${tol} of ${b}`);
@@ -149,4 +149,26 @@ test('withdrawal deletes images and measurements, and never claims success if a 
   (s3 as any).deleteFromS3 = async () => { throw new Error('storage down'); };
   assert.deepEqual(await withdrawParticipant('p1'), { captures: 1, filesDeleted: false });
   assert.equal(ran.length, 0, 'nothing may be deleted or marked withdrawn when files remain');
+});
+
+test('coverage: empty study asks for everything and is not complete', () => {
+  const c = computeCoverage([]);
+  assert.equal(c.complete, false);
+  assert.equal(c.genuine.total.have, 0);
+  assert.ok(c.next_up.length > 0 && c.next_up.length <= 6);
+});
+
+test('coverage: counts skin groups, lightings and devices, and suggests the biggest gap first', () => {
+  const rows: MetricRow[] = [];
+  for (let i = 0; i < 40; i++) rows.push({ label: 'genuine', verdict: 'pass', lighting: 'indoor_bright', skin_tone: 2, device: 'Pixel 7' } as MetricRow);
+  for (let i = 0; i < 3; i++) rows.push({ label: 'genuine', verdict: 'pass', lighting: 'outdoor', skin_tone: 9, device: 'Tecno Spark' } as MetricRow);
+  for (let i = 0; i < 31; i++) rows.push({ label: 'attack', attack_type: 'print_photo', verdict: 'fail', lighting: 'indoor_bright', skin_tone: 2, device: i % 2 ? 'A' : 'B' } as MetricRow);
+  const c = computeCoverage(rows);
+  assert.equal(c.genuine.by_skin_group.light.have, 40);
+  assert.equal(c.genuine.by_skin_group.dark.have, 3);
+  assert.equal(c.genuine.devices.have, 2);
+  assert.equal(c.attacks.print_photo.count.have, 31);
+  assert.equal(c.attacks.print_photo.lightings.have, 1);
+  assert.equal(c.complete, false);
+  assert.ok(c.next_up.every((n, i, a) => i === 0 || a[i - 1].shortfall >= n.shortfall));
 });
