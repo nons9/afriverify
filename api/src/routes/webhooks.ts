@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { query, queryOne } from '../db';
 import { resolveCheck, mapOnfidoResultPublic } from '../services/providers/onfido.provider';
 import logger from '../utils/logger';
+import { verifySvixSignature, recordResendEvent, ResendEvent } from '../services/resend-webhook.service';
 
 const router = Router();
 
@@ -122,6 +123,43 @@ router.post('/onfido', async (req: Request, res: Response): Promise<void> => {
   }
 
   res.sendStatus(200);
+});
+
+// ─── POST /webhooks/resend ───────────────────────────────────────────────────
+// Resend (Svix-signed) delivery events: bounced / complained / failed / delivery_delayed.
+// Set RESEND_WEBHOOK_SECRET to the signing secret (whsec_...) shown when the webhook is created.
+router.post('/resend', async (req: Request, res: Response): Promise<void> => {
+  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  if (!secret) {
+    // Fail closed: an unsigned-accepting endpoint would let anyone forge bounce events.
+    res.status(503).json({ error: 'webhook_not_configured' });
+    return;
+  }
+  const raw = (req as Request & { rawBody?: Buffer }).rawBody;
+  const ok =
+    !!raw &&
+    verifySvixSignature(
+      raw,
+      {
+        id: req.header('svix-id'),
+        timestamp: req.header('svix-timestamp'),
+        signature: req.header('svix-signature'),
+      },
+      secret
+    );
+  if (!ok) {
+    res.status(401).json({ error: 'invalid_signature' });
+    return;
+  }
+
+  try {
+    await recordResendEvent(req.header('svix-id')!, req.body as ResendEvent);
+    res.json({ received: true });
+  } catch (err) {
+    // 5xx makes Resend retry; the unique svix_id keeps the retry idempotent.
+    logger.error('Resend webhook handling failed', { error: (err as Error).message });
+    res.status(500).json({ error: 'processing_failed' });
+  }
 });
 
 export default router;
