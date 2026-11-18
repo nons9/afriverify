@@ -81,13 +81,14 @@ router.post(
   rateLimitVerifyInitiate,
   validateBody(initiateSchema),
   async (req: Request, res: Response): Promise<void> => {
-    const { phone, email, otp_channel, platform_user_id, flow_id, lang } = req.body as {
+    const { phone, email, otp_channel, platform_user_id, flow_id, lang, redirect_url } = req.body as {
       phone: string;
       email?: string;
       otp_channel: 'sms' | 'email';
       platform_user_id?: string;
       flow_id?: string;
       lang: 'en' | 'fr';
+      redirect_url?: string;
     };
     const apiKey = req.apiKey!;
 
@@ -154,8 +155,8 @@ router.post(
 
     await query(
       `INSERT INTO verification_sessions
-         (session_token, phone, email, otp_channel, step, api_key_id, ip_address, device_id, expires_at, platform_user_id, flow_id, lang, liveness_required)
-       VALUES ($1,$2,$3,$4,'phone',$5,$6,$7,$8,$9,$10,$11,$12)`,
+         (session_token, phone, email, otp_channel, step, api_key_id, ip_address, device_id, expires_at, platform_user_id, flow_id, lang, liveness_required, redirect_url)
+       VALUES ($1,$2,$3,$4,'phone',$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
         sessionToken,
         phone,
@@ -169,6 +170,7 @@ router.post(
         resolvedFlowId,
         lang ?? 'en',
         livenessEnabled() && req.body.require_liveness === true,
+        redirect_url ?? null,
       ]
     );
 
