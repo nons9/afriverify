@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { sessionAuth } from '../middleware/sessionAuth';
 import { validateBody } from '../middleware/validate';
 import { query, queryOne } from '../db';
-import { verifyWebhookSignature } from '../services/flutterwave.service';
-import { createSubscriptionCheckout, activateSubscription, isSelfServePlan, PLAN_PRICING, SelfServePlan } from '../services/billing.service';
+import { verifyWebhookSignature, verifyTransactionByReference } from '../services/flutterwave.service';
+import { createSubscriptionCheckout, activateSubscription, isSelfServePlan, checkPayment, PLAN_PRICING, SelfServePlan } from '../services/billing.service';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -301,12 +301,24 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
     if (event.event === 'charge.completed' && event.data.status === 'successful') {
       const meta = event.data.meta ?? {};
       if (meta.type === 'afriverify_subscription' && meta.api_key_id && meta.plan && isSelfServePlan(meta.plan)) {
+        // The webhook body is only a CLAIM. Ask the provider what was really paid, and only activate a plan
+        // that was paid for in full, in the plan's currency. (If the provider cannot be reached this throws,
+        // we answer 500, and the provider retries the webhook later.)
+        const confirmed = await verifyTransactionByReference(event.data.tx_ref);
+        const check = confirmed.reference === event.data.tx_ref
+          ? checkPayment(meta.plan, confirmed)
+          : { ok: false as const, reason: 'provider reference does not match the webhook' };
+        if (!check.ok) {
+          logger.error('Billing webhook: payment does not match the plan, NOT activating', { reference: event.data.tx_ref, plan: meta.plan, reason: check.reason });
+          res.status(200).json({ received: true, activated: false });
+          return;
+        }
         await activateSubscription({
           apiKeyId: meta.api_key_id,
           plan: meta.plan,
           reference: event.data.tx_ref,
-          amountCents: Math.round(event.data.amount * 100),
-          currency: event.data.currency
+          amountCents: Math.round(Number(confirmed.amount) * 100),
+          currency: confirmed.currency
         });
       } else {
         logger.warn('Billing webhook: charge.completed but not an AfriVerify subscription meta, skipping', { meta });

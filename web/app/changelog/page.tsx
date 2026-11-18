@@ -10,6 +10,7 @@ interface Entry { date: string; title: string; tag: 'Security' | 'API' | 'Produc
 
 // Newest first. Only list things that are live in production.
 const ENTRIES: Entry[] = [
+  { date: '2026-11-18', tag: 'Security', title: 'Stronger one-time-code limits and verified payments', body: 'One-time-code attempt limits now hold even against many simultaneous guesses, including on identity-portal login, which also gained a per-phone cap on new codes. Subscription payments are confirmed with the payment provider before a plan is activated, and processed exactly once.' },
   { date: '2026-11-18', tag: 'Trust', title: 'Public pricing, security page, live status and this changelog', body: 'Prices are served by the system that bills you. The status page records its own coverage next to availability. The security page lists what we have and what we do not.' },
   { date: '2026-11-18', tag: 'API', title: 'Idempotency keys, rate-limit headers and a public OpenAPI spec', body: 'Send Idempotency-Key and a retried request returns the original result instead of creating and billing a second verification. Every response carries RateLimit-Limit, RateLimit-Remaining and RateLimit-Reset; a 429 adds Retry-After. The contract is at /v1/openapi.yaml and /v1/openapi.json.' },
   { date: '2026-11-18', tag: 'Security', title: 'Dependency upgrades: no known vulnerabilities', body: 'The website moved to Next.js 15 and the API to current validation and ID libraries; the verification engine to a patched web framework. Builds are now reproducible from committed lockfiles.' },

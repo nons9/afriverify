@@ -4,11 +4,34 @@ import { query, queryOne } from '../db';
 import { sha256, timingSafeEqualHex } from '../utils/crypto';
 import { sendSms } from './otp.service';
 import logger from '../utils/logger';
+import redis from '../redis';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
+const MAX_CODES_PER_PHONE_PER_HOUR = 5;
+
+/**
+ * Each new code carries a fresh set of attempts, so without a cap on CODES an attacker could keep asking for new
+ * ones. Also stops anyone using this endpoint to spam a victim's phone or run up our SMS bill. Counted for EVERY
+ * number (registered or not) and fails closed, so it neither reveals which numbers are registered nor lets a
+ * Redis outage remove the limit.
+ */
+async function underCodeLimit(phone: string): Promise<boolean> {
+  try {
+    const key = `portal:otp:send:${sha256(phone).slice(0, 24)}:${Math.floor(Date.now() / 3_600_000)}`;
+    const n = await redis.incr(key);
+    if (n === 1) await redis.expire(key, 3700);
+    return n <= MAX_CODES_PER_PHONE_PER_HOUR;
+  } catch {
+    return false;
+  }
+}
 
 export async function requestPortalLogin(phone: string): Promise<void> {
+  if (!(await underCodeLimit(phone))) {
+    logger.warn('Identity portal code limit reached for a phone', { phone: phone.slice(-4) });
+    return;     // same outward behaviour as success: the caller is told nothing
+  }
   const identity = await queryOne<{ id: string }>(`SELECT id FROM verified_identities WHERE phone = $1`, [phone]);
   // Don't reveal whether a phone number is a registered identity - always
   // behave the same either way, only actually sending an SMS when it is.
@@ -39,13 +62,18 @@ export async function confirmPortalLogin(
   if (!record || new Date(record.expires_at).getTime() < Date.now()) {
     return { ok: false, error: 'otp_expired' };
   }
-  if (record.attempts >= MAX_OTP_ATTEMPTS) {
+  // Spend an attempt BEFORE comparing, atomically. Check-then-bump let a burst of parallel guesses all see
+  // "0 attempts used": this is a login to a person's verified identity, so the limit must really hold.
+  const spent = await queryOne<{ attempts: number }>(
+    `UPDATE identity_login_otps SET attempts = attempts + 1 WHERE id = $1 AND attempts < $2 RETURNING attempts`,
+    [record.id, MAX_OTP_ATTEMPTS]
+  );
+  if (!spent) {
     return { ok: false, error: 'too_many_attempts' };
   }
 
   const valid = timingSafeEqualHex(sha256(otp), record.otp_hash);
   if (!valid) {
-    await query(`UPDATE identity_login_otps SET attempts = attempts + 1 WHERE id = $1`, [record.id]);
     return { ok: false, error: 'invalid_otp' };
   }
 

@@ -55,6 +55,16 @@ protection, which is why the gates above also live inside the deploy itself and 
 - **Measure cost and delivery:** every send writes one row to `sms_messages` (hash and masked phone only). Example: `SELECT provider, status, count(*) FROM sms_messages WHERE created_at > now() - interval '7 days' GROUP BY 1,2;`
 - **Cheapest option is no SMS:** offer email OTP first where the product allows it.
 
+## Integration tests (trust and money paths)
+`api/test/core-flow.integration.test.ts` exercises one-time codes (API, hosted page, identity portal) and subscription payments
+against a real Postgres and Redis, including bursts of parallel requests. It creates its own throwaway database, runs the real
+migrations, and stubs only the SMS provider and the payment provider's confirmation call. It is skipped unless both are set:
+
+    TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/scratch REDIS_URL=redis://localhost:6379 npm test
+
+(`TEST_DATABASE_URL` points at a Postgres server where the user may create databases; the migration test uses the same
+database as its empty scratch target.)
+
 ## Screen-light challenge (replay defence)
 - Liveness service: `FLASH_MODE` = `off` | `advisory` (default) | `required`; tuning `FLASH_MIN_R`, `FLASH_MAX_P`, `FLASH_MIN_EFFECT`, `FLASH_BG_RATIO_MAX`, `FLASH_FAIL_ACTION` (see `docs/ANTISPOOF.md`).
 - API: `LIVENESS_FLASH=off` stops issuing the colour plan (kill switch). Migration 056 adds `liveness_sessions.flash_plan`.

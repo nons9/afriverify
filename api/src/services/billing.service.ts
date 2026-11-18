@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { query, queryOne } from '../db';
+import { query, queryOne, withTransaction } from '../db';
 import { createCheckout } from './flutterwave.service';
 import { sendUsageAlertEmail, sendOverageInvoiceEmail, sendSubscriptionPastDueEmail, sendPurchaseConfirmationEmail } from './email-billing.service';
 import { generateInvoicePdf } from './pdf-invoice.service';
@@ -89,80 +89,74 @@ export async function activateSubscription(params: {
   reference: string;
   amountCents: number;
   currency: string;
-}): Promise<void> {
-  const alreadyProcessed = await queryOne<{ id: string }>(
-    `SELECT id FROM invoices WHERE payment_tx_ref = $1`,
-    [params.reference]
-  );
-  if (alreadyProcessed) {
-    logger.info('Subscription webhook already processed, skipping', { reference: params.reference });
-    return;
-  }
-
+}): Promise<'activated' | 'duplicate'> {
   const pricing = PLAN_PRICING[params.plan];
   const periodStart = new Date();
   const periodEnd = new Date(periodStart);
   periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-  const existing = await queryOne<{ id: string }>(`SELECT id FROM subscriptions WHERE api_key_id = $1`, [
-    params.apiKeyId
-  ]);
+  // One transaction, serialised per payment reference. Without the lock, duplicate deliveries of the same
+  // payment that arrive together both pass the "already processed?" check and each create an invoice; without the
+  // transaction, a failure half-way leaves a plan upgraded with no invoice (or the reverse).
+  const outcome = await withTransaction(async (client) => {
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`subscription:${params.reference}`]);
 
-  let subscriptionId: string;
-  if (existing) {
-    subscriptionId = existing.id;
-    await query(
-      `UPDATE subscriptions SET
-         plan = $1, status = 'active', payment_provider = 'flutterwave', provider_reference = $2,
-         current_period_start = $3, current_period_end = $4, amount_cents = $5, currency = $6,
-         cancel_at_period_end = false, cancelled_at = NULL, usage_alert_80_sent_at = NULL
-       WHERE id = $7`,
-      [params.plan, params.reference, periodStart, periodEnd, params.amountCents, params.currency, subscriptionId]
-    );
-  } else {
-    const rows = await query<{ id: string }>(
-      `INSERT INTO subscriptions
-         (api_key_id, plan, status, payment_provider, provider_reference,
-          current_period_start, current_period_end, amount_cents, currency)
-       VALUES ($1, $2, 'active', 'flutterwave', $3, $4, $5, $6, $7)
-       RETURNING id`,
-      [params.apiKeyId, params.plan, params.reference, periodStart, periodEnd, params.amountCents, params.currency]
-    );
-    subscriptionId = rows[0].id;
-  }
+    const processed = await client.query(`SELECT id FROM invoices WHERE payment_tx_ref = $1`, [params.reference]);
+    if (processed.rows.length > 0) {
+      logger.info('Subscription webhook already processed, skipping', { reference: params.reference });
+      return 'duplicate' as const;
+    }
 
-  await query(`UPDATE api_keys SET tier = $1, monthly_limit = $2 WHERE id = $3`, [
-    params.plan,
-    pricing.monthlyLimit,
-    params.apiKeyId
-  ]);
+    const existing = await client.query(`SELECT id FROM subscriptions WHERE api_key_id = $1`, [params.apiKeyId]);
+    let subscriptionId: string;
+    if (existing.rows.length > 0) {
+      subscriptionId = existing.rows[0].id;
+      await client.query(
+        `UPDATE subscriptions SET
+           plan = $1, status = 'active', payment_provider = 'flutterwave', provider_reference = $2,
+           current_period_start = $3, current_period_end = $4, amount_cents = $5, currency = $6,
+           cancel_at_period_end = false, cancelled_at = NULL, usage_alert_80_sent_at = NULL
+         WHERE id = $7`,
+        [params.plan, params.reference, periodStart, periodEnd, params.amountCents, params.currency, subscriptionId]
+      );
+    } else {
+      const ins = await client.query(
+        `INSERT INTO subscriptions
+           (api_key_id, plan, status, payment_provider, provider_reference,
+            current_period_start, current_period_end, amount_cents, currency)
+         VALUES ($1, $2, 'active', 'flutterwave', $3, $4, $5, $6, $7)
+         RETURNING id`,
+        [params.apiKeyId, params.plan, params.reference, periodStart, periodEnd, params.amountCents, params.currency]
+      );
+      subscriptionId = ins.rows[0].id;
+    }
 
-  await query(
-    `INSERT INTO invoices
-       (subscription_id, api_key_id, status, amount_cents, currency, verifications_included,
-        total_amount_cents, payment_tx_ref, paid_at, period_start, period_end)
-     VALUES ($1, $2, 'paid', $3, $4, $5, $3, $6, NOW(), $7, $8)`,
-    [
-      subscriptionId,
-      params.apiKeyId,
-      params.amountCents,
-      params.currency,
+    await client.query(`UPDATE api_keys SET tier = $1, monthly_limit = $2 WHERE id = $3`, [
+      params.plan,
       pricing.monthlyLimit,
-      params.reference,
-      periodStart,
-      periodEnd
-    ]
-  );
+      params.apiKeyId
+    ]);
 
-  await query(
-    `INSERT INTO billing_events (api_key_id, event_type, amount_cents, currency, metadata)
-     VALUES ($1, 'subscription_activated', $2, $3, $4)`,
-    [params.apiKeyId, params.amountCents, params.currency, JSON.stringify({ plan: params.plan, reference: params.reference })]
-  );
+    await client.query(
+      `INSERT INTO invoices
+         (subscription_id, api_key_id, status, amount_cents, currency, verifications_included,
+          total_amount_cents, payment_tx_ref, paid_at, period_start, period_end)
+       VALUES ($1, $2, 'paid', $3, $4, $5, $3, $6, NOW(), $7, $8)`,
+      [subscriptionId, params.apiKeyId, params.amountCents, params.currency, pricing.monthlyLimit, params.reference, periodStart, periodEnd]
+    );
+
+    await client.query(
+      `INSERT INTO billing_events (api_key_id, event_type, amount_cents, currency, metadata)
+       VALUES ($1, 'subscription_activated', $2, $3, $4)`,
+      [params.apiKeyId, params.amountCents, params.currency, JSON.stringify({ plan: params.plan, reference: params.reference })]
+    );
+    return 'activated' as const;
+  });
+  if (outcome === 'duplicate') return 'duplicate';
 
   logger.info('Subscription activated', { apiKeyId: params.apiKeyId, plan: params.plan });
 
-  // Send purchase confirmation email with PDF invoice attachment (fire-and-forget).
+  // Send purchase confirmation email with PDF invoice attachment (fire-and-forget, after the payment is safely recorded).
   const keyInfo = await queryOne<{
     platform_name: string;
     platform_email: string;
@@ -199,6 +193,23 @@ export async function activateSubscription(params: {
       .then((pdf) => sendPurchaseConfirmationEmail({ inv: invData, pdfBuffer: pdf }))
       .catch((err) => logger.error('Failed to send purchase confirmation email', { error: (err as Error).message }));
   }
+  return 'activated';
+}
+
+/**
+ * Does what the payment provider says was really paid match the plan being bought? The webhook body is only a
+ * claim; the provider's own record is the truth. Pure so it can be tested without a network.
+ */
+export function checkPayment(
+  plan: SelfServePlan,
+  confirmed: { status: string; amount: number; currency: string },
+): { ok: true } | { ok: false; reason: string } {
+  const price = PLAN_PRICING[plan];
+  if (String(confirmed.status).toLowerCase() !== 'successful') return { ok: false, reason: `provider status is "${confirmed.status}"` };
+  if (String(confirmed.currency).toUpperCase() !== price.currency.toUpperCase()) return { ok: false, reason: `currency ${confirmed.currency}, expected ${price.currency}` };
+  const paidCents = Math.round(Number(confirmed.amount) * 100);
+  if (!Number.isFinite(paidCents) || paidCents < price.amountCents) return { ok: false, reason: `paid ${paidCents} cents, plan costs ${price.amountCents}` };
+  return { ok: true };
 }
 
 interface DueSubscription {

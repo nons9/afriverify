@@ -279,27 +279,28 @@ router.post(
       return;
     }
 
-    if (session.otp_attempts >= 3) {
-      await query(`UPDATE verification_sessions SET step = 'failed' WHERE id = $1`, [session.id]);
-      res.status(400).json({
-        error: 'max_attempts_exceeded',
-        message: 'Max OTP attempts reached. Start a new verification.'
-      });
+    // Spend an attempt BEFORE looking at the guess, in one atomic statement. The old order (check the count,
+    // compare, bump the count afterwards) let a burst of parallel guesses all read "0 attempts used" and each be
+    // evaluated, so the limit of 3 did not hold and a 6-digit code could be brute-forced inside its 5 minutes.
+    const spent = await queryOne<{ otp_attempts: number }>(
+      `UPDATE verification_sessions SET otp_attempts = otp_attempts + 1
+       WHERE id = $1 AND step = 'otp' AND otp_attempts < 3 RETURNING otp_attempts`,
+      [session.id]
+    );
+    if (!spent) {
+      await query(`UPDATE verification_sessions SET step = 'failed' WHERE id = $1 AND step = 'otp'`, [session.id]);
+      res.status(400).json({ error: 'max_attempts_exceeded', message: 'Max OTP attempts reached. Start a new verification.' });
       return;
     }
 
     const valid = !!session.otp_hash && timingSafeEqualHex(sha256(otp), session.otp_hash);
 
     if (!valid) {
-      await query(
-        `UPDATE verification_sessions SET otp_attempts = otp_attempts + 1 WHERE id = $1`,
-        [session.id]
-      );
       await writeAuditEvent(req, { event_type: 'otp_verified', result: 'failed' });
       res.status(400).json({
         error: 'invalid_otp',
         message: 'Incorrect OTP',
-        attempts_remaining: 2 - session.otp_attempts
+        attempts_remaining: 3 - spent.otp_attempts
       });
       return;
     }
