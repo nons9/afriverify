@@ -35,6 +35,7 @@ import publicRouter from './routes/public';
 import webhooksRouter from './routes/webhooks';
 import logger from './utils/logger';
 import { initSentry, captureError } from './utils/sentry';
+import { toClientError } from './utils/http-errors';
 import { startFailureRateMonitor, startHttpHealthMonitor } from './services/alerting.service';
 import { startRetentionPurge } from './services/retention.service';
 import { startBillingCron } from './services/billing.service';
@@ -153,6 +154,11 @@ app.use((_req: Request, res: Response) => {
 });
 
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  const clientErr = toClientError(err);
+  if (clientErr) {
+    res.status(clientErr.status).json({ error: clientErr.error, message: clientErr.message, request_id: req.requestId });
+    return;
+  }
   logger.error('Unhandled error', { error: err.message, stack: err.stack, requestId: req.requestId });
   captureError(err, { requestId: req.requestId, path: req.path });
   res.status(500).json({ error: 'internal_error', message: 'An unexpected error occurred', request_id: req.requestId });
