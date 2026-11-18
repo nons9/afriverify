@@ -12,7 +12,7 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-from . import config
+from . import config, depth
 from .vision import FrameFeatures
 
 CHALLENGE_TYPES = ("turn_left", "turn_right", "blink", "smile")
@@ -24,6 +24,8 @@ class ChallengeResult:
     passed: bool
     frame_index: Optional[int] = None
     detail: str = ""
+    narrowing_mismatch: Optional[float] = None   # turn only: how much more the face narrowed than a real turn explains
+    flat_suspected: bool = False
 
 
 def _baseline_nose(features: Sequence[FrameFeatures], upto: int) -> Optional[float]:
@@ -78,6 +80,22 @@ def _find_smile(features, ts, start, win):
     return None
 
 
+def _check_flat_turn(res: ChallengeResult, features, idx: int, direction: int, baseline: float, n_base: int) -> None:
+    """Compare the face's narrowing during the turn with what a real head of that turn size shows."""
+    turned, deltas = [], []
+    for j in range(idx, min(idx + 4, len(features))):
+        f = features[j]
+        if f.has_face and f.face_count == 1 and direction * (f.nose_ratio - baseline) >= config.TURN_DELTA:
+            turned.append(f)
+            deltas.append(f.nose_ratio - baseline)
+    base_frames = [f for f in features[:n_base] if f.has_face]
+    m = depth.narrowing_mismatch(base_frames, turned, deltas)
+    res.narrowing_mismatch = None if m is None else round(m, 3)
+    if m is not None and m > config.FLAT_TURN_MARGIN:
+        res.flat_suspected = True
+        res.detail = "face narrowed far more than a real head turn would"
+
+
 def verify_sequence(
     features: Sequence[FrameFeatures],
     timestamps_ms: Sequence[float],
@@ -112,6 +130,9 @@ def verify_sequence(
         if idx is None:
             results.append(ChallengeResult(ctype, False, None, detail or "motion not observed"))
         else:
-            results.append(ChallengeResult(ctype, True, idx))
+            res = ChallengeResult(ctype, True, idx)
+            if ctype in ("turn_left", "turn_right") and baseline is not None:
+                _check_flat_turn(res, features, idx, +1 if ctype == "turn_left" else -1, baseline, max(n_base, 2))
+            results.append(res)
             cursor = idx + 1
     return results

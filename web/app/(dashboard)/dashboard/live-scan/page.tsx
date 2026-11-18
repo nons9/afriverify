@@ -27,6 +27,7 @@ const SIGNALS: { key: string; label: string; hint: string; fmt?: (v: number) => 
   { key: 'contrast', label: 'Contrast', hint: 'Difference between light and dark areas.' },
   { key: 'glare', label: 'Glare', hint: 'Share of blown-out pixels. High can mean a screen.', fmt: (v) => `${(v * 100).toFixed(1)}%` },
   { key: 'moire', label: 'Screen pattern', hint: 'Repeating pixel-grid pattern from filming a screen (0 to 1).' },
+  { key: 'fringe', label: 'Screen fringes', hint: 'Wavy bands from filming a screen at normal camera resolution (0 to 1). High means a replay.' },
   { key: 'mean_motion', label: 'Natural motion', hint: 'Frame-to-frame movement. Near zero means a still or a loop.' },
   { key: 'duplicate_frame_ratio', label: 'Repeated frames', hint: 'Share of identical frames. High means frozen or looped video.', fmt: (v) => `${(v * 100).toFixed(0)}%` },
 ];
@@ -34,7 +35,7 @@ const SIGNALS: { key: string; label: string; hint: string; fmt?: (v: number) => 
 function Verdict({ r }: { r: DemoResult }) {
   const cfg = {
     pass: { Icon: CheckCircle2, cls: 'border-green-500/30 bg-green-500/10 text-green-300', title: 'Live person detected', body: 'Every prompt was followed in order and the passive checks look natural. In a real verification this would go on to the ID photo match.' },
-    review: { Icon: AlertTriangle, cls: 'border-amber-500/30 bg-amber-500/10 text-amber-300', title: 'Borderline', body: 'The prompts were followed but the image quality is questionable. A real verification would ask a second provider or a human reviewer.' },
+    review: { Icon: AlertTriangle, cls: 'border-amber-500/30 bg-amber-500/10 text-amber-300', title: 'Borderline', body: 'The prompts were followed, but the image looks like it may be a screen or is poor quality. A real verification would never auto-approve this: it goes to a second provider or a human reviewer.' },
     fail: { Icon: XCircle, cls: 'border-red-500/30 bg-red-500/10 text-red-300', title: 'Not accepted', body: 'This scan would be rejected and the user asked to try again (up to 3 attempts).' },
   }[r.verdict];
   return (

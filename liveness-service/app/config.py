@@ -37,6 +37,9 @@ BLINK_OPEN = _f("BLINK_OPEN", 0.30)
 SMILE_ON = _f("SMILE_ON", 0.50)
 SMILE_OFF = _f("SMILE_OFF", 0.30)
 WINDOW_TOLERANCE_MS = _i("WINDOW_TOLERANCE_MS", 1500)
+# A turn that squashes the face more than a real turn of that size would (see depth.py) is suspected flat.
+FLAT_TURN_MARGIN = _f("FLAT_TURN_MARGIN", 0.12)
+FLAT_TURN_ACTION = os.environ.get("FLAT_TURN_ACTION", "review")   # review | fail | off
 
 # Face presence
 MIN_FACE_AREA_RATIO = _f("MIN_FACE_AREA_RATIO", 0.06)
@@ -46,6 +49,8 @@ MAX_MULTI_FACE_RATIO = _f("MAX_MULTI_FACE_RATIO", 0.15)
 # Passive score thresholds (0..1, 1 = live)
 PASSIVE_PASS = _f("PASSIVE_PASS", 0.60)
 PASSIVE_REVIEW = _f("PASSIVE_REVIEW", 0.40)
+# Screen fringes (low-frequency moire beats from re-photographing a screen). Score is 0..1; above this it is flagged.
+FRINGE_FLAG = _f("FRINGE_FLAG", 0.35)
 
 # Face match (cosine similarity of ArcFace embeddings)
 MATCH_PASS = _f("MATCH_PASS", 0.40)
