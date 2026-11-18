@@ -96,6 +96,8 @@ const curlLivenessStart = `curl -X POST ${BASE_URL}/verify/face/liveness/start \
 
 const curlLivenessComplete = `# Frames: UNMIRRORED JPEGs captured live from the camera, in capture order (about 8 per second).
 # timestamps_ms: one capture-relative millisecond value per frame.
+# Slow or metered connection? Add "profile":"lite" to meta and send 480x360 frames at ~5/s with no in-browser
+# model: about 1 MB in total instead of about 9 MB. Every check still runs on the server.
 curl -X POST ${BASE_URL}/verify/face/liveness/complete \\
   -H "Authorization: Bearer av_live_YOUR_KEY" \\
   -H "X-Platform: YourPlatformName" \\

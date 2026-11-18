@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { readableOn } from '@/lib/color';
 import { Camera, CheckCircle2, Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { FlashPlan, FlashTiming, prefersReducedMotion, rgbCss, runFlash } from '@/lib/flash-plan';
+import { CaptureProfile, profileFor, suggestLite } from '@/lib/capture-profile';
 import {
   CHALLENGE_TEXT, ChallengeTracker, ChallengeType, FaceSample, friendlyReasons, median, positionHint,
 } from '@/lib/liveness-logic';
@@ -71,12 +72,10 @@ export interface LiveFaceCaptureProps {
   consentLabel?: string;
 }
 
-const TICK_MS = 125;              // ~8 fps
 const BASELINE_MS = 1000;         // hold still, frontal frames for the server's baseline
 const CHALLENGE_TIMEOUT_MS = 4000;
 const TAIL_MS = 500;
 const ALIGN_TICKS = 8;            // ~1s of good positioning before recording starts
-const JPEG_QUALITY = 0.82;
 const MODEL_URL = '/mediapipe/face_landmarker.task';
 const WASM_URL = '/mediapipe/wasm';
 
@@ -128,10 +127,21 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
   const videoChunks = useRef<Blob[]>([]);
   const consentRef = useRef(false);
   const skipFlashRef = useRef(false);
+  const [lite, setLite] = useState(false);
+  const [liteAuto, setLiteAuto] = useState(false);
+  const liteRef = useRef(false);
   const [skipFlash, setSkipFlash] = useState(false);
   const [flashing, setFlashing] = useState(false);
   const flashAbortRef = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // Pre-select Lite on a slow or data-saving connection (the person can always change it).
+  useEffect(() => {
+    try {
+      const c = (navigator as unknown as { connection?: { effectiveType?: string; saveData?: boolean; downlink?: number } }).connection;
+      if (suggestLite(c)) { setLite(true); liteRef.current = true; setLiteAuto(true); }
+    } catch { /* no Network Information API: stay on Standard */ }
+  }, []);
 
   const stopAll = useCallback(() => {
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
@@ -171,9 +181,10 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
     }
     setChallenges(start.challenges); setDoneCount(0); setAttemptsLeft(start.max_attempts - start.attempt);
 
+    const prof = profileFor(liteRef.current);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false,
+        video: { facingMode: 'user', width: { ideal: prof.width }, height: { ideal: prof.height } }, audio: false,
       });
       streamRef.current = stream;
       const v = videoRef.current!;
@@ -183,15 +194,15 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
       setPhase('camera_error'); return;
     }
 
-    const lm = await ensureLandmarker();
+    const lm = prof.useModel ? await ensureLandmarker() : null;   // Lite never downloads the ~6 MB face model
     setGuidanceOn(!!lm);
-    runCapture(start, lm);
+    runCapture(start, lm, prof);
   }
 
-  function runCapture(start: StartResponse, lm: Landmarker | null) {
+  function runCapture(start: StartResponse, lm: Landmarker | null, prof: CaptureProfile) {
     const video = videoRef.current!;
     const canvas = canvasRef.current!;
-    const W = 640, H = Math.round(640 * ((video.videoHeight || 480) / (video.videoWidth || 640)));
+    const W = prof.width, H = Math.round(prof.width * ((video.videoHeight || prof.height) / (video.videoWidth || prof.width)));
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d')!;
     const small = document.createElement('canvas');   // tiny canvas just for the brightness estimate
@@ -201,7 +212,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
     // best-effort screen-free recording of the camera stream (evidence)
     videoChunks.current = [];
     try {
-      if (typeof MediaRecorder !== 'undefined' && streamRef.current) {
+      if (prof.recordVideo && typeof MediaRecorder !== 'undefined' && streamRef.current) {
         const mime = ['video/webm;codecs=vp8', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m));
         if (mime) {
           const rec = new MediaRecorder(streamRef.current, { mimeType: mime, videoBitsPerSecond: 600_000 });
@@ -229,7 +240,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
       if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
       try { if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); } catch { /* ignore */ }
       setPhase('uploading'); setPrompt('Analysing your scan…');
-      await submit(start, frames, stamps, windows, flashMeta);
+      await submit(start, frames, stamps, windows, flashMeta, prof);
     };
 
     const nextChallenge = (now: number) => {
@@ -269,7 +280,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
 
         // record this frame (alignment frames are not kept)
         const ts = now - t0;
-        canvas.toBlob((blob) => { if (blob) { frames.push(blob); stamps.push(Math.round(ts)); } }, 'image/jpeg', JPEG_QUALITY);
+        canvas.toBlob((blob) => { if (blob) { frames.push(blob); stamps.push(Math.round(ts)); } }, 'image/jpeg', prof.jpegQuality);
 
         if (localPhase === 'baseline') {
           if (sample.hasFace) baselineNose.push(sample.noseRatio);
@@ -302,10 +313,10 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
         }
         if (frames.length >= start.capture.max_frames - 2 && !isFinishing()) void finish();
       } finally { busy = false; }
-    }, TICK_MS);
+    }, prof.tickMs);
   }
 
-  async function submit(start: StartResponse, frames: Blob[], stamps: number[], windows: { start_ms: number; end_ms: number }[], flash?: FlashTiming | { skipped: true }) {
+  async function submit(start: StartResponse, frames: Blob[], stamps: number[], windows: { start_ms: number; end_ms: number }[], flash?: FlashTiming | { skipped: true }, prof?: CaptureProfile) {
     // toBlob is async: wait until every captured frame has landed
     await new Promise((r) => setTimeout(r, 300));
     // toBlob callbacks may finish out of order: re-sort the (frame, timestamp) pairs by time
@@ -318,7 +329,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
       const fd = new FormData();
       fd.append('session_token', token);
       fd.append('liveness_id', start.liveness_id);
-      fd.append('meta', JSON.stringify({ timestamps_ms: stamps.slice(0, n), windows, ...(flash ? { flash } : {}) }));
+      fd.append('meta', JSON.stringify({ timestamps_ms: stamps.slice(0, n), windows, ...(flash ? { flash } : {}), profile: prof?.name ?? 'standard' }));
       frames.slice(0, n).forEach((b, i) => fd.append('frames', b, `f${i}.jpg`));
       if (demo) { demo.onResult(await demo.complete(fd)); return; }
       const res: CompleteResponse = await post(api, '/face/liveness/complete', { method: 'POST', body: fd });
@@ -327,7 +338,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
         setFeedback(friendlyReasons(res.liveness.reasons)); setAttemptsLeft(res.attempts_remaining); setPhase('feedback'); return;
       }
       if (res.decision === 'rejected') { onFailed?.(friendlyReasons(res.liveness.reasons)); return; }
-      void uploadVideo(start.liveness_id);
+      if (prof?.recordVideo) void uploadVideo(start.liveness_id);
       onSubmitted?.({ decision: res.decision, reviewPending: res.review_pending });
     } catch (e) {
       const err = e as Error & { code?: string };
@@ -372,6 +383,17 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
             ) : (
               <p>We capture a short video of your face from your camera to check that you are live and to match you to your ID. Frames are encrypted, used only for this verification, and deleted after a short retention period.</p>
             )}
+          </div>
+          <div className="rounded-xl border border-white/10 bg-slate-800/50 p-4 text-base text-slate-300 space-y-2">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" className="mt-1.5" checked={lite}
+                onChange={(e) => { setLite(e.target.checked); liteRef.current = e.target.checked; }} />
+              <span>
+                <strong className="text-white">Low-data mode.</strong> Uses about 90% less data (roughly 1 MB instead of 9 MB) and works better on a slow connection.
+                {liteAuto && lite ? ' We turned it on because your connection looks slow or data saver is on.' : ''}
+                {' '}You will not see live guidance, so just follow each prompt and hold still until the next.
+              </span>
+            </label>
           </div>
           <div className="rounded-xl border border-white/10 bg-slate-800/50 p-4 text-sm text-slate-300 space-y-2">
             <p><strong className="text-white">Coloured light.</strong> Part of the scan briefly flashes coloured light on your screen (about 5 seconds, slow changes). It checks that a real face is in front of the camera.</p>

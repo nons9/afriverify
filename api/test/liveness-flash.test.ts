@@ -65,6 +65,14 @@ test('implausible client windows are rejected, not trusted', () => {
   assert.equal(buildFlashMeta(p, { ...good, lead: { start_ms: 10, end_ms: 10 } }), undefined);
 });
 
+test('meta schema accepts a capture profile and rejects unknown ones', () => {
+  const ts = [0, 125, 250];
+  assert.ok(livenessMetaSchema.safeParse({ timestamps_ms: ts, profile: 'lite' }).success);
+  assert.ok(livenessMetaSchema.safeParse({ timestamps_ms: ts, profile: 'standard' }).success);
+  assert.equal(livenessMetaSchema.safeParse({ timestamps_ms: ts, profile: 'turbo' }).success, false);
+  assert.equal(livenessMetaSchema.parse({ timestamps_ms: ts }).profile, undefined);        // old clients: no profile
+});
+
 test('meta schema accepts old clients, flash windows and skipped; rejects junk', () => {
   const ts = [0, 125, 250];
   assert.ok(livenessMetaSchema.safeParse({ timestamps_ms: ts }).success);                           // old client

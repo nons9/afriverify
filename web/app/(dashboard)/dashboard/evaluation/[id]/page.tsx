@@ -20,6 +20,7 @@ interface Metrics {
   apcer: { overall: Rate; by_attack_type: Record<string, Rate>; worst_attack_type: string | null };
   by_skin_group: Record<string, { genuine: number; bpcer_strict: Rate; bpcer_hard: Rate }>;
   by_lighting: Record<string, { genuine: number; attacks: number; bpcer_strict: Rate; apcer: Rate }>;
+  by_profile: Record<string, { genuine: number; attacks: number; bpcer_strict: Rate; apcer: Rate }>;
   flash: { genuine: Record<string, number>; attacks: Record<string, number> };
   adequacy: { ok: boolean; notes: string[] };
 }
@@ -173,6 +174,7 @@ function Results({ m }: { m: Metrics }) {
       <div className="grid gap-5 lg:grid-cols-2">
         <Table title="By attack type (attacks accepted)" head={['Attack', 'Accepted']} rows={Object.entries(m.apcer.by_attack_type).map(([t, r]) => [pretty(t) + (t === m.apcer.worst_attack_type && (r.rate ?? 0) > 0 ? '  (worst)' : ''), <RateCell key={t} r={r} />])} empty="No attacks captured yet." />
         <Table title="By skin tone (real people stopped)" head={['Group', 'Stopped (strict)']} rows={Object.entries(m.by_skin_group).map(([g, v]) => [`${g} (${v.genuine} captures)`, <RateCell key={g} r={v.bpcer_strict} />])} empty="No genuine captures yet." />
+        <Table title="By capture mode (is Lite as safe as Standard?)" head={['Mode', 'Real stopped', 'Attacks accepted']} rows={Object.entries(m.by_profile ?? {}).map(([k, v]) => [`${k} (${v.genuine} real, ${v.attacks} attacks)`, <RateCell key={k + 'a'} r={v.bpcer_strict} />, <RateCell key={k + 'b'} r={v.apcer} />])} empty="No captures yet." />
         <Table title="By lighting" head={['Lighting', 'Real stopped', 'Attacks accepted']} rows={Object.entries(m.by_lighting).map(([l, v]) => [pretty(l), <RateCell key={l + 'a'} r={v.bpcer_strict} />, <RateCell key={l + 'b'} r={v.apcer} />])} empty="No captures yet." />
         <div className="rounded-xl border border-white/10 bg-slate-900 p-5">
           <h3 className="text-base font-semibold text-white mb-2">Screen-light check outcomes</h3>

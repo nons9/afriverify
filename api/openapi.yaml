@@ -589,7 +589,11 @@ paths:
       operationId: verifyFaceLivenessComplete
       summary: Submit the captured frames for liveness + face match
       description: |
-        Submit the frames recorded while the user performed the challenges. Frames must be
+        Submit the frames recorded while the user performed the challenges. For slow or metered connections add
+        `"profile": "lite"` to `meta` and capture 480x360 frames at about 5 per second (JPEG quality about 0.72) with no
+        in-browser face model and no evidence video: about 1 MB in total instead of about 9 MB. The server still verifies
+        every prompt and every anti-spoofing check from the frames, so Lite is less guided, not less checked.
+        Frames must be
         **unmirrored JPEGs captured live from the camera**, in capture order, at roughly 8 fps
         (8-120 frames, 3-60 seconds, max 1.5 MB each). `meta` is a JSON string:
         `{"timestamps_ms": [..one per frame..], "windows": [{"start_ms":0,"end_ms":3000}, ..one per challenge..]}`.

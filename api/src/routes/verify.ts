@@ -702,6 +702,7 @@ router.post(
         timestampsMs: meta.timestamps_ms,
         windows: meta.windows,
         flash: meta.flash,
+        profile: meta.profile,
       });
       if (out.kind === 'bad_request') {
         res.status(out.status).json({ error: out.error, message: out.message });

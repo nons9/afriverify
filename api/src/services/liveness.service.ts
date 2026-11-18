@@ -96,6 +96,7 @@ const windowSchema = z.object({ start_ms: z.number().finite(), end_ms: z.number(
 export const livenessMetaSchema = z.object({
   timestamps_ms: z.array(z.number().finite()).min(2).max(MAX_FRAMES),
   windows: z.array(windowSchema).max(8).optional(),
+  profile: z.enum(['standard', 'lite']).optional(),     // capture profile: Lite = fewer, smaller frames for slow connections
   flash: z
     .union([
       z.object({ skipped: z.literal(true) }),
@@ -150,6 +151,7 @@ export interface EngineFlashResult {
 export interface EngineLivenessResult {
   verdict: 'pass' | 'review' | 'fail';
   flash?: EngineFlashResult;
+  capture_profile?: 'standard' | 'lite';
   liveness_score: number;
   challenges: { type: string; passed: boolean; frame_index: number | null; detail: string }[];
   passive: { score: number; signals: Record<string, number>; flags: string[] };
@@ -182,10 +184,11 @@ export async function engineAnalyze(
   challenges: ChallengeType[],
   timestampsMs: number[],
   windows?: { start_ms: number; end_ms: number }[],
-  flash?: EngineFlash
+  flash?: EngineFlash,
+  profile?: 'standard' | 'lite'
 ): Promise<EngineLivenessResult> {
   const form = new FormData();
-  form.append('meta', JSON.stringify({ challenges, timestamps_ms: timestampsMs, windows, flash }));
+  form.append('meta', JSON.stringify({ challenges, timestamps_ms: timestampsMs, windows, flash, profile }));
   frames.forEach((buf, i) => form.append('frames', buf, { filename: `f${i}.jpg`, contentType: 'image/jpeg' }));
   try {
     const { data } = await axios.post<EngineLivenessResult>(
@@ -313,6 +316,7 @@ export interface CompleteInput {
   timestampsMs: number[];
   windows?: { start_ms: number; end_ms: number }[];
   flash?: LivenessMeta['flash'];
+  profile?: 'standard' | 'lite';
 }
 
 export type CompleteOutcome =
@@ -342,8 +346,9 @@ export async function completeLiveness(input: CompleteInput): Promise<CompleteOu
 
   let live: EngineLivenessResult;
   try {
-    live = await engineAnalyze(input.frames, row.challenges, input.timestampsMs, input.windows, buildFlashMeta(row.flash_plan, input.flash));
+    live = await engineAnalyze(input.frames, row.challenges, input.timestampsMs, input.windows, buildFlashMeta(row.flash_plan, input.flash), input.profile);
     if (live.flash) void incrMetric(`liveness_flash_${live.flash.verdict}`);
+    void incrMetric(`liveness_profile_${input.profile ?? 'standard'}`);
   } catch (err) {
     if (err instanceof EngineCaptureError) {
       await query(`UPDATE liveness_sessions SET status = 'failed', verdict = 'fail', reasons = $2, decision = 'rejected' WHERE id = $1`,
@@ -413,7 +418,7 @@ export async function completeLiveness(input: CompleteInput): Promise<CompleteOu
      WHERE id = $1`,
     [
       row.id, status, live.verdict, live.liveness_score, JSON.stringify(live.reasons),
-      JSON.stringify({ challenges: live.challenges, passive: live.passive, flash: live.flash, frame_stats: live.frame_stats }),
+      JSON.stringify({ challenges: live.challenges, passive: live.passive, flash: live.flash, profile: input.profile ?? 'standard', frame_stats: live.frame_stats }),
       match?.verdict ?? null, match?.confidence ?? null, finalDecision,
       bestKey, JSON.stringify(frameKeys),
     ]

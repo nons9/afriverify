@@ -96,7 +96,7 @@ router.post('/complete', frameUpload.array('frames', MAX_FRAMES), async (req: Re
   }
 
   try {
-    const r = await engineAnalyze(files.map((f) => f.buffer), issued.challenges, meta.timestamps_ms, meta.windows, buildFlashMeta(issued.flash, meta.flash));
+    const r = await engineAnalyze(files.map((f) => f.buffer), issued.challenges, meta.timestamps_ms, meta.windows, buildFlashMeta(issued.flash, meta.flash), meta.profile);
     res.json({
       demo: true,
       stored: false,
@@ -106,6 +106,7 @@ router.post('/complete', frameUpload.array('frames', MAX_FRAMES), async (req: Re
       reasons: r.reasons,
       passive: { score: r.passive.score, flags: r.passive.flags, signals: r.passive.signals },
       flash: r.flash ?? null,
+      capture_profile: r.capture_profile ?? meta.profile ?? 'standard',
       frame_stats: r.frame_stats,
       processing_ms: r.processing_ms,
     });
