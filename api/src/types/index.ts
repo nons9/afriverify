@@ -109,6 +109,7 @@ export interface VerificationSession {
   device_id: string | null;
   flow_id: string | null;
   lang: SupportedLang;
+  liveness_required?: boolean;
   expires_at: Date;
   created_at: Date;
 }

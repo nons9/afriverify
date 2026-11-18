@@ -10,6 +10,7 @@ This repo contains the production-ready API backend for Phase 1:
 - Phone OTP verification (Twilio primary, Termii fallback)
 - Government ID verification via Smile Identity (54 African countries)
 - Biometric face match (Smile Identity KYC)
+- **Live face scanning** with our own liveness engine (`liveness-service/`): random active challenges, passive spoof checks, recorded evidence, 1:1 face match. Smile/Dojah/Onfido stay as a second opinion for borderline scans.
 - Verified Identity Token (VIT) — RS256-signed JWT, portable across platforms
 - Platform connection and identity check endpoints
 - Trust Score engine — real-time, cross-platform
@@ -45,7 +46,9 @@ POST /v1/verify/initiate          Start verification session
 POST /v1/verify/otp/send          Send OTP
 POST /v1/verify/otp/confirm       Confirm OTP
 POST /v1/verify/id/upload         Upload government ID
-POST /v1/verify/face/submit       Submit selfie for biometric match
+POST /v1/verify/face/submit       Submit selfie for biometric match (photo upload)
+POST /v1/verify/face/liveness/start      Start live face scan -> random challenges
+POST /v1/verify/face/liveness/complete   Submit captured frames -> liveness + match decision
 GET  /v1/verify/status/:token     Poll verification status → returns VIT when complete
 
 GET  /v1/identity/check?phone=    Sub-100ms identity lookup

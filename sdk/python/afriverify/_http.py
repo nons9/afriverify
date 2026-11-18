@@ -33,7 +33,7 @@ class HttpClient:
             res = client.post(self._url(path), json=json, headers=self._headers)
         return self._parse(res)
 
-    def post_files(self, path: str, files: dict[str, Any], data: dict[str, Any]) -> Any:
+    def post_files(self, path: str, files: dict[str, Any] | list[tuple[str, Any]], data: dict[str, Any]) -> Any:
         with httpx.Client(timeout=self._timeout) as client:
             res = client.post(self._url(path), files=files, data=data, headers=self._headers)
         return self._parse(res)
@@ -50,7 +50,7 @@ class HttpClient:
             res = await client.post(self._url(path), json=json, headers=self._headers)
         return self._parse(res)
 
-    async def apost_files(self, path: str, files: dict[str, Any], data: dict[str, Any]) -> Any:
+    async def apost_files(self, path: str, files: dict[str, Any] | list[tuple[str, Any]], data: dict[str, Any]) -> Any:
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             res = await client.post(self._url(path), files=files, data=data, headers=self._headers)
         return self._parse(res)

@@ -59,7 +59,17 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '1mb' }));
+// The Resend webhook signature covers the exact bytes sent, so keep them for that one route only.
+app.use(
+  express.json({
+    limit: '1mb',
+    verify: (req, _res, buf) => {
+      if ((req as Request).originalUrl?.startsWith('/webhooks/resend')) {
+        (req as Request & { rawBody?: Buffer }).rawBody = buf;
+      }
+    }
+  })
+);
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 app.get('/health', async (_req: Request, res: Response) => {

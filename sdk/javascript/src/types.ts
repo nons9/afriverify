@@ -27,6 +27,8 @@ export interface InitiateParams {
   redirect_url?: string;
   flow_id?: string;
   lang?: Lang;
+  /** Require a live face scan (own liveness engine) instead of a photo upload. */
+  require_liveness?: boolean;
 }
 
 export interface InitiateResponse {
@@ -53,6 +55,34 @@ export interface SubmitFaceParams {
   selfie: Buffer | Blob | string;
 }
 export interface SubmitFaceResponse { submitted: boolean; result: VerificationResult; trust_score?: number }
+
+export type LivenessChallenge = 'turn_left' | 'turn_right' | 'blink' | 'smile';
+export interface StartLivenessParams { session_token: string; /** user agreed to biometric capture */ consent: true }
+export interface StartLivenessResponse {
+  liveness_id: string;
+  challenges: LivenessChallenge[];
+  attempt: number;
+  max_attempts: number;
+  expires_in_seconds: number;
+  capture: { min_frames: number; max_frames: number; min_seconds: number; max_seconds: number; target_fps: number };
+}
+export interface CompleteLivenessParams {
+  session_token: string;
+  liveness_id: string;
+  /** UNMIRRORED JPEG frames straight from the camera, in capture order */
+  frames: (Buffer | Blob | string)[];
+  /** capture-relative milliseconds, one per frame */
+  timestamps_ms: number[];
+  /** optional: when each challenge was shown, one per challenge */
+  windows?: { start_ms: number; end_ms: number }[];
+}
+export interface CompleteLivenessResponse {
+  decision: 'approved' | 'retry' | 'rejected' | 'manual_review' | 'processing';
+  next_step: 'complete' | 'face_scan' | 'failed' | 'processing';
+  liveness: { verdict: 'pass' | 'review' | 'fail'; score: number; reasons: string[]; challenges: { type: LivenessChallenge; passed: boolean }[] };
+  attempts_remaining: number;
+  review_pending: boolean;
+}
 
 export interface SessionStatusResponse {
   session_token: string;

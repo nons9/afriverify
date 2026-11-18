@@ -1,5 +1,6 @@
 import { query } from '../db';
 import logger from '../utils/logger';
+import { runOncePerInterval } from '../utils/job-lock';
 
 interface FailureRateRow {
   event_type: string;
@@ -27,10 +28,16 @@ async function sendAlert(eventType: string, total: number, failed: number, rate:
     `(${failed}/${total} in the last ${WINDOW_MINUTES}m)`;
 
   logger.error('Failure rate alert', { event_type: eventType, total, failed, rate });
+  await sendOpsAlert(message);
+}
 
+/** Posts a message to ALERT_WEBHOOK_URL (Slack-style {text}); logs only when unset. Never throws. */
+export async function sendOpsAlert(message: string): Promise<void> {
   const webhookUrl = process.env.ALERT_WEBHOOK_URL;
-  if (!webhookUrl) return;
-
+  if (!webhookUrl) {
+    logger.warn('Ops alert (no ALERT_WEBHOOK_URL set)', { message });
+    return;
+  }
   try {
     await fetch(webhookUrl, {
       method: 'POST',
@@ -77,7 +84,7 @@ async function checkFailureRates(): Promise<void> {
 export function startFailureRateMonitor(): void {
   const intervalMs = CHECK_INTERVAL_MINUTES * 60 * 1000;
   setInterval(() => {
-    checkFailureRates().catch((err) =>
+    runOncePerInterval('failure-rate-monitor', intervalMs, checkFailureRates).catch((err) =>
       logger.error('Failure rate check errored', { error: (err as Error).message })
     );
   }, intervalMs);

@@ -22,6 +22,10 @@ import { issueVIT } from '../services/vit.service';
 import { checkBlacklist } from '../services/blacklist.service';
 import { recordUsage } from '../services/billing.service';
 import { scanImage } from '../services/orbitshield/deepscan.service';
+import {
+  livenessEnabled, isLivenessRequired, startLiveness, completeLiveness, attachLivenessVideo,
+  MAX_FRAMES, MAX_FRAME_BYTES, MAX_VIDEO_BYTES,
+} from '../services/liveness.service';
 import { evaluateNetworkRisk } from '../services/orbitshield/fraud-graph.service';
 import { query, queryOne } from '../db';
 import { sha256, generateSecureToken, timingSafeEqualHex } from '../utils/crypto';
@@ -38,6 +42,8 @@ import {
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const frameUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FRAME_BYTES, files: MAX_FRAMES } });
+const videoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_VIDEO_BYTES, files: 1 } });
 
 // Device gets 70% weight and IP-subnet 30% inside evaluateNetworkRisk's own
 // scoring, and the subnet check already requires 3+ reports before it counts
@@ -62,6 +68,8 @@ const initiateSchema = z
     redirect_url: z.string().url().optional(),
     flow_id: z.string().uuid().optional(),
     lang: z.enum(['en', 'fr']).optional().default('en'),
+    // Require a live face scan (own liveness engine) instead of a photo upload.
+    require_liveness: z.boolean().optional().default(false),
   })
   .refine((data) => data.otp_channel !== 'email' || !!data.email, {
     message: 'email is required when otp_channel is "email"',
@@ -122,6 +130,11 @@ router.post(
       return;
     }
 
+    if (req.body.require_liveness === true && !livenessEnabled()) {
+      res.status(501).json({ error: 'liveness_unavailable', message: 'Live face scanning is not enabled on this deployment.' });
+      return;
+    }
+
     // Validate flow if provided - must belong to this developer's account.
     let resolvedFlowId: string | null = null;
     if (flow_id) {
@@ -141,8 +154,8 @@ router.post(
 
     await query(
       `INSERT INTO verification_sessions
-         (session_token, phone, email, otp_channel, step, api_key_id, ip_address, device_id, expires_at, platform_user_id, flow_id, lang)
-       VALUES ($1,$2,$3,$4,'phone',$5,$6,$7,$8,$9,$10,$11)`,
+         (session_token, phone, email, otp_channel, step, api_key_id, ip_address, device_id, expires_at, platform_user_id, flow_id, lang, liveness_required)
+       VALUES ($1,$2,$3,$4,'phone',$5,$6,$7,$8,$9,$10,$11,$12)`,
       [
         sessionToken,
         phone,
@@ -155,6 +168,7 @@ router.post(
         platform_user_id ?? null,
         resolvedFlowId,
         lang ?? 'en',
+        livenessEnabled() && req.body.require_liveness === true,
       ]
     );
 
@@ -524,6 +538,13 @@ router.post(
       res.status(404).json({ error: 'session_not_found', message: 'Session not found or wrong step' });
       return;
     }
+    if (isLivenessRequired(session)) {
+      res.status(400).json({
+        error: 'liveness_required',
+        message: 'This verification requires a live face scan. Use /verify/face/liveness/start and /complete instead of uploading a photo.',
+      });
+      return;
+    }
 
     // ─── OrbitShield Layer 1: DeepScan selfie pre-screen ────────────────────────────────────
     // Runs BEFORE S3 upload and before biometric processing.
@@ -590,6 +611,129 @@ router.post(
     });
   }
 );
+
+// ─── Live face scan (own liveness engine) ─────────────────────────────────────
+// POST /verify/face/liveness/start  -> { liveness_id, challenges[], ... }
+// POST /verify/face/liveness/complete (multipart: session_token, liveness_id, meta, frames[])
+router.post(
+  '/face/liveness/start',
+  validateBody(z.object({
+    session_token: z.string().length(64),
+    consent: z.literal(true, { errorMap: () => ({ message: 'consent must be true: the user must agree to biometric capture' }) }),
+  })),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!livenessEnabled()) {
+      res.status(501).json({ error: 'liveness_unavailable', message: 'Live face scanning is not enabled.' });
+      return;
+    }
+    const { session_token } = req.body as { session_token: string };
+    const session = await queryOne<VerificationSession>(
+      `SELECT * FROM verification_sessions
+       WHERE session_token = $1 AND api_key_id = $2 AND step = 'face_scan' AND expires_at > NOW()`,
+      [session_token, req.apiKey!.id]
+    );
+    if (!session?.identity_id) {
+      res.status(404).json({ error: 'session_not_found', message: 'Session not found or wrong step' });
+      return;
+    }
+    const out = await startLiveness(session, true);
+    if (!out.ok) {
+      res.status(out.status).json({ error: out.error, message: out.message });
+      return;
+    }
+    const { ok: _ok, ...body } = out;
+    res.json(body);
+  }
+);
+
+router.post(
+  '/face/liveness/complete',
+  frameUpload.array('frames', MAX_FRAMES),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!livenessEnabled()) {
+      res.status(501).json({ error: 'liveness_unavailable', message: 'Live face scanning is not enabled.' });
+      return;
+    }
+    const body = req.body as { session_token?: string; liveness_id?: string; meta?: string };
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+    let meta: { timestamps_ms: number[]; windows?: { start_ms: number; end_ms: number }[] };
+    try {
+      meta = z.object({
+        timestamps_ms: z.array(z.number().finite()).min(2).max(MAX_FRAMES),
+        windows: z.array(z.object({ start_ms: z.number().finite(), end_ms: z.number().finite() })).max(8).optional(),
+      }).parse(JSON.parse(body.meta ?? ''));
+    } catch {
+      res.status(400).json({ error: 'validation_error', message: 'meta must be JSON with timestamps_ms[] (and optional windows[])' });
+      return;
+    }
+    if (
+      !body.session_token || body.session_token.length !== 64 ||
+      !z.string().uuid().safeParse(body.liveness_id).success ||
+      files.length === 0 || files.length !== meta.timestamps_ms.length
+    ) {
+      res.status(400).json({ error: 'validation_error', message: 'session_token, liveness_id and one timestamp per frame are required' });
+      return;
+    }
+
+    const session = await queryOne<VerificationSession>(
+      `SELECT * FROM verification_sessions
+       WHERE session_token = $1 AND api_key_id = $2 AND step = 'face_scan' AND expires_at > NOW()`,
+      [body.session_token, req.apiKey!.id]
+    );
+    if (!session?.identity_id) {
+      res.status(404).json({ error: 'session_not_found', message: 'Session not found or wrong step' });
+      return;
+    }
+
+    try {
+      const out = await completeLiveness({
+        session,
+        livenessId: body.liveness_id!,
+        frames: files.map((f) => f.buffer),
+        timestampsMs: meta.timestamps_ms,
+        windows: meta.windows,
+      });
+      if (out.kind === 'bad_request') {
+        res.status(out.status).json({ error: out.error, message: out.message });
+        return;
+      }
+      await writeAuditEvent(req, {
+        event_type: out.liveness.verdict === 'fail' ? 'liveness_failed' : 'liveness_passed',
+        identity_id: session.identity_id,
+        result: out.liveness.verdict === 'pass' ? 'passed' : out.liveness.verdict === 'review' ? 'flagged' : 'failed',
+        metadata: { score: out.liveness.score, reasons: out.liveness.reasons, decision: out.decision },
+      });
+      res.json({
+        decision: out.decision,
+        next_step: out.decision === 'retry' ? 'face_scan' : out.decision === 'rejected' ? 'failed' : out.decision === 'approved' ? 'complete' : 'processing',
+        liveness: out.liveness,
+        attempts_remaining: out.attempts_remaining,
+        review_pending: out.decision === 'manual_review',
+        message: 'Poll GET /verify/status/{session_token} for the final result.',
+      });
+    } catch (err) {
+      logger.error('Liveness completion failed', { error: (err as Error).message, session: session.id });
+      captureError(err as Error, { session: session.id, stage: 'liveness_complete' });
+      res.status(503).json({ error: 'liveness_unavailable', message: 'Could not analyse the scan right now. Please try again.' });
+    }
+  }
+);
+
+router.post('/face/liveness/video', videoUpload.single('video'), async (req: Request, res: Response): Promise<void> => {
+  const { session_token, liveness_id } = req.body as { session_token?: string; liveness_id?: string };
+  if (!session_token || session_token.length !== 64 || !liveness_id || !req.file || !/^video\/(webm|mp4)/.test(req.file.mimetype)) {
+    res.status(400).json({ error: 'validation_error', message: 'session_token, liveness_id and a webm/mp4 video are required' });
+    return;
+  }
+  const session = await queryOne<VerificationSession>(
+    `SELECT * FROM verification_sessions WHERE session_token = $1 AND api_key_id = $2 AND expires_at > NOW()`,
+    [session_token, req.apiKey!.id]
+  );
+  if (!session) { res.status(404).json({ error: 'session_not_found' }); return; }
+  const r = await attachLivenessVideo(session, liveness_id, req.file.buffer);
+  if (r === 'not_found') { res.status(404).json({ error: 'challenge_not_found' }); return; }
+  res.json({ stored: r === 'attached' });
+});
 
 // ─── GET /verify/status/:session_token ───────────────────────────────────────────────────────────────────────────
 router.get(

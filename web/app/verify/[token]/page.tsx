@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { CheckCircle2, XCircle, Loader2, Shield, ChevronRight, Camera, Upload, Eye, EyeOff } from 'lucide-react';
+import LiveFaceCapture from '@/components/live-face-capture';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -16,6 +17,7 @@ interface Branding {
   current_step: string;
   lang: string;
   redirect_url: string | null;
+  liveness?: { enabled: boolean; required: boolean };
 }
 
 type Step = 'loading' | 'otp_entry' | 'id_upload' | 'face_scan' | 'processing' | 'complete' | 'failed';
@@ -53,6 +55,8 @@ export default function HostedVerifyPage() {
   const [faceError, setFaceError] = useState('');
   const selfieInputRef = useRef<HTMLInputElement>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [useUploadFallback, setUseUploadFallback] = useState(false);
+  const [reviewPending, setReviewPending] = useState(false);
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
 
   // Poll interval
@@ -274,7 +278,23 @@ export default function HostedVerifyPage() {
             />
           )}
 
-          {step === 'face_scan' && (
+          {step === 'face_scan' && branding?.liveness?.enabled && !useUploadFallback && (
+            <LiveFaceCapture
+              token={token}
+              api={API}
+              btnColor={btnColor}
+              required={branding.liveness.required}
+              onSubmitted={({ reviewPending: rp }) => {
+                setReviewPending(rp);
+                setStep('processing');
+                startPolling();
+              }}
+              onFailed={(msg) => { setError(msg); setStep('failed'); }}
+              onFallbackUpload={() => setUseUploadFallback(true)}
+            />
+          )}
+
+          {step === 'face_scan' && (!branding?.liveness?.enabled || useUploadFallback) && (
             <FaceStep
               selfiePreview={selfiePreview}
               showPreview={showPreview}
@@ -291,8 +311,14 @@ export default function HostedVerifyPage() {
           {step === 'processing' && (
             <div className="flex flex-col items-center gap-4 py-6 text-center">
               <Loader2 className="w-10 h-10 animate-spin" style={{ color: primary }} />
-              <p className="text-white font-medium">Verifying your identity…</p>
-              <p className="text-slate-400 text-sm">This usually takes under 30 seconds.</p>
+              <p className="text-white font-medium">
+                {reviewPending ? 'Your scan is under review' : 'Verifying your identity…'}
+              </p>
+              <p className="text-slate-400 text-sm">
+                {reviewPending
+                  ? 'A reviewer needs to take a quick look. You can keep this page open.'
+                  : 'This usually takes under 30 seconds.'}
+              </p>
             </div>
           )}
 
