@@ -55,6 +55,22 @@ protection, which is why the gates above also live inside the deploy itself and 
 - **Measure cost and delivery:** every send writes one row to `sms_messages` (hash and masked phone only). Example: `SELECT provider, status, count(*) FROM sms_messages WHERE created_at > now() - interval '7 days' GROUP BY 1,2;`
 - **Cheapest option is no SMS:** offer email OTP first where the product allows it.
 
+## USSD callback secrets (action needed for existing USSD setups)
+A USSD dial-in is treated as proof of SIM possession (no OTP), which is only true if the request really comes from the
+aggregator. The callback is public and the aggregator cannot sign it, so each API key has its **own secret** in the URL:
+`https://api.afriverify.sankofaapp.com/v1/ussd/callback?key=<secret>` (or header `X-USSD-Secret`). The secret is generated
+when a short code is saved (or via Dashboard > USSD > "Create callback URL" / `POST /v1/developer/keys/:id/ussd-secret`),
+shown once, stored only as a hash, and rotatable. A key with a short code but no secret, an unknown short code and a wrong
+secret all get the same `401 END Unauthorized.` (failing closed; nothing to enumerate). After deploying, every existing USSD
+setup is switched off until its owner creates the URL and updates it at the aggregator. Per-phone limit: 30 a hour, applied
+only after authentication so strangers cannot use up a victim's allowance.
+
+## Voucher routes (website)
+`/api/voucher/check` and `/api/voucher/redeem` proxy to an internal wallet service with a server-side secret. They now require a
+signed-in developer (`Authorization: Bearer <session token>`), call `POST /v1/developer/voucher-gate` for login, rate limit
+(redeem 5/min and 20/hour, check 15/min and 60/hour per account, shared across replicas, fail closed) and the AUTHENTICATED
+account id, and use that id for the credit; a `redeemedBy` sent by the browser is ignored.
+
 ## Integration tests (trust and money paths)
 `api/test/core-flow.integration.test.ts` exercises one-time codes (API, hosted page, identity portal) and subscription payments
 against a real Postgres and Redis, including bursts of parallel requests. It creates its own throwaway database, runs the real
