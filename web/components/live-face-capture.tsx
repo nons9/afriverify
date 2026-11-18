@@ -131,9 +131,17 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
   const [liteAuto, setLiteAuto] = useState(false);
   const liteRef = useRef(false);
   const [skipFlash, setSkipFlash] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
   const [flashing, setFlashing] = useState(false);
   const flashAbortRef = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // Reduced motion: do NOT silently drop the screen-light check (that would send every such person to manual review).
+  // Pre-tick the skip box with an explanation and let them choose: the colours change slowly (about 1.4 a second,
+  // well under the 3 a second flash limit), and they can stop at any time.
+  useEffect(() => {
+    if (prefersReducedMotion()) { setReducedMotion(true); setSkipFlash(true); skipFlashRef.current = true; }
+  }, []);
 
   // Pre-select Lite on a slow or data-saving connection (the person can always change it).
   useEffect(() => {
@@ -285,7 +293,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
         if (localPhase === 'baseline') {
           if (sample.hasFace) baselineNose.push(sample.noseRatio);
           if (now - baselineStart >= BASELINE_MS) {
-            if (start.flash && !skipFlashRef.current && !prefersReducedMotion()) {
+            if (start.flash && !skipFlashRef.current) {
               localPhase = 'flash'; flashAbortRef.current = false; setFlashing(true);
               setPhase('flash'); setPrompt('Hold still and look at the camera. The screen will flash colours for a few seconds.');
               const apply = (rgb: [number, number, number] | null) => {
@@ -402,6 +410,13 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
                 onChange={(e) => { setSkipFlash(e.target.checked); skipFlashRef.current = e.target.checked; }} />
               <span>I am sensitive to flashing lights: skip the coloured light. A person may need to review my scan.</span>
             </label>
+            {reducedMotion && (
+              <p role="note" className="text-sm text-slate-200 border-t border-white/10 pt-2">
+                {skipFlash
+                  ? 'Your device asks for reduced motion, so this box is ticked for you. The colours change slowly, about once every 0.7 seconds, and you can stop at any time. Untick it to include the check: your scan can then be approved automatically instead of waiting for a person.'
+                  : 'You chose to include the colour check. The colours change slowly, about once every 0.7 seconds, and a Stop button is always on screen.'}
+              </p>
+            )}
           </div>
           <label className="flex items-start gap-2 text-sm text-slate-300 cursor-pointer">
             <input type="checkbox" className="mt-1" checked={consent}
