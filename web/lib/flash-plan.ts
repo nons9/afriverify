@@ -4,7 +4,8 @@
  * on screen (the engine checks the face's colour against those windows).
  *
  * Safety: 700 ms per colour is about 1.4 changes a second (the general limit is 3), no fully saturated red,
- * the user can stop it at any time, and reduced-motion users never see it.
+ * the user can stop it at any time, and when the device asks for reduced motion the skip box is pre-ticked with an
+ * explanation (never a silent skip: that would send every such person to manual review) and they can untick it.
  */
 export type RGB = [number, number, number];
 export interface FlashPlan { neutral: RGB; lead_ms: number; hold_ms: number; steps: RGB[] }

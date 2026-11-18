@@ -36,7 +36,7 @@ const FLASH_TEXT: Record<string, { title: string; body: string; cls: string }> =
   pass: { title: 'Screen light reflected', body: 'The face changed colour in step with the random colours flashed on your screen. A photo or a video on another device cannot do this.', cls: 'text-green-300' },
   fail: { title: 'Screen light NOT reflected', body: 'Light was measurable but the face did not follow our colour order. This is what a replay on another screen looks like.', cls: 'text-red-300' },
   inconclusive: { title: 'Could not measure the screen light', body: 'Usually bright surroundings (sunlight) or a dim screen. Not a rejection, but it cannot count as proof: it goes to review.', cls: 'text-amber-300' },
-  skipped: { title: 'Colour flash skipped', body: 'You chose to skip it (or reduced motion is on). The scan can continue but goes to review.', cls: 'text-slate-300' },
+  skipped: { title: 'Colour flash skipped', body: 'You chose to skip it (the box is ticked for you when your device asks for reduced motion; untick it to run the check). The scan can continue but goes to review.', cls: 'text-slate-300' },
   missing: { title: 'No colour flash data', body: 'The browser did not send the flash timing (an old page version). Reload and try again.', cls: 'text-amber-300' },
 };
 
