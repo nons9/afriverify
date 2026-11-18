@@ -26,14 +26,14 @@ export const PLAN_PRICING: Record<SelfServePlan, PlanDefinition> = {
 
 // Applied when a subscription lapses without renewal - matches the tier a
 // brand-new key gets (see developer.ts's POST /keys).
-const FREE_TIER_LIMIT = 100;
+export const FREE_TIER_LIMIT = 100;
 
 // How long an expired subscription keeps working before it's downgraded,
 // so a developer whose card needs re-entering doesn't lose access mid-day.
 const GRACE_PERIOD_DAYS = 3;
 
 // Per-verification price for usage past the plan's monthly_limit.
-const OVERAGE_RATE_CENTS = 3;
+export const OVERAGE_RATE_CENTS = 3;
 
 export function isSelfServePlan(plan: string): plan is SelfServePlan {
   return (SELF_SERVE_PLANS as readonly string[]).includes(plan);
@@ -393,4 +393,22 @@ export function startBillingCron(): void {
     runOncePerInterval('billing-cycle', DAY_MS, runBillingCycle).catch((err) => logger.error('Billing cycle errored', { error: (err as Error).message }));
   }, DAY_MS);
   logger.info('Billing cron scheduled', { intervalHours: 24 });
+}
+
+
+/** The prices customers are actually charged, for the public pricing page (single source of truth). */
+export function getPublicPlans() {
+  return {
+    currency: 'USD',
+    free: { monthly_limit: FREE_TIER_LIMIT, price_monthly_cents: 0 },
+    plans: SELF_SERVE_PLANS.map((id) => {
+      const p = PLAN_PRICING[id];
+      return {
+        id, label: p.label, price_monthly_cents: p.amountCents, monthly_limit: p.monthlyLimit,
+        cents_per_verification: Math.round((p.amountCents / p.monthlyLimit) * 1000) / 1000,
+      };
+    }),
+    overage_cents_per_verification: OVERAGE_RATE_CENTS,
+    enterprise: { custom: true, contact: 'sales@sankofaapp.com' },
+  };
 }

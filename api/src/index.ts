@@ -18,6 +18,9 @@ import developerRouter from './routes/developer';
 import livenessDemoRouter from './routes/liveness-demo';
 import livenessEvalRouter from './routes/liveness-eval';
 import openapiRouter from './routes/openapi';
+import publicInfoRouter from './routes/public-info';
+import { getReadiness } from './services/readiness.service';
+import { startStatusRecorder } from './services/status.service';
 import billingRouter from './routes/billing';
 import identityPortalRouter from './routes/identity-portal';
 import ussdRouter from './routes/ussd';
@@ -94,30 +97,7 @@ app.get('/health', async (_req: Request, res: Response) => {
 // Readiness: the release gate. Railway only promotes a new deployment once this returns 200, so a build whose
 // migrations did not apply (or whose database/Redis is unreachable) never replaces the version that works.
 app.get('/health/ready', async (_req: Request, res: Response) => {
-  const checks: Record<string, unknown> = {};
-  let ok = true;
-  try {
-    await pool.query('SELECT 1');
-    checks.database = 'ok';
-  } catch (err) {
-    checks.database = 'down';
-    ok = false;
-  }
-  try {
-    checks.redis = (await redis.ping()) === 'PONG' ? 'ok' : 'down';
-    if (checks.redis !== 'ok') ok = false;
-  } catch {
-    checks.redis = 'down';
-    ok = false;
-  }
-  try {
-    const m = await getMigrationStatus();
-    checks.migrations = m.current ? 'current' : { pending: m.pending };
-    if (!m.current) ok = false;
-  } catch {
-    checks.migrations = 'unknown';
-    ok = false;
-  }
+  const { ok, checks } = await getReadiness();
   res.status(ok ? 200 : 503).json({ status: ok ? 'ready' : 'not_ready', service: 'afriverify-api', checks });
 });
 
@@ -131,6 +111,7 @@ app.use('/v1/trust', trustRouter);
 app.use('/v1/developer/liveness-demo', livenessDemoRouter);
 app.use('/v1/developer/liveness-eval', livenessEvalRouter);
 app.use('/v1', openapiRouter);
+app.use('/v1', publicInfoRouter);
 app.use('/v1/developer', developerRouter);
 app.use('/v1/developer/billing', billingRouter);
 app.use('/v1/identity-portal', identityPortalRouter);
@@ -202,6 +183,7 @@ async function bootstrap(): Promise<void> {
   startFailureRateMonitor();
   startHttpHealthMonitor();
   startRetentionPurge();
+  startStatusRecorder();
   startBillingCron();
   startAmlRescreenWorker();
 

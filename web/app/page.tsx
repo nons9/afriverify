@@ -371,6 +371,10 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-500">
           <AfriVerifyLogo size={22} textSize="text-sm" />
           <div className="flex items-center gap-6">
+            <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
+            <Link href="/security" className="hover:text-white transition-colors">Security</Link>
+            <Link href="/status" className="hover:text-white transition-colors">Status</Link>
+            <Link href="/changelog" className="hover:text-white transition-colors">Changelog</Link>
             <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-white transition-colors">Terms</Link>
             <Link href="/my-identity/login" className="hover:text-white transition-colors">Manage your identity</Link>
