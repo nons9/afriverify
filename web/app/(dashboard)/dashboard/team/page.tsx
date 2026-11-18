@@ -246,7 +246,7 @@ export default function TeamPage() {
           <button
             type="submit"
             disabled={inviting || !inviteEmail.trim()}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap"
+            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-ink text-sm font-medium rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap"
           >
             {inviting && <span className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />}
             Send invite

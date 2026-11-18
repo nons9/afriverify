@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, LogOut, Link2Off, BadgeCheck, Key, RotateCcw, Trash2, Activity, ExternalLink } from 'lucide-react';
+import { LogOut, Link2Off, BadgeCheck, Key, RotateCcw, Trash2, Activity, ExternalLink } from 'lucide-react';
 import { identityApi, clearIdentitySession } from '@/lib/identity-auth';
+import { AfriVerifyLogo } from '@/components/logo';
 
 const i18n = {
   en: {
@@ -209,12 +210,7 @@ export default function IdentityPortalPage() {
     <div className="min-h-screen bg-slate-950 p-4 sm:p-8">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-              <ShieldCheck className="w-4 h-4 text-indigo-400" />
-            </div>
-            <span className="font-bold text-white">AfriVerify</span>
-          </div>
+          <AfriVerifyLogo size={28} href="/my-identity" />
           <div className="flex items-center gap-3">
             <div className="inline-flex rounded-lg overflow-hidden border border-white/10 text-xs">
               {(['en', 'fr'] as Lang[]).map((l) => (
@@ -223,7 +219,7 @@ export default function IdentityPortalPage() {
                   onClick={() => setLang(l)}
                   className={`px-3 py-1.5 font-medium transition-colors ${
                     lang === l
-                      ? 'bg-indigo-500 text-white'
+                      ? 'bg-indigo-500 text-ink'
                       : 'bg-white/5 text-slate-400 hover:text-white'
                   }`}
                 >

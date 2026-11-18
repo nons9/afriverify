@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Shield, Code2, Terminal, Book, ArrowRight, Key, Zap, Lock, Building2 } from 'lucide-react';
+import { Code2, Terminal, Book, ArrowRight, Key, Zap, Lock, Building2 } from 'lucide-react';
+import { AfriVerifyLogo } from '@/components/logo';
 
 const BASE_URL = 'https://api.afriverify.sankofaapp.com/v1';
 
@@ -252,12 +253,7 @@ export default function DocsPage() {
       {/* Nav */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/10 bg-slate-950/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
-              <Shield className="w-4 h-4" />
-            </div>
-            <span className="font-bold text-lg tracking-tight">AfriVerify</span>
-          </Link>
+          <AfriVerifyLogo size={28} />
           <div className="hidden md:flex items-center gap-8 text-sm text-slate-400">
             <Link href="/#features" className="hover:text-white transition-colors">Features</Link>
             <Link href="/#pricing" className="hover:text-white transition-colors">Pricing</Link>
@@ -266,7 +262,7 @@ export default function DocsPage() {
           </div>
           <Link
             href="/register"
-            className="bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+            className="bg-indigo-500 hover:bg-indigo-400 text-ink text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
           >
             Get API key
           </Link>
@@ -528,7 +524,7 @@ export default function DocsPage() {
                 </Link>
                 <Link
                   href="/register"
-                  className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
+                  className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-ink text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
                 >
                   Get API key <ArrowRight className="w-4 h-4" />
                 </Link>

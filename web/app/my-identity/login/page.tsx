@@ -88,7 +88,7 @@ export default function IdentityPortalLoginPage() {
                 onClick={() => setLang(l)}
                 className={`px-3 py-1.5 font-medium transition-colors ${
                   lang === l
-                    ? 'bg-indigo-500 text-white'
+                    ? 'bg-indigo-500 text-ink'
                     : 'bg-white/5 text-slate-400 hover:text-white'
                 }`}
               >
@@ -128,7 +128,7 @@ export default function IdentityPortalLoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg text-sm transition-colors"
+              className="w-full bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed text-ink font-semibold py-3 rounded-lg text-sm transition-colors"
             >
               {loading ? t.sending : t.sendCode}
             </button>
@@ -156,7 +156,7 @@ export default function IdentityPortalLoginPage() {
             <button
               type="submit"
               disabled={loading || otp.length !== 6}
-              className="w-full bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg text-sm transition-colors"
+              className="w-full bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed text-ink font-semibold py-3 rounded-lg text-sm transition-colors"
             >
               {loading ? t.verifying : t.continueBtn}
             </button>

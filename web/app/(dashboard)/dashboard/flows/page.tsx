@@ -68,7 +68,7 @@ const emptyForm = {
   success_url: '',
   failure_url: '',
   brand_name: '',
-  brand_color: '#6366f1',
+  brand_color: '#C9960E',
   welcome_message: '',
 };
 
@@ -141,7 +141,7 @@ function FlowForm({
           success_url: initial.success_url ?? '',
           failure_url: initial.failure_url ?? '',
           brand_name: initial.brand_name ?? '',
-          brand_color: initial.brand_color ?? '#6366f1',
+          brand_color: initial.brand_color ?? '#C9960E',
           welcome_message: initial.welcome_message ?? '',
         }
       : { ...emptyForm }
@@ -470,7 +470,7 @@ function FlowForm({
         <button
           type="submit"
           disabled={saving}
-          className="px-5 py-2.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+          className="px-5 py-2.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-ink text-sm font-medium rounded-lg transition-colors"
         >
           {saving ? 'Saving…' : initial ? 'Save changes' : 'Create flow'}
         </button>
@@ -670,7 +670,7 @@ export default function FlowsPage() {
         </div>
         <button
           onClick={() => setMode('create')}
-          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium rounded-lg transition-colors shrink-0"
+          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-ink text-sm font-medium rounded-lg transition-colors shrink-0"
         >
           <Plus className="w-4 h-4" />
           New flow
@@ -724,7 +724,7 @@ export default function FlowsPage() {
           </p>
           <button
             onClick={() => setMode('create')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium rounded-lg transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-ink text-sm font-medium rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
             Create flow

@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ShieldCheck, Copy, Check, ArrowLeft, Clock, Activity } from 'lucide-react';
+import { Copy, Check, ArrowLeft, Clock, Activity } from 'lucide-react';
 import { identityApi } from '@/lib/identity-auth';
+import { AfriVerifyLogo } from '@/components/logo';
 
 const i18n = {
   en: {
@@ -147,8 +148,8 @@ function VITPageContent() {
           text: tokenValue,
           width: 220,
           height: 220,
-          colorDark: '#6366f1',
-          colorLight: '#0f172a',
+          colorDark: '#0D0B08',
+          colorLight: '#FBF7EE',
           correctLevel: (window as any).QRCode.CorrectLevel.M,
         });
         setQrReady(true);
@@ -211,7 +212,7 @@ function VITPageContent() {
                 onClick={() => setLang(l)}
                 className={`px-3 py-1.5 font-medium transition-colors ${
                   lang === l
-                    ? 'bg-indigo-500 text-white'
+                    ? 'bg-indigo-500 text-ink'
                     : 'bg-white/5 text-slate-400 hover:text-white'
                 }`}
               >
@@ -219,12 +220,7 @@ function VITPageContent() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-            </div>
-            <span className="text-sm font-bold text-white">AfriVerify</span>
-          </div>
+          <AfriVerifyLogo size={24} href="/my-identity" />
         </div>
 
         {error ? (
@@ -249,8 +245,8 @@ function VITPageContent() {
                 {/* QRCode library appends a div+canvas inside this container */}
                 <div
                   id="qr-container"
-                  className="rounded-xl overflow-hidden"
-                  style={{ width: 220, height: 220, background: '#0f172a' }}
+                  className="rounded-xl overflow-hidden p-3"
+                  style={{ width: 244, height: 244, background: '#FBF7EE' }}
                 >
                   <canvas ref={canvasRef} width={220} height={220} />
                   {!qrReady && (

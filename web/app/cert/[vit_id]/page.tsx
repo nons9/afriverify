@@ -29,12 +29,12 @@ interface CertData {
 const LVC: Record<string, string> = {
   lv1: '#3B82F6',
   lv2: '#34D399',
-  lv3: '#F59E0B',
+  lv3: '#C9960E',
 };
 
 function levelColor(level: 1 | 2 | 3, status: string): string {
-  if (status === 'revoked') return '#EF4444';
-  if (status === 'expired') return '#6B7280';
+  if (status === 'revoked') return '#F87171';
+  if (status === 'expired') return '#A89F8C';
   return LVC[`lv${level}`] ?? LVC.lv3;
 }
 
@@ -135,7 +135,7 @@ export default function CertPage() {
 
       const certUrl = `${window.location.origin}/cert/${data.vit_id}`;
       import('qrcode').then(mod =>
-        mod.default.toDataURL(certUrl, { width: 80, margin: 1, color: { dark: '#030611', light: '#ffffff' } })
+        mod.default.toDataURL(certUrl, { width: 80, margin: 1, color: { dark: '#0D0B08', light: '#FBF7EE' } })
           .then(setQrSrc)
           .catch(() => null)
       ).catch(() => null);

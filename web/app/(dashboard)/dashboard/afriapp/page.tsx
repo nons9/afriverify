@@ -171,7 +171,7 @@ export default function AfriAppPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shrink-0"
+                className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-ink px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shrink-0"
               >
                 {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 {saving ? 'Verifying…' : status?.connected ? 'Replace' : 'Connect'}
