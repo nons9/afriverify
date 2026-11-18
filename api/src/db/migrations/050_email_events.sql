@@ -20,5 +20,13 @@ CREATE TABLE IF NOT EXISTS email_events (
 CREATE INDEX IF NOT EXISTS idx_email_events_type_time ON email_events (event_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_email_events_recipient ON email_events (recipient_hash) WHERE recipient_hash IS NOT NULL;
 
-CREATE RULE no_update_email_events AS ON UPDATE TO email_events DO INSTEAD NOTHING;
+-- Append-only. NOTE: unlike the older event tables this cannot use an UPDATE *rule*, because Postgres
+-- rejects INSERT ... ON CONFLICT on any table that has INSERT or UPDATE rules (the webhook handler
+-- relies on ON CONFLICT (svix_id) for idempotent retries). A trigger gives the same "ignore updates"
+-- behaviour and is compatible with ON CONFLICT.
 CREATE RULE no_delete_email_events AS ON DELETE TO email_events DO INSTEAD NOTHING;
+
+CREATE OR REPLACE FUNCTION email_events_ignore_update() RETURNS trigger
+  LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;
+CREATE TRIGGER no_update_email_events BEFORE UPDATE ON email_events
+  FOR EACH ROW EXECUTE FUNCTION email_events_ignore_update();

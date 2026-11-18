@@ -1,5 +1,13 @@
 -- Fix: verification_sessions was missing columns queried by admin routes.
 -- type and status are derived via GENERATED ALWAYS so verify routes need no changes.
+--
+-- Postgres refuses `step::text` in a generated column ("generation expression is not
+-- immutable") because enum output is only STABLE. This migration therefore failed on every
+-- deploy and blocked all later migrations. The enum's labels are fixed, so an IMMUTABLE
+-- wrapper is safe and satisfies the check.
+CREATE OR REPLACE FUNCTION vs_step_text(s vs_step_enum) RETURNS text
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$ SELECT s::text $$;
+
 ALTER TABLE verification_sessions
   ADD COLUMN IF NOT EXISTS type TEXT GENERATED ALWAYS AS (
     CASE
@@ -8,7 +16,7 @@ ALTER TABLE verification_sessions
       ELSE 'basic'
     END
   ) STORED,
-  ADD COLUMN IF NOT EXISTS status TEXT GENERATED ALWAYS AS (step::text) STORED,
+  ADD COLUMN IF NOT EXISTS status TEXT GENERATED ALWAYS AS (vs_step_text(step)) STORED,
   ADD COLUMN IF NOT EXISTS risk_level TEXT NOT NULL DEFAULT 'unknown',
   ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 
