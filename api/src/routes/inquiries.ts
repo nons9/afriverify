@@ -85,9 +85,10 @@ router.get('/', sessionAuth, async (req: Request, res: Response): Promise<void> 
             il.current_uses, il.max_uses, il.require_liveness, il.allowed_id_types,
             il.expires_at, il.created_at,
             COUNT(s.id)::int AS submission_count,
-            COUNT(s.id) FILTER (WHERE s.result = 'passed')::int AS completed_count
+            COUNT(vs.id) FILTER (WHERE vs.step = 'complete')::int AS completed_count
      FROM inquiry_links il
      LEFT JOIN inquiry_submissions s ON s.inquiry_id = il.id
+     LEFT JOIN verification_sessions vs ON vs.id = s.session_id
      WHERE il.developer_email = $1
      GROUP BY il.id
      ORDER BY il.created_at DESC`,
@@ -122,8 +123,12 @@ router.get('/:id', sessionAuth, async (req: Request, res: Response): Promise<voi
   const submissions = await query<{
     id: string; result: string; completed_at: string | null; created_at: string;
   }>(
-    `SELECT id, result, completed_at, created_at
-     FROM inquiry_submissions WHERE inquiry_id = $1 ORDER BY created_at DESC LIMIT 50`,
+    `SELECT s.id,
+            CASE WHEN vs.step = 'complete' THEN 'passed' WHEN vs.step = 'failed' THEN 'failed' ELSE s.result END AS result,
+            COALESCE(s.completed_at, vs.completed_at) AS completed_at, s.created_at
+     FROM inquiry_submissions s
+     LEFT JOIN verification_sessions vs ON vs.id = s.session_id
+     WHERE s.inquiry_id = $1 ORDER BY s.created_at DESC LIMIT 50`,
     [id]
   );
 

@@ -19,6 +19,7 @@ interface Branding {
   current_step: string;
   lang: string;
   redirect_url: string | null;
+  allowed_id_types?: string[];
   liveness?: { enabled: boolean; required: boolean };
 }
 
@@ -269,6 +270,7 @@ export default function HostedVerifyPage() {
 
           {step === 'id_upload' && (
             <IdUploadStep
+              allowedTypes={branding?.allowed_id_types}
               form={idForm}
               file={idFile}
               error={idError}
@@ -470,7 +472,7 @@ function OtpStep({
 
 function IdUploadStep({
   form, file, error, busy, fileRef,
-  onFormChange, onFileChange, onSubmit, btnColor,
+  onFormChange, onFileChange, onSubmit, btnColor, allowedTypes,
 }: {
   form: Record<string, string>;
   file: File | null;
@@ -481,13 +483,17 @@ function IdUploadStep({
   onFileChange: (f: File) => void;
   onSubmit: (e: React.FormEvent) => void;
   btnColor: string;
+  allowedTypes?: string[];
 }) {
-  const ID_TYPES = [
+  const ALL_ID_TYPES = [
     { value: 'national_id', label: 'National ID' },
     { value: 'passport', label: 'Passport' },
     { value: 'drivers_license', label: "Driver's License" },
     { value: 'voter_id', label: 'Voter ID' },
   ];
+  const ID_TYPES = allowedTypes && allowedTypes.length > 0
+    ? ALL_ID_TYPES.filter(t => allowedTypes.includes(t.value))
+    : ALL_ID_TYPES;
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">

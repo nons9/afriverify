@@ -232,13 +232,12 @@ export default function InquiriesPage() {
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={false}
-                    disabled
-                    readOnly
-                    className="w-4 h-4 rounded accent-indigo-500 opacity-50"
+                    checked={form.require_liveness}
+                    onChange={(e) => setForm((f) => ({ ...f, require_liveness: e.target.checked }))}
+                    className="w-4 h-4 rounded accent-indigo-500"
                   />
-                  <span className="text-sm text-slate-500">
-                    Require liveness check (available when the public inquiry page launches; use Verification Flows today)
+                  <span className="text-sm text-slate-300">
+                    Require live face scan
                   </span>
                 </label>
               </div>

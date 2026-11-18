@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne } from '../db';
+import redis from '../redis';
 import { sha256, timingSafeEqualHex } from '../utils/crypto';
 import { sendSms } from '../services/otp.service';
 import { sendOtpEmail } from '../services/email-otp.service';
@@ -56,6 +57,7 @@ router.get('/branding/:session_token', async (req: Request, res: Response): Prom
     lang: string;
     redirect_url: string | null;
     liveness_required: boolean;
+    allowed_id_types: string[] | null;
   }>(
     `SELECT ak.platform_email AS developer_email,
             COALESCE(wl.company_name, ak.platform_name)  AS company_name,
@@ -67,7 +69,8 @@ router.get('/branding/:session_token', async (req: Request, res: Response): Prom
             vs.step,
             COALESCE(vs.lang, 'en')                      AS lang,
             vs.redirect_url,
-            vs.liveness_required
+            vs.liveness_required,
+            (SELECT il.allowed_id_types FROM inquiry_links il WHERE il.id = vs.inquiry_id) AS allowed_id_types
      FROM verification_sessions vs
      JOIN api_keys ak ON vs.api_key_id = ak.id
      LEFT JOIN white_label_configs wl ON wl.developer_email = ak.platform_email
@@ -90,6 +93,7 @@ router.get('/branding/:session_token', async (req: Request, res: Response): Prom
     current_step: row.step,
     lang: row.lang,
     redirect_url: row.redirect_url ?? null,
+    allowed_id_types: row.allowed_id_types ?? [],
     liveness: {
       enabled: livenessEnabled(),
       required: isLivenessRequired({ liveness_required: row.liveness_required }),
@@ -116,6 +120,20 @@ router.post(
     );
     if (!session) {
       res.status(404).json({ error: 'session_not_found', message: 'Session not found or expired' });
+      return;
+    }
+
+    // Cap sends per session: this endpoint is public and each send can cost an SMS.
+    try {
+      const sendKey = `hosted:otp-sends:${session.id}`;
+      const sends = await redis.incr(sendKey);
+      if (sends === 1) await redis.expire(sendKey, 1800);
+      if (sends > 5) {
+        res.status(429).json({ error: 'otp_send_limit', message: 'Too many codes requested. Please start again later.' });
+        return;
+      }
+    } catch {
+      res.status(503).json({ error: 'otp_send_failed', message: 'Could not send a code right now. Please try again.' });
       return;
     }
 
@@ -251,6 +269,14 @@ router.post(
     );
     if (!session?.identity_id) {
       res.status(404).json({ error: 'session_not_found' });
+      return;
+    }
+    const allowed = await queryOne<{ allowed_id_types: string[] }>(
+      'SELECT il.allowed_id_types FROM inquiry_links il WHERE il.id = (SELECT inquiry_id FROM verification_sessions WHERE id = $1)',
+      [session.id]
+    );
+    if (allowed && allowed.allowed_id_types.length > 0 && !allowed.allowed_id_types.includes(id_type)) {
+      res.status(400).json({ error: 'id_type_not_accepted', message: 'This ID type is not accepted for this verification.' });
       return;
     }
 
