@@ -14,6 +14,17 @@ import { AfriVerifyLogo } from '@/components/logo';
 
 const BASE_URL = 'https://api.afriverify.sankofaapp.com/v1';
 
+const curlIdempotent = `# Safe retries: send the same Idempotency-Key and a timeout can never create (or bill) a second session.
+curl -X POST ${BASE_URL}/verify/initiate \\
+  -H "Authorization: Bearer av_live_YOUR_KEY" \\
+  -H "X-Platform: YourPlatformName" \\
+  -H "Idempotency-Key: order-8f3c1a2e" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "phone": "+2348012345678" }'
+# Retry within 24h with the same key and body: same response, header  Idempotency-Replayed: true
+# Same key, different body: 422 idempotency_key_reused.  Still running: 409 idempotency_in_progress (+ Retry-After).
+# Every response also carries RateLimit-Limit, RateLimit-Remaining and RateLimit-Reset; a 429 adds Retry-After.`;
+
 const curlInitiate = `curl -X POST ${BASE_URL}/verify/initiate \\
   -H "Authorization: Bearer av_live_YOUR_KEY" \\
   -H "X-Platform: YourPlatformName" \\
@@ -351,6 +362,7 @@ export default function DocsPage() {
                 { href: '#kyb-flow', label: 'Verify a business' },
                 { href: '#sandbox', label: 'Sandbox testing' },
                 { href: '#api-reference', label: 'API reference' },
+                { href: '#safe-retries', label: 'Safe retries' },
                 { href: '#errors', label: 'Errors' },
                 { href: '/docs/breach-response', label: 'Breach runbook', external: true },
               ].map(({ href, label, external }) => (
@@ -567,6 +579,19 @@ export default function DocsPage() {
               <EndpointList endpoints={verifyEndpoints} />
               <h3 className="text-sm font-semibold text-slate-300 mb-3 mt-8">Business verification (KYB)</h3>
               <EndpointList endpoints={kybEndpoints} />
+            </section>
+
+            {/* Safe retries */}
+            <section id="safe-retries">
+              <h2 className="text-2xl font-bold mb-3">Safe retries and rate limits</h2>
+              <p className="text-slate-400 text-sm leading-relaxed mb-4">
+                Networks fail. Send an <code className="bg-white/5 text-indigo-300 px-1 rounded">Idempotency-Key</code> on
+                mutating requests so a retry returns the original result instead of repeating the action. Keys are scoped to
+                your API key and remembered for 24 hours. Machine-readable contract:{' '}
+                <a href={`${BASE_URL}/openapi.yaml`} className="text-indigo-400 underline">openapi.yaml</a> and{' '}
+                <a href={`${BASE_URL}/openapi.json`} className="text-indigo-400 underline">openapi.json</a>.
+              </p>
+              <CodeBlock lang="bash" code={curlIdempotent} />
             </section>
 
             {/* Errors */}

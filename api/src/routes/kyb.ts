@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { idempotency } from '../middleware/idempotency';
 import multer from 'multer';
 import { z } from 'zod';
 import { authenticate, requirePermission } from '../middleware/auth';
@@ -13,6 +14,7 @@ const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.use(authenticate);
+router.use(idempotency);
 router.use(rateLimitApiKey);
 router.use(requirePermission('verify'));
 

@@ -3,6 +3,7 @@ import { RateLimiterRedis } from 'rate-limiter-flexible';
 import redis from '../redis';
 import { query } from '../db';
 import logger from '../utils/logger';
+import { setRateLimitHeaders } from '../utils/ratelimit-headers';
 
 const verifyInitiateLimit = new RateLimiterRedis({
   storeClient: redis,
@@ -12,10 +13,11 @@ const verifyInitiateLimit = new RateLimiterRedis({
   blockDuration: 3600
 });
 
+const API_KEY_LIMIT = 1000;
 const apiKeyLimit = new RateLimiterRedis({
   storeClient: redis,
   keyPrefix: 'rl:apikey',
-  points: 1000,
+  points: API_KEY_LIMIT,
   duration: 60,
 });
 
@@ -55,6 +57,7 @@ export async function rateLimitVerifyInitiate(
     next();
   } catch (e: unknown) {
     if (!isRateLimitHit(e)) { next(); return; } // Redis down - fail open
+    setRateLimitHeaders(res, 10, e as { remainingPoints?: number; msBeforeNext?: number }, true);
     res.status(429).json({
       error: 'rate_limit_exceeded',
       message: 'Too many verification attempts for this phone number. Retry after 24 hours.',
@@ -70,12 +73,14 @@ export async function rateLimitApiKey(
 ): Promise<void> {
   if (!req.apiKey) { next(); return; }
   try {
-    await apiKeyLimit.consume(req.apiKey.id);
+    const ok = await apiKeyLimit.consume(req.apiKey.id);
+    setRateLimitHeaders(res, API_KEY_LIMIT, ok);
     next();
   } catch (e: unknown) {
     if (!isRateLimitHit(e)) { next(); return; } // Redis down - fail open
 
     const ms = (e as { msBeforeNext?: number }).msBeforeNext ?? 60000;
+    setRateLimitHeaders(res, API_KEY_LIMIT, e as { remainingPoints?: number; msBeforeNext?: number }, true);
 
     // Count this rejection toward the abuse threshold.
     // Fire-and-forget - never block the 429 response on DB/Redis ops.
@@ -113,6 +118,7 @@ export async function rateLimitGlobal(
   } catch (e: unknown) {
     if (!isRateLimitHit(e)) { next(); return; } // Redis down - fail open
     const ms = (e as { msBeforeNext?: number }).msBeforeNext ?? 60000;
+    setRateLimitHeaders(res, 300, e as { remainingPoints?: number; msBeforeNext?: number }, true);
     res.status(429).json({
       error: 'rate_limit_exceeded',
       message: 'Too many requests from this IP.',

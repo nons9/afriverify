@@ -21,7 +21,10 @@ class VerifyResource:
         flow_id: str | None = None,
         lang: str = "en",
         require_liveness: bool = False,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
+        """Start a verification session. Pass `idempotency_key` (8-128 chars, unique per logical request) so a
+        retry after a timeout returns the SAME session instead of creating and billing a second one."""
         return self._http.post("/verify/initiate", _compact({
             "phone": phone,
             "email": email,
@@ -31,7 +34,7 @@ class VerifyResource:
             "flow_id": flow_id,
             "lang": lang,
             "require_liveness": True if require_liveness else None,
-        }))
+        }), {"Idempotency-Key": idempotency_key} if idempotency_key else None)
 
     def send_otp(self, session_token: str) -> dict[str, Any]:
         return self._http.post("/verify/otp/send", {"session_token": session_token})

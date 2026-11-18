@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { idempotency } from '../middleware/idempotency';
 import { z } from 'zod';
 import { authenticate, requirePermission } from '../middleware/auth';
 import { rateLimitApiKey } from '../middleware/rateLimit';
@@ -11,6 +12,7 @@ import logger from '../utils/logger';
 const router = Router();
 
 router.use(authenticate);
+router.use(idempotency);
 router.use(rateLimitApiKey);
 router.use(requirePermission('verify'));
 

@@ -42,6 +42,23 @@ tags:
     description: Test credentials and utilities (sandbox API keys only)
 
 components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        Makes a retry safe. Send a unique value (8-128 characters: letters, digits, `_ - : .`) per logical request.
+        The first request runs; for 24 hours any retry with the same key and the same body returns the **same
+        response** (header `Idempotency-Replayed: true`) without running again, so a timeout never creates and bills
+        a second verification. The same key with a different body returns `422 idempotency_key_reused`; a retry while
+        the first is still running returns `409 idempotency_in_progress` with `Retry-After`. A `5xx` result is not
+        stored, so retrying after our failure really retries. Keys are scoped to your API key. Ignored on multipart uploads.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+        pattern: '^[A-Za-z0-9_\-:.]{8,128}$'
   securitySchemes:
     ApiKeyAuth:
       type: http
@@ -173,6 +190,10 @@ paths:
         Returns a `session_token` used to thread all subsequent steps.
 
         Rate-limited per API key. Free-tier keys have a monthly verification cap.
+        Every response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset` (seconds); a `429`
+        also carries `Retry-After`. Back off before you hit zero.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -212,6 +233,8 @@ paths:
                     Require a live face scan (`/verify/face/liveness/*`) instead of a photo upload.
                     `/verify/face/submit` then returns `400 liveness_required` for this session.
       responses:
+        '409': { description: 'Idempotency-Key request still in progress (see Retry-After)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: 'Idempotency-Key already used with a different request', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '201':
           description: Session created
           content:

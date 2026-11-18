@@ -24,11 +24,11 @@ export class HttpClient {
     return this.parse<T>(res);
   }
 
-  async post<T>(path: string, body: unknown): Promise<T> {
+  async post<T>(path: string, body: unknown, extraHeaders: Record<string, string> = {}): Promise<T> {
     const url = this.buildUrl(path);
     const res = await this.request(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...extraHeaders },
       body: JSON.stringify(body),
     });
     return this.parse<T>(res);
