@@ -22,6 +22,8 @@ const flowSchema = z.object({
   brand_name: z.string().max(100).optional().nullable(),
   brand_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().nullable(),
   welcome_message: z.string().max(500).optional().nullable(),
+  // require the live face scan (own liveness engine) for sessions created with this flow
+  require_liveness: z.boolean().default(false),
 });
 
 router.use(sessionAuth);
@@ -31,7 +33,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
   const flows = await query(
     `SELECT id, name, description, required_steps, optional_steps, allowed_id_types,
             allowed_countries, min_verification_level, success_url, failure_url,
-            brand_name, brand_color, welcome_message, is_active, created_at, updated_at
+            brand_name, brand_color, welcome_message, require_liveness, is_active, created_at, updated_at
      FROM verification_flows
      WHERE developer_email = $1 AND is_active = true
      ORDER BY created_at DESC`,
@@ -47,8 +49,8 @@ router.post('/', validateBody(flowSchema), async (req: Request, res: Response): 
     `INSERT INTO verification_flows
        (developer_email, name, description, required_steps, optional_steps,
         allowed_id_types, allowed_countries, min_verification_level,
-        success_url, failure_url, brand_name, brand_color, welcome_message)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        success_url, failure_url, brand_name, brand_color, welcome_message, require_liveness)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      RETURNING *`,
     [
       req.developer!.email,
@@ -64,6 +66,7 @@ router.post('/', validateBody(flowSchema), async (req: Request, res: Response): 
       d.brand_name ?? null,
       d.brand_color ?? null,
       d.welcome_message ?? null,
+      d.require_liveness,
     ]
   );
   res.status(201).json({ flow });
@@ -88,7 +91,7 @@ router.patch('/:id', validateBody(flowSchema.partial()), async (req: Request, re
   const allowed = new Set([
     'name', 'description', 'required_steps', 'optional_steps', 'allowed_id_types',
     'allowed_countries', 'min_verification_level', 'success_url', 'failure_url',
-    'brand_name', 'brand_color', 'welcome_message'
+    'brand_name', 'brand_color', 'welcome_message', 'require_liveness'
   ]);
   const fields = Object.keys(d).filter((k) => allowed.has(k));
   if (fields.length === 0) {

@@ -29,6 +29,7 @@ interface Flow {
   brand_name: string | null;
   brand_color: string | null;
   welcome_message: string | null;
+  require_liveness?: boolean;
   is_active: boolean;
   created_at: string;
 }
@@ -70,6 +71,7 @@ const emptyForm = {
   brand_name: '',
   brand_color: '#C9960E',
   welcome_message: '',
+  require_liveness: false,
 };
 
 type FormData = typeof emptyForm;
@@ -143,6 +145,7 @@ function FlowForm({
           brand_name: initial.brand_name ?? '',
           brand_color: initial.brand_color ?? '#C9960E',
           welcome_message: initial.welcome_message ?? '',
+          require_liveness: initial.require_liveness ?? false,
         }
       : { ...emptyForm }
   );
@@ -309,6 +312,23 @@ function FlowForm({
           <option value={2}>2 - Biometric</option>
         </select>
       </div>
+
+      {/* Live face scan */}
+      <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 cursor-pointer max-w-xl">
+        <input
+          type="checkbox"
+          checked={form.require_liveness}
+          onChange={(e) => setForm((f) => ({ ...f, require_liveness: e.target.checked }))}
+          className="mt-1 h-4 w-4 accent-[#C9960E]"
+        />
+        <span>
+          <span className="block text-sm font-medium text-white">Require live face scan</span>
+          <span className="block text-xs text-slate-400 mt-1 leading-relaxed">
+            Users must complete a short on-camera check (turn, blink, smile) that proves a real person is present.
+            Photo uploads are refused for sessions created with this flow. The scan is matched to the ID photo.
+          </span>
+        </span>
+      </label>
 
       {/* Advanced section */}
       <div className="border-t border-white/[0.06] mt-2">
@@ -577,6 +597,11 @@ function FlowCard({
 
       <div className="flex items-center gap-4 mt-3 pt-3 border-t border-white/[0.06] text-xs text-slate-500">
         <span>Min level: <strong className="text-slate-300">{flow.min_verification_level}</strong></span>
+        {flow.require_liveness && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#C9960E]/40 bg-[#C9960E]/10 px-2 py-0.5 text-[#E0BE66]">
+            <Check className="w-3 h-3" /> Live scan required
+          </span>
+        )}
         {flow.allowed_countries && (
           <span>Countries: <strong className="text-slate-300">{flow.allowed_countries.join(', ')}</strong></span>
         )}

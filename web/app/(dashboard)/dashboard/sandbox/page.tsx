@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState, FormEvent } from 'react';
-import { FlaskConical, RotateCcw, Copy, CheckCircle, AlertTriangle } from 'lucide-react';
+import { FlaskConical, RotateCcw, Copy, CheckCircle, AlertTriangle, ScanFace } from 'lucide-react';
 import { api } from '@/lib/api';
 
 interface Credential {
@@ -89,6 +90,19 @@ export default function SandboxPage() {
           <p className="text-slate-400 text-sm mt-0.5">Test your integration with fake credentials - no real data ever leaves.</p>
         </div>
       </div>
+
+      <Link
+        href="/dashboard/live-scan"
+        className="mb-6 flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 hover:border-white/20 transition-colors"
+      >
+        <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+          <ScanFace className="w-5 h-5 text-indigo-400" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-white">Try the live face scan</p>
+          <p className="text-xs text-slate-400 mt-0.5">Run the real scan with your camera and see why it passes or fails. Nothing is stored.</p>
+        </div>
+      </Link>
 
       <div className="mt-2 mb-8 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 text-xs text-amber-400">
         <AlertTriangle className="w-3.5 h-3.5 shrink-0" />

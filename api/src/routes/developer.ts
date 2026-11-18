@@ -117,6 +117,67 @@ router.delete('/keys/:id', sessionAuth, async (req: Request, res: Response): Pro
   res.json({ success: true });
 });
 
+// GET /developer/sessions - recent verification sessions with their live-scan result (session auth)
+// Phone numbers are masked and no biometric data is returned: only the engine's decision and why.
+router.get('/sessions', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? '25'), 10) || 25));
+  const rows = await query<{
+    id: string; created_at: string; step: string; phone: string; platform_user_id: string | null;
+    flow_name: string | null; liveness_required: boolean;
+    attempts: string | null; verdict: string | null; liveness_score: string | null; decision: string | null;
+    reasons: string[] | null; flags: string[] | null; face_match_verdict: string | null;
+    face_match_score: string | null; liveness_at: string | null;
+  }>(
+    `SELECT vs.id, vs.created_at, vs.step::text AS step, vs.phone, vs.platform_user_id,
+            vf.name AS flow_name, vs.liveness_required,
+            ls.attempts::text AS attempts, ls.verdict, ls.liveness_score::text AS liveness_score, ls.decision,
+            ls.reasons, ls.flags, ls.face_match_verdict, ls.face_match_score::text AS face_match_score,
+            ls.completed_at AS liveness_at
+     FROM verification_sessions vs
+     JOIN api_keys ak ON ak.id = vs.api_key_id AND ak.platform_email = $1
+     LEFT JOIN verification_flows vf ON vf.id = vs.flow_id
+     LEFT JOIN LATERAL (
+       -- latest COMPLETED attempt; the window count is evaluated before LIMIT, so it is the total attempt count
+       SELECT COUNT(*) OVER () AS attempts, l.verdict, l.liveness_score, l.decision, l.reasons,
+              (SELECT array_agg(f) FROM jsonb_array_elements_text(COALESCE(l.engine_result->'passive'->'flags', '[]'::jsonb)) f) AS flags,
+              l.face_match_verdict, l.face_match_score, l.completed_at
+       FROM liveness_sessions l
+       WHERE l.session_id = vs.id AND l.completed_at IS NOT NULL
+       ORDER BY l.attempt DESC
+       LIMIT 1
+     ) ls ON true
+     ORDER BY vs.created_at DESC
+     LIMIT $2`,
+    [req.developer!.email, limit]
+  );
+
+  const mask = (p: string) => (p.length <= 4 ? '****' : p.slice(0, -4).replace(/\d/g, '*') + p.slice(-4));
+  res.json({
+    sessions: rows.map((r) => ({
+      id: r.id,
+      created_at: r.created_at,
+      step: r.step,
+      phone_masked: mask(r.phone),
+      platform_user_id: r.platform_user_id,
+      flow_name: r.flow_name,
+      liveness: r.liveness_required || r.verdict
+        ? {
+            required: r.liveness_required,
+            attempts: r.attempts ? parseInt(r.attempts, 10) : 0,
+            verdict: r.verdict,
+            score: r.liveness_score ? parseFloat(r.liveness_score) : null,
+            decision: r.decision,
+            reasons: r.reasons ?? [],
+            passive_flags: r.flags ?? [],
+            face_match: r.face_match_verdict,
+            face_match_score: r.face_match_score ? parseFloat(r.face_match_score) : null,
+            at: r.liveness_at,
+          }
+        : null,
+    })),
+  });
+});
+
 // GET /developer/overview - dashboard summary (session auth)
 router.get('/overview', sessionAuth, async (req: Request, res: Response): Promise<void> => {
   const email = req.developer!.email;
