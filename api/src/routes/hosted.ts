@@ -23,7 +23,7 @@ import { issueVIT } from '../services/vit.service';
 import { uploadToS3, downloadFromS3 } from '../utils/s3';
 import { scanImage } from '../services/orbitshield/deepscan.service';
 import {
-  livenessEnabled, isLivenessRequired, startLiveness, completeLiveness, attachLivenessVideo,
+  livenessEnabled, isLivenessRequired, startLiveness, completeLiveness, attachLivenessVideo, livenessMetaSchema,
   MAX_FRAMES, MAX_FRAME_BYTES, MAX_VIDEO_BYTES, CONSENT_VERSION,
 } from '../services/liveness.service';
 import { createOrUpdatePlatformConnection, pushVerificationUpdate } from '../services/platform-webhook.service';
@@ -445,11 +445,6 @@ router.post('/face/liveness/start', async (req: Request, res: Response): Promise
   res.json(body);
 });
 
-const livenessMetaSchema = z.object({
-  timestamps_ms: z.array(z.number().finite()).min(2).max(MAX_FRAMES),
-  windows: z.array(z.object({ start_ms: z.number().finite(), end_ms: z.number().finite() })).max(8).optional(),
-});
-
 // POST /hosted/face/liveness/complete - frames in, verdict + decision out
 router.post(
   '/face/liveness/complete',
@@ -494,6 +489,7 @@ router.post(
         frames: files.map((f) => f.buffer),
         timestampsMs: meta.timestamps_ms,
         windows: meta.windows,
+        flash: meta.flash,
       });
       if (out.kind === 'bad_request') {
         res.status(out.status).json({ error: out.error, message: out.message });

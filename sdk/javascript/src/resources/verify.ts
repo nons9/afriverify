@@ -52,7 +52,7 @@ export class VerifyResource {
     const form = new FormData();
     form.append('session_token', params.session_token);
     form.append('liveness_id', params.liveness_id);
-    form.append('meta', JSON.stringify({ timestamps_ms: params.timestamps_ms, windows: params.windows }));
+    form.append('meta', JSON.stringify({ timestamps_ms: params.timestamps_ms, windows: params.windows, flash: params.flash }));
     for (let i = 0; i < params.frames.length; i++) {
       form.append('frames', await toBlob(params.frames[i]), `f${i}.jpg`);
     }

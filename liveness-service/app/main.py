@@ -17,7 +17,7 @@ import numpy as np
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 
 from . import challenges as ch
-from . import config, embedding, passive, vision
+from . import config, embedding, flash as flashmod, passive, vision
 
 log = logging.getLogger("liveness")
 app = FastAPI(title="AfriVerify Liveness Engine", version="1.0.0")
@@ -84,6 +84,31 @@ def _validate_meta(meta: dict, n_frames: int) -> tuple[list[str], list[float], l
     return challenges, ts, windows
 
 
+def _run_flash(meta: dict | None, images, feats, ts) -> "flashmod.FlashResult":
+    """Screen-light check from the server-issued colours + the client's reported display windows."""
+    if not isinstance(meta, dict):
+        return flashmod.FlashResult("missing", flags=["flash_missing"])
+    if meta.get("not_issued") is True:
+        return flashmod.FlashResult("not_issued", flags=["flash_not_issued"])
+    if meta.get("skipped") is True:
+        return flashmod.FlashResult("skipped", flags=["flash_skipped"])
+    try:
+        colors = [[int(c) for c in rgb] for rgb in meta["colors"]]
+        lead = {"start_ms": float(meta["lead"]["start_ms"]), "end_ms": float(meta["lead"]["end_ms"])}
+        windows = [{"start_ms": float(w["start_ms"]), "end_ms": float(w["end_ms"])} for w in meta["windows"]]
+    except (KeyError, TypeError, ValueError):
+        return flashmod.FlashResult("missing", flags=["flash_missing"])
+    ok_colors = 2 <= len(colors) <= 8 and all(len(c) == 3 and all(0 <= v <= 255 for v in c) for c in colors)
+    ordered = lead["end_ms"] > lead["start_ms"] and all(
+        w["end_ms"] > w["start_ms"] and w["start_ms"] >= (windows[i - 1]["end_ms"] - 150 if i else lead["end_ms"] - 150)
+        for i, w in enumerate(windows)
+    )
+    inside = windows and lead["start_ms"] >= ts[0] - 500 and windows[-1]["end_ms"] <= ts[-1] + 1500
+    if len(windows) != len(colors) or not ok_colors or not ordered or not inside:
+        return flashmod.FlashResult("missing", flags=["flash_missing"])
+    return flashmod.analyze(images, feats, ts, colors, lead, windows)
+
+
 @app.post("/v1/liveness/analyze", dependencies=[Depends(require_key)])
 def analyze(meta: str = Form(...), frames: List[UploadFile] = File(...)):
     t0 = time.time()
@@ -135,6 +160,12 @@ def analyze(meta: str = Form(...), frames: List[UploadFile] = File(...)):
     if flat_turn and config.FLAT_TURN_ACTION == "fail":
         reasons.append("flat_face_turn")
 
+    flash_res = None
+    if config.FLASH_MODE != "off":
+        flash_res = _run_flash(meta_obj.get("flash"), images, feats, ts)
+        if config.FLASH_MODE == "required" and flash_res.verdict == "fail" and config.FLASH_FAIL_ACTION == "fail":
+            reasons.append("flash_mismatch")
+
     report = passive.combine(sigs, hashes, motion)
 
     # best frame: frontal, eyes open, neutral, large and sharp
@@ -164,12 +195,18 @@ def analyze(meta: str = Form(...), frames: List[UploadFile] = File(...)):
         report.flags.append("flat_face_turn")
         if verdict == "pass":
             verdict = "review"   # never auto-approve a suspected flat turn; never hard-reject on an uncalibrated cue
+    if flash_res is not None:
+        report.flags.extend(flash_res.flags)
+        # required: only a measured, matching screen-light response counts as proof. Skipped, missing, too
+        # weak to measure (sunlight) or mismatched all stop an auto-pass; none of them is a rejection by itself.
+        verdict = flashmod.apply_policy(verdict, flash_res, config.FLASH_MODE)
 
     out = {
         "verdict": verdict,
         "liveness_score": score,
         "challenges": [r.__dict__ for r in results],
         "passive": report.to_dict(),
+        "flash": flash_res.to_dict() if flash_res else None,
         "reasons": reasons,
         "best_frame_index": best,
         "frame_stats": {
