@@ -206,7 +206,7 @@ router.post('/runs/complete', frameUpload.array('frames', MAX_FRAMES), async (re
 
   try {
     const frames = files.map((f) => f.buffer);
-    const r = await engineAnalyze(frames, issued.challenges, meta.timestamps_ms, meta.windows, buildFlashMeta(issued.flash, meta.flash));
+    const r = await engineAnalyze(frames, issued.challenges, meta.timestamps_ms, meta.windows, buildFlashMeta(issued.flash, meta.flash), meta.profile);
     if (r.flash) void incrMetric(`liveness_flash_${r.flash.verdict}`);
 
     const captureId = newCaptureId();
@@ -216,14 +216,14 @@ router.post('/runs/complete', frameUpload.array('frames', MAX_FRAMES), async (re
       `INSERT INTO liveness_eval_captures
          (id, study_id, participant_id, label, attack_type, lighting, device, verdict, liveness_score, passive_score,
           challenges_passed, challenges_total, flash_verdict, flash_correlation, flash_p_value, flash_effect, flash_bg_ratio,
-          flags, reasons, engine_version, frame_count, frame_s3_keys, created_by, purge_after)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23, NOW() + ($24 || ' days')::interval)`,
+          flags, reasons, engine_version, frame_count, frame_s3_keys, created_by, capture_profile, purge_after)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$25, NOW() + ($24 || ' days')::interval)`,
       [
         captureId, study.id, run.participant_id, run.label, run.attack_type ?? null, run.lighting, run.device ?? null,
         r.verdict, r.liveness_score, r.passive.score, passed, r.challenges.length,
         r.flash?.verdict ?? null, r.flash?.correlation ?? null, r.flash?.p_value ?? null, r.flash?.effect ?? null, r.flash?.bg_ratio ?? null,
         JSON.stringify(r.passive.flags ?? []), JSON.stringify(r.reasons ?? []), 'own-v1', frames.length, JSON.stringify(keys),
-        req.developer!.email, String(study.retention_days),
+        req.developer!.email, String(study.retention_days), meta.profile ?? 'standard',
       ]
     );
 
@@ -238,7 +238,7 @@ router.post('/runs/complete', frameUpload.array('frames', MAX_FRAMES), async (re
       challenges: r.challenges.map((c) => ({ type: c.type, passed: c.passed })),
       reasons: r.reasons,
       passive: { score: r.passive.score, flags: r.passive.flags, signals: r.passive.signals },
-      flash: r.flash ?? null, frame_stats: r.frame_stats, processing_ms: r.processing_ms,
+      flash: r.flash ?? null, capture_profile: meta.profile ?? 'standard', frame_stats: r.frame_stats, processing_ms: r.processing_ms,
     });
   } catch (err) {
     if (err instanceof EngineCaptureError) { res.status(422).json({ error: 'invalid_capture', message: err.detail }); return; }
@@ -252,7 +252,7 @@ router.post('/runs/complete', frameUpload.array('frames', MAX_FRAMES), async (re
 
 async function metricRows(studyId: string): Promise<MetricRow[]> {
   return query<MetricRow>(
-    `SELECT c.label, c.attack_type, c.verdict, c.lighting, p.skin_tone, c.flash_verdict
+    `SELECT c.label, c.attack_type, c.verdict, c.lighting, p.skin_tone, c.flash_verdict, c.capture_profile
      FROM liveness_eval_captures c JOIN liveness_eval_participants p ON p.id = c.participant_id
      WHERE c.study_id = $1`,
     [studyId]
@@ -277,14 +277,14 @@ router.get('/studies/:id/export.csv', async (req: Request, res: Response): Promi
   const rows = await query<Record<string, string | number | null>>(
     `SELECT c.id, p.code, p.age_band, p.gender, p.skin_tone, p.country, c.label, c.attack_type, c.lighting, c.device, c.verdict,
             c.liveness_score, c.passive_score, c.challenges_passed, c.challenges_total, c.flash_verdict, c.flash_correlation,
-            c.flash_p_value, c.flash_effect, c.flash_bg_ratio, c.flags::text AS flags, c.engine_version, c.created_at
+            c.flash_p_value, c.flash_effect, c.flash_bg_ratio, c.flags::text AS flags, c.engine_version, c.capture_profile, c.created_at
      FROM liveness_eval_captures c JOIN liveness_eval_participants p ON p.id = c.participant_id
      WHERE c.study_id = $1 ORDER BY c.created_at`,
     [study.id]
   );
   const header = ['capture_id', 'participant', 'age_band', 'gender', 'skin_tone', 'country', 'label', 'attack_type', 'lighting', 'device', 'verdict',
     'liveness_score', 'passive_score', 'challenges_passed', 'challenges_total', 'flash_verdict', 'flash_correlation', 'flash_p_value',
-    'flash_effect', 'flash_bg_ratio', 'flags', 'engine_version', 'created_at'];
+    'flash_effect', 'flash_bg_ratio', 'flags', 'engine_version', 'capture_profile', 'created_at'];
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="liveness-eval-${study.id.slice(0, 8)}.csv"`);
   res.send(toCsv(header, rows.map((r) => Object.values(r).map((v) => ((v as unknown) instanceof Date ? (v as unknown as Date).toISOString() : v) as string | number | null))));

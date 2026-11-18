@@ -81,6 +81,16 @@ test('no fairness claim from tiny groups', () => {
   assert.ok(!m.adequacy.notes.some((n) => n.includes('Darker skin tones are stopped')));
 });
 
+test('Lite and Standard are measured separately so Lite cannot hide behind Standard', () => {
+  const l = (v: MetricRow['verdict']): MetricRow => ({ ...g(v), capture_profile: 'lite' });
+  const la = (v: MetricRow['verdict']): MetricRow => ({ ...a('screen_video', v), capture_profile: 'lite' });
+  const m = computeMetrics([g('pass'), g('pass'), l('pass'), l('review'), a('screen_video', 'fail'), la('pass'), la('fail')]);
+  assert.equal(m.by_profile.standard.genuine, 2); assert.equal(m.by_profile.lite.genuine, 2);
+  assert.equal(m.by_profile.standard.apcer.k, 0); assert.equal(m.by_profile.lite.apcer.k, 1, 'the lite breach is visible');
+  assert.equal(m.by_profile.lite.bpcer_strict.k, 1);
+  assert.equal(computeMetrics([g('pass')]).by_profile.standard.genuine, 1, 'rows without a profile count as standard');
+});
+
 test('flash verdicts are tallied separately for genuine and attacks', () => {
   const m = computeMetrics([g('pass', 5, 'indoor_bright', 'pass'), g('review', 5, 'outdoor_sun', 'inconclusive'), a('screen_video', 'fail', 'indoor_bright', 'fail')]);
   assert.deepEqual(m.flash.genuine, { pass: 1, inconclusive: 1 });

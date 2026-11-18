@@ -160,6 +160,7 @@ def analyze(meta: str = Form(...), frames: List[UploadFile] = File(...)):
     if flat_turn and config.FLAT_TURN_ACTION == "fail":
         reasons.append("flat_face_turn")
 
+    capture_profile = meta_obj.get("profile") if meta_obj.get("profile") in ("standard", "lite") else "standard"
     flash_res = None
     if config.FLASH_MODE != "off":
         flash_res = _run_flash(meta_obj.get("flash"), images, feats, ts)
@@ -207,6 +208,7 @@ def analyze(meta: str = Form(...), frames: List[UploadFile] = File(...)):
         "challenges": [r.__dict__ for r in results],
         "passive": report.to_dict(),
         "flash": flash_res.to_dict() if flash_res else None,
+        "capture_profile": capture_profile,
         "reasons": reasons,
         "best_frame_index": best,
         "frame_stats": {

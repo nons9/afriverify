@@ -59,6 +59,7 @@ export interface MetricRow {
   lighting: string;
   skin_tone: number | null;
   flash_verdict: string | null;
+  capture_profile?: string | null;
 }
 
 export interface Metrics {
@@ -67,6 +68,7 @@ export interface Metrics {
   apcer: { overall: Rate; by_attack_type: Record<string, Rate>; worst_attack_type: string | null };
   by_skin_group: Record<string, { genuine: number; bpcer_strict: Rate; bpcer_hard: Rate }>;
   by_lighting: Record<string, { genuine: number; attacks: number; bpcer_strict: Rate; apcer: Rate }>;
+  by_profile: Record<string, { genuine: number; attacks: number; bpcer_strict: Rate; apcer: Rate }>;
   flash: { genuine: Record<string, number>; attacks: Record<string, number> };
   adequacy: { ok: boolean; notes: string[] };
 }
@@ -100,6 +102,13 @@ export function computeMetrics(rows: MetricRow[]): Metrics {
     byLight[l] = { genuine: g.length, attacks: a.length, bpcer_strict: rate(g.filter(notPassed).length, g.length), apcer: rate(a.filter(accepted).length, a.length) };
   }
 
+  const byProfile: Metrics['by_profile'] = {};
+  for (const pr of new Set(rows.map((r) => r.capture_profile ?? 'standard'))) {
+    const g = genuine.filter((r) => (r.capture_profile ?? 'standard') === pr);
+    const a = attacks.filter((r) => (r.capture_profile ?? 'standard') === pr);
+    byProfile[pr] = { genuine: g.length, attacks: a.length, bpcer_strict: rate(g.filter(notPassed).length, g.length), apcer: rate(a.filter(accepted).length, a.length) };
+  }
+
   const count = (rs: MetricRow[]) => rs.reduce<Record<string, number>>((m, r) => { const k = r.flash_verdict ?? 'none'; m[k] = (m[k] ?? 0) + 1; return m; }, {});
 
   const notes: string[] = [];
@@ -122,6 +131,7 @@ export function computeMetrics(rows: MetricRow[]): Metrics {
     apcer: { overall: rate(attacks.filter(accepted).length, attacks.length), by_attack_type: byType, worst_attack_type: worst },
     by_skin_group: bySkin,
     by_lighting: byLight,
+    by_profile: byProfile,
     flash: { genuine: count(genuine), attacks: count(attacks) },
     adequacy: { ok: notes.length === 0, notes },
   };
