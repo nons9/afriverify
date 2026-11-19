@@ -17,33 +17,33 @@ import { Copyright } from '@/components/copyright';
 const features = [
   {
     icon: Globe,
-    title: '54 African Countries',
-    desc: 'NIN, BVN, National ID, Passport - every major African identity document supported.',
+    title: '29 Countries With ID Checks',
+    desc: 'NIN, BVN, national ID cards and passports, checked against official registries through our identity providers. Phone and email checks work wherever a text or an email can reach.',
   },
   {
     icon: Zap,
-    title: 'Sub-100ms Lookups',
-    desc: 'Connect an existing verified identity to your platform in under 100 milliseconds.',
+    title: 'Verify Once, Reuse',
+    desc: 'Connect an existing verified identity to your platform without asking the person to verify again.',
   },
   {
     icon: Shield,
     title: 'AfriShield Active Defense',
-    desc: 'DeepScan blocks AI-generated faces and synthetic documents before they reach identity providers.',
+    desc: 'DeepScan screens ID photos and selfies for signs of tampering, screenshots and low quality before they reach identity providers. A first filter, not a guarantee.',
   },
   {
     icon: Lock,
-    title: 'Zero Raw Data Stored',
-    desc: 'ID numbers and biometrics are SHA-256 hashed. Face embeddings are AES-256-GCM encrypted.',
+    title: 'Encrypted, Short-Lived Images',
+    desc: 'ID photos and selfies are encrypted with AES-256-GCM and deleted automatically: after 30 days if a check was never completed, 12 months after it was. ID numbers are kept only as hashes.',
   },
   {
     icon: BarChart2,
     title: 'Cross-Platform Trust Score',
-    desc: 'A live reputation score that follows the identity across every connected platform.',
+    desc: 'A reputation score that follows the identity across the platforms that connect it.',
   },
   {
     icon: Cpu,
     title: 'Portable VIT',
-    desc: 'One RS256-signed Verified Identity Token. Verify once, use on any platform in the network.',
+    desc: 'One RS256-signed Verified Identity Token. Verify once and share it with any platform that accepts it.',
   },
 ];
 
@@ -72,8 +72,8 @@ const pricing = [
     name: 'Enterprise',
     price: 'Custom',
     priceSub: '',
-    limit: 'Unlimited verifications',
-    features: ['Everything in Starter', 'SLA guarantee', 'Dedicated support', 'Fraud graph access', 'Custom contracts'],
+    limit: 'Custom volume',
+    features: ['Everything in Starter', 'Custom SLA', 'Dedicated support', 'Fraud graph access', 'Custom contracts'],
     cta: 'Contact sales',
     href: 'mailto:sales@sankofaapp.com',
     highlight: false,
@@ -126,7 +126,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-4 py-1.5 text-sm text-indigo-400 mb-6">
             <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-            Now live - 54 African countries
+            Now live - ID checks in 29 African countries
           </div>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1] mb-6">
             Africa&apos;s identity
@@ -136,8 +136,8 @@ export default function LandingPage() {
             </span>
           </h1>
           <p className="text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Verify any African identity with a single API call. Issue portable Verified Identity
-            Tokens. Let your users carry their trust score everywhere.
+            Verify identities across Africa with a single API call. Issue portable Verified Identity
+            Tokens. Let your users carry their trust score to every platform that accepts it.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
@@ -160,10 +160,10 @@ export default function LandingPage() {
       <div className="border-y border-white/10 bg-white/[0.02] py-10">
         <div className="max-w-4xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           {[
-            { v: '54', l: 'Countries supported' },
-            { v: '<100ms', l: 'Identity lookup' },
+            { v: '29', l: 'Countries with ID checks' },
+            { v: 'AES-256', l: 'Image encryption' },
             { v: 'RS256', l: 'VIT signing algorithm' },
-            { v: '0', l: 'Raw IDs stored' },
+            { v: '12 mo', l: 'Longest image retention' },
           ].map(({ v, l }) => (
             <div key={l}>
               <div className="text-3xl font-bold text-white mb-1">{v}</div>
@@ -263,8 +263,7 @@ export default function LandingPage() {
           <div>
             <h2 className="text-3xl font-bold mb-4">Integrate in minutes</h2>
             <p className="text-slate-400 mb-8 leading-relaxed">
-              Three API calls to verify any African identity. One token that works on every platform
-              in the AfriVerify network.
+              A few API calls to verify an identity. One token that any accepting platform can check.
             </p>
             <ol className="space-y-4">
               {[

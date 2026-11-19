@@ -15,7 +15,7 @@ const phases = [
     steps: [
       'Confirm the alert is a genuine breach (not a test, scanner, or misconfigured webhook).',
       'Declare an incident in Slack #incidents: "P0 BREACH - [brief description]". Pin the message.',
-      'Page the incident lead (CEO / CTO) immediately. Do not wait.',
+      'Tell the incident lead (the Security Owner) immediately. Do not wait.',
       'Do NOT delete logs, rotate keys, or restart services until the incident lead says so - it destroys evidence.',
     ],
     checklist: [
@@ -32,7 +32,7 @@ const phases = [
     border: 'border-amber-500/20',
     time: '15 min – 2 hr',
     title: 'Contain',
-    owner: 'Incident lead + on-call',
+    owner: 'Incident lead',
     steps: [
       'Identify the blast radius: which identities, platforms, and API keys were in scope.',
       'Revoke all API keys in the affected environment via dashboard → API Keys → Revoke all. Document which keys were revoked and when.',
@@ -146,7 +146,7 @@ const phases = [
 ];
 
 const contacts = [
-  { role: 'Incident lead (CTO)', contact: 'Page via on-call rotation', note: 'Always first call for P0' },
+  { role: 'Incident lead (Security Owner, the founder)', contact: 'security@sankofaapp.com', note: 'Always first call for P0' },
   { role: 'CEO', contact: 'Direct call', note: 'Notify within 30 min of P0 declaration' },
   { role: 'Legal / Compliance', contact: 'legal@sankofaapp.com', note: 'Required for regulatory notifications' },
   { role: 'NDPC (Nigeria)', contact: 'info@ndpc.gov.ng', note: 'Mandatory within 72h under NDPA 2023' },

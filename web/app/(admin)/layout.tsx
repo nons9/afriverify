@@ -64,7 +64,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <Link href="/admin" className="flex items-center gap-2 shrink-0">
           <AfriVerifyMark size={26} />
           <div>
-            <span className="font-bricolage font-extrabold text-[#C9960E] text-sm leading-none">Verify</span>
+            <span className="font-extrabold text-[#C9960E] text-sm leading-none">Verify</span>
             <span className="ml-1.5 text-[10px] font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded px-1 py-px">ADMIN</span>
           </div>
         </Link>
@@ -138,7 +138,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
           <div className="flex items-center gap-2">
             <AfriVerifyMark size={22} />
-            <span className="font-bricolage font-extrabold text-[#C9960E] text-sm">Verify</span>
+            <span className="font-extrabold text-[#C9960E] text-sm">Verify</span>
             <span className="text-[10px] font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded px-1 py-px">ADMIN</span>
           </div>
           {sidebarOpen && (

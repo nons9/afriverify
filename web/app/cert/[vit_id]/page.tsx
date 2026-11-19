@@ -348,7 +348,7 @@ export default function CertPage() {
                   </div>
                   <div className={s.xrow}>
                     <div className={s.xlbl}>Issued by</div>
-                    <div className={s.xval}>AfriVerify Certificate Authority · CA-2026-001 · Sankofa Network</div>
+                    <div className={s.xval}>Issued by AfriVerify (Sankofa Network) · issuer ID CA-2026-001</div>
                   </div>
                   {cert.vit_token_preview && (
                     <div className={s.xrow}>
@@ -401,7 +401,7 @@ export default function CertPage() {
         <small className={s.footerNote}>
           <Copyright />
           <br />
-          This page does not store personal data. Certificate status is fetched live on every visit and cannot be cached or faked.
+          This page does not store personal data. Certificate status is checked live on every visit.
         </small>
       </footer>
 

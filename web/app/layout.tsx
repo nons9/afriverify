@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://afriverify.sankofaapp.com'),
   title: "AfriVerify - Africa's Identity Infrastructure",
   description:
-    'Verify African identities with a single API call. 54 countries, sub-100ms checks, portable Verified Identity Token.',
+    'Verify African identities with a single API call. ID checks in 29 countries, portable Verified Identity Token.',
   alternates: {
     canonical: '/',
   },
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
     siteName: 'AfriVerify',
     title: "AfriVerify - Africa's Identity Infrastructure",
     description:
-      'Verify African identities with a single API call. 54 countries, sub-100ms checks, portable Verified Identity Token.',
+      'Verify African identities with a single API call. ID checks in 29 countries, portable Verified Identity Token.',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'AfriVerify: verify once, trusted everywhere' }],
   },
   twitter: {
@@ -47,24 +48,12 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+// Self-hosted at build time: no request to Google when someone opens a page, no render-blocking @import.
+const inter = Inter({ subsets: ['latin', 'latin-ext'], display: 'swap', variable: '--font-inter', axes: ['opsz'] });
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head>
-        <link
-          rel="preconnect"
-          href="https://fonts.googleapis.com"
-        />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,800&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="en" className={inter.variable}>
       <body>{children}</body>
     </html>
   );
