@@ -206,7 +206,7 @@ router.post('/runs/complete', frameUpload.array('frames', MAX_FRAMES), async (re
 
   try {
     const frames = files.map((f) => f.buffer);
-    const r = await engineAnalyze(frames, issued.challenges, meta.timestamps_ms, meta.windows, buildFlashMeta(issued.flash, meta.flash), meta.profile);
+    const r = await engineAnalyze(frames, issued.challenges, meta.timestamps_ms, meta.windows, buildFlashMeta(issued.flash, meta.flash), meta.profile, meta.camera);
     if (r.flash) void incrMetric(`liveness_flash_${r.flash.verdict}`);
 
     const captureId = newCaptureId();

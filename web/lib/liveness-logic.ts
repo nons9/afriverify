@@ -105,6 +105,8 @@ export const REASON_LABEL: Record<string, string> = {
   screen_fringes: 'Screen fringes (replay?)',
   multiple_screen_cues: 'Several signs of a screen',
   flat_face_turn: 'Flat picture turned (replay?)',
+  virtual_camera: 'Virtual or software camera (injected video?)',
+  camera_label_missing: 'Camera did not name itself',
   flash_mismatch: 'Face did not reflect the screen light (replay?)',
   flash_uniform_response: 'Whole picture tinted by the screen light (replay?)',
   flash_response_too_weak: 'Screen light too weak to measure',

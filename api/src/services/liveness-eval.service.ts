@@ -14,7 +14,7 @@ import { query } from '../db';
 import { uploadToS3, deleteFromS3 } from '../utils/s3';
 import logger from '../utils/logger';
 
-export const ATTACK_TYPES = ['print_photo', 'screen_photo', 'screen_video', 'screen_live_video', 'mask', 'other'] as const;
+export const ATTACK_TYPES = ['print_photo', 'screen_photo', 'screen_video', 'screen_live_video', 'virtual_camera', 'mask', 'other'] as const;
 export const LIGHTING = ['indoor_bright', 'indoor_dim', 'outdoor_shade', 'outdoor_sun'] as const;
 export type AttackType = (typeof ATTACK_TYPES)[number];
 export type Lighting = (typeof LIGHTING)[number];
@@ -162,7 +162,7 @@ export const TARGETS = {
   attackLightings: 2,
   attackDevices: 3,
 };
-export const COVERED_ATTACK_TYPES: readonly string[] = ['print_photo', 'screen_photo', 'screen_video', 'screen_live_video', 'mask'];
+export const COVERED_ATTACK_TYPES: readonly string[] = ['print_photo', 'screen_photo', 'screen_video', 'screen_live_video', 'virtual_camera', 'mask'];
 
 export interface Quota { have: number; target: number }
 export interface Coverage {

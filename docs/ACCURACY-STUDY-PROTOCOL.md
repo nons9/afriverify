@@ -26,7 +26,7 @@ So 30 attacks per type can only show "no worse than about 11%". It cannot prove 
 Minimums built into the tool (the report is marked DRAFT until met):
 
 - 100 genuine captures in total, at least 30 in each skin group (light, medium, dark).
-- 30 attacks of each type: print photo, screen photo, screen video, screen live video, mask.
+- 30 attacks of each type: print photo, screen photo, screen video, screen live video, virtual camera, mask.
 - At least 10 genuine captures in each lighting condition, 5 different phone models, and attacks tried in 2 lightings and on 3 phones.
 
 The "Who to record next" panel on the study page shows what is still missing and puts the biggest gap first.
@@ -66,6 +66,7 @@ Only attack with your own materials, never with someone else's face without thei
 | Screen photo | The same photo shown full screen on a second phone, held in front of the camera. |
 | Screen video | A recorded video of the person doing the head turn and blink, played on a second phone. |
 | Screen live video | A live video call showing the person responding to the instructions in real time (the strongest replay). |
+| Virtual camera | Use OBS Virtual Camera (or a similar tool) on a laptop to feed a recorded or live video of the person into the browser as the webcam. Run it once with the default device name and once renamed, to see what the label check does and does not stop. |
 | Mask | A printed face mask or a cut-out with the eyes open, held in front of the attacker's face. |
 
 Vary: second-phone brand and brightness, distance, angle, and room lighting. Record the lighting and the capturing phone for every attempt.

@@ -96,7 +96,7 @@ router.post('/complete', frameUpload.array('frames', MAX_FRAMES), async (req: Re
   }
 
   try {
-    const r = await engineAnalyze(files.map((f) => f.buffer), issued.challenges, meta.timestamps_ms, meta.windows, buildFlashMeta(issued.flash, meta.flash), meta.profile);
+    const r = await engineAnalyze(files.map((f) => f.buffer), issued.challenges, meta.timestamps_ms, meta.windows, buildFlashMeta(issued.flash, meta.flash), meta.profile, meta.camera);
     res.json({
       demo: true,
       stored: false,
