@@ -4,7 +4,7 @@ const BASE_URL = 'https://afriverify.sankofaapp.com';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
-    ...['pricing', 'security', 'status', 'changelog', 'docs'].map((slug) => ({
+    ...['pricing', 'security', 'status', 'changelog', 'docs', 'legal', 'legal/dpa', 'legal/aup', 'legal/biometric', 'legal/sla', 'legal/research'].map((slug) => ({
       url: `${BASE_URL}/${slug}`,
       lastModified: new Date(),
       changeFrequency: 'weekly' as const,
