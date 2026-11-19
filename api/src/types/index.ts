@@ -118,7 +118,10 @@ export interface VITPayload {
   vit: string;
   verified: boolean;
   level: number;
-  name: string;
+  // Present only when someone chose to include it: see NameSharing
+  name?: string;
+  // Who chose: 'holder' = the person, 'platform' = the platform that ran the verification
+  name_consent?: 'holder' | 'platform';
   nationality: string;
   id_type: IdType;
   verification_method: string;

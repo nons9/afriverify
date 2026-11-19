@@ -334,7 +334,8 @@ router.post(
         identity_id: existing.id,
         result: 'passed'
       });
-      const { token, payload } = await issueVIT(existing.id);
+      // platform-run verification: the platform already holds the name it collected, so this stays as it was
+      const { token, payload } = await issueVIT(existing.id, { nameSharing: 'platform' });
       res.json({
         confirmed: true,
         returning_user: true,
@@ -851,7 +852,7 @@ router.get(
 
     if (row.step === 'complete' && row.identity_id) {
       try {
-        const { token, payload } = await issueVIT(row.identity_id);
+        const { token, payload } = await issueVIT(row.identity_id, { nameSharing: 'platform' });
         out.vit = token;
         out.vit_payload = payload;
         out.identity_id = row.identity_id;

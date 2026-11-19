@@ -121,7 +121,8 @@ router.get('/users/:platformUserId/vit', async (req: Request, res: Response): Pr
     }
 
     const { issueVIT } = await import('../services/vit.service');
-    const { token, payload } = await issueVIT(row.identity_id);
+    // a connected platform asked for this token, as before
+    const { token, payload } = await issueVIT(row.identity_id, { nameSharing: 'platform' });
 
     await writeAuditEvent(req, {
       event_type: 'vit_issued',

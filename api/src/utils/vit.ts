@@ -5,6 +5,8 @@ import { VITPayload, IdType, TrustLevel } from '../types';
 export interface VITParams {
   identity_id: string;
   full_name: string;
+  /** holder: the person chose it. platform: a platform-run verification. none: leave the name out. */
+  name_sharing: 'holder' | 'platform' | 'none';
   nationality: string;
   id_type: IdType;
   verification_level: number;
@@ -26,7 +28,7 @@ export function generateVIT(params: VITParams): { token: string; payload: VITPay
     vit: `av_vit_${uuidv4().replace(/-/g, '')}`,
     verified: params.verification_level >= 1,
     level: params.verification_level,
-    name: params.full_name,
+    ...(params.name_sharing === 'none' ? {} : { name: params.full_name, name_consent: params.name_sharing }),
     nationality: params.nationality,
     id_type: params.id_type,
     verification_method: params.verification_level >= 2 ? 'biometric' : 'phone',

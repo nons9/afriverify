@@ -149,14 +149,19 @@ router.get('/vit', identityAuth, async (req: Request, res: Response): Promise<vo
 // ─── POST /identity-portal/vit/refresh ──────────────────────────────────────────────────────────────
 // Revokes all existing VITs and issues a fresh one. Used when the identity holder
 // believes their token has been compromised or wants a clean slate.
-router.post('/vit/refresh', identityAuth, async (req: Request, res: Response): Promise<void> => {
+const refreshSchema = z.object({ include_name: z.boolean().optional() });
+
+router.post('/vit/refresh', identityAuth, validateBody(refreshSchema), async (req: Request, res: Response): Promise<void> => {
+  // The person's own token leaves the name out unless they tick the box.
+  const includeName = (req.body as z.infer<typeof refreshSchema>).include_name === true;
   await revokeAllVITs(req.identity!.identityId);
-  const { token, payload } = await issueVIT(req.identity!.identityId);
+  const { token, payload } = await issueVIT(req.identity!.identityId, { nameSharing: includeName ? 'holder' : 'none' });
 
   await writeAuditEvent(req, {
     event_type: 'vit_refreshed',
     identity_id: req.identity!.identityId,
-    result: 'passed'
+    result: 'passed',
+    metadata: { name_included: includeName }
   });
 
   res.json({ token, payload });
