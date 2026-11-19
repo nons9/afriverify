@@ -4,7 +4,8 @@ import { sessionAuth } from '../middleware/sessionAuth';
 import { validateBody } from '../middleware/validate';
 import { query, queryOne } from '../db';
 import { verifyWebhookSignature, verifyTransactionByReference } from '../services/flutterwave.service';
-import { createSubscriptionCheckout, activateSubscription, isSelfServePlan, checkPayment, PLAN_PRICING, SelfServePlan } from '../services/billing.service';
+import { formatMoney } from '../services/local-pricing';
+import { createSubscriptionCheckout, activateSubscription, isSelfServePlan, checkPayment, getCheckoutQuote, PLAN_PRICING, SelfServePlan } from '../services/billing.service';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -91,11 +92,12 @@ router.get('/', sessionAuth, async (req: Request, res: Response): Promise<void> 
 const subscribeSchema = z.object({
   api_key_id: z.string().uuid(),
   plan: z.string(),
-  redirect_url: z.string().url()
+  redirect_url: z.string().url(),
+  currency: z.string().regex(/^[A-Za-z]{3}$/).optional()
 });
 
 router.post('/subscribe', sessionAuth, validateBody(subscribeSchema), async (req: Request, res: Response): Promise<void> => {
-  const { api_key_id, plan, redirect_url } = req.body as z.infer<typeof subscribeSchema>;
+  const { api_key_id, plan, redirect_url, currency } = req.body as z.infer<typeof subscribeSchema>;
   const email = req.developer!.email;
 
   if (!isSelfServePlan(plan)) {
@@ -115,12 +117,22 @@ router.post('/subscribe', sessionAuth, validateBody(subscribeSchema), async (req
     return;
   }
 
-  const checkout = await createSubscriptionCheckout({
-    apiKeyId: api_key_id,
-    plan: plan as SelfServePlan,
-    email,
-    redirectUrl: redirect_url
-  });
+  let checkout;
+  try {
+    checkout = await createSubscriptionCheckout({
+      apiKeyId: api_key_id,
+      plan: plan as SelfServePlan,
+      email,
+      redirectUrl: redirect_url,
+      currency
+    });
+  } catch (err) {
+    if ((err as Error).message === 'currency_not_supported') {
+      res.status(400).json({ error: 'currency_not_supported', message: 'That currency is not available. Pay in USD, or see /v1/plans for the currencies on offer.' });
+      return;
+    }
+    throw err;
+  }
 
   res.json({ payment_link: checkout.paymentLink });
 });
@@ -164,8 +176,8 @@ router.get('/invoices/:id', sessionAuth, async (req: Request, res: Response): Pr
     return;
   }
 
-  const fmt = (cents: number) =>
-    `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (cents: number) => formatMoney(cents, inv.currency || 'USD');
+  const fmtUsd = (cents: number) => formatMoney(cents, 'USD');
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -180,7 +192,7 @@ router.get('/invoices/:id', sessionAuth, async (req: Request, res: Response): Pr
   if (inv.overage_verifications > 0) {
     rows.push(`<tr>
       <td>Usage overage</td>
-      <td>${inv.overage_verifications.toLocaleString()} × $0.03</td>
+      <td>${inv.overage_verifications.toLocaleString()} × ${fmtUsd(3)}</td>
       <td style="text-align:right">${fmt(inv.overage_amount_cents)}</td>
     </tr>`);
   }
@@ -305,9 +317,13 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
         // that was paid for in full, in the plan's currency. (If the provider cannot be reached this throws,
         // we answer 500, and the provider retries the webhook later.)
         const confirmed = await verifyTransactionByReference(event.data.tx_ref);
-        const check = confirmed.reference === event.data.tx_ref
-          ? checkPayment(meta.plan, confirmed)
-          : { ok: false as const, reason: 'provider reference does not match the webhook' };
+        // A local-currency checkout has a quote we saved when it started; it, not the webhook, says what was agreed.
+        const quote = await getCheckoutQuote(event.data.tx_ref);
+        const check = confirmed.reference !== event.data.tx_ref
+          ? { ok: false as const, reason: 'provider reference does not match the webhook' }
+          : quote && (quote.plan !== meta.plan || quote.api_key_id !== meta.api_key_id)
+            ? { ok: false as const, reason: 'webhook does not match the saved quote' }
+            : checkPayment(meta.plan, confirmed, quote);
         if (!check.ok) {
           logger.error('Billing webhook: payment does not match the plan, NOT activating', { reference: event.data.tx_ref, plan: meta.plan, reason: check.reason });
           res.status(200).json({ received: true, activated: false });

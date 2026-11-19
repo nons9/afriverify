@@ -7,6 +7,7 @@ import { ApiTier } from '../types';
 import logger from '../utils/logger';
 import { UNIT_WEIGHTS, parseEffectiveAt } from './metering-rules';
 import { runOncePerInterval } from '../utils/job-lock';
+import { quoteLocal, localRates, LocalQuote } from './local-pricing';
 
 export const SELF_SERVE_PLANS = ['starter', 'growth'] as const;
 export type SelfServePlan = (typeof SELF_SERVE_PLANS)[number];
@@ -63,14 +64,27 @@ export async function createSubscriptionCheckout(params: {
   plan: SelfServePlan;
   email: string;
   redirectUrl: string;
+  currency?: string;
 }): Promise<{ paymentLink: string; reference: string }> {
   const pricing = PLAN_PRICING[params.plan];
   const reference = `av-sub-${randomUUID()}`;
 
+  // USD is the list price. A local currency is charged only when the owner has set a rate for it.
+  const wanted = (params.currency ?? pricing.currency).toUpperCase();
+  let quote: LocalQuote | null = null;
+  if (wanted !== pricing.currency) {
+    quote = quoteLocal(pricing.amountCents, wanted);
+    if (!quote) throw new Error('currency_not_supported');
+    await query(
+      `INSERT INTO checkout_quotes (reference, api_key_id, plan, currency, amount_minor) VALUES ($1, $2, $3, $4, $5)`,
+      [reference, params.apiKeyId, params.plan, quote.currency, quote.amountMinor]
+    );
+  }
+
   const checkout = await createCheckout({
     email: params.email,
-    amount: pricing.amountCents / 100,
-    currency: pricing.currency,
+    amount: quote ? quote.amountMinor / 100 : pricing.amountCents / 100,
+    currency: quote ? quote.currency : pricing.currency,
     reference,
     redirectUrl: params.redirectUrl,
     metadata: {
@@ -208,12 +222,15 @@ export async function activateSubscription(params: {
 export function checkPayment(
   plan: SelfServePlan,
   confirmed: { status: string; amount: number; currency: string },
+  quote?: { currency: string; amountMinor: number } | null,
 ): { ok: true } | { ok: false; reason: string } {
-  const price = PLAN_PRICING[plan];
+  // With a saved quote (a local-currency checkout) the quote is the price; otherwise the USD list price.
+  const expectedCurrency = quote ? quote.currency : PLAN_PRICING[plan].currency;
+  const expectedMinor = quote ? quote.amountMinor : PLAN_PRICING[plan].amountCents;
   if (String(confirmed.status).toLowerCase() !== 'successful') return { ok: false, reason: `provider status is "${confirmed.status}"` };
-  if (String(confirmed.currency).toUpperCase() !== price.currency.toUpperCase()) return { ok: false, reason: `currency ${confirmed.currency}, expected ${price.currency}` };
-  const paidCents = Math.round(Number(confirmed.amount) * 100);
-  if (!Number.isFinite(paidCents) || paidCents < price.amountCents) return { ok: false, reason: `paid ${paidCents} cents, plan costs ${price.amountCents}` };
+  if (String(confirmed.currency).toUpperCase() !== expectedCurrency.toUpperCase()) return { ok: false, reason: `currency ${confirmed.currency}, expected ${expectedCurrency}` };
+  const paidMinor = Math.round(Number(confirmed.amount) * 100);
+  if (!Number.isFinite(paidMinor) || paidMinor < expectedMinor) return { ok: false, reason: `paid ${paidMinor}, plan costs ${expectedMinor}` };
   return { ok: true };
 }
 
@@ -416,6 +433,8 @@ export function startBillingCron(): void {
 export function getPublicPlans() {
   return {
     currency: 'USD',
+    // Local currencies the owner has switched on, with the exact price charged for each plan.
+    local_currencies: Object.keys(localRates()),
     free: { monthly_limit: FREE_TIER_LIMIT, price_monthly_cents: 0, sandbox_limit: SANDBOX_LIMIT },
     units: {
       phone_check: UNIT_WEIGHTS.phone,
@@ -429,9 +448,16 @@ export function getPublicPlans() {
       return {
         id, label: p.label, price_monthly_cents: p.amountCents, monthly_limit: p.monthlyLimit,
         cents_per_verification: Math.round((p.amountCents / p.monthlyLimit) * 1000) / 1000,
+        local_prices: Object.fromEntries(Object.keys(localRates()).map((c) => [c, quoteLocal(p.amountCents, c)!.amountMinor])),
       };
     }),
     overage_cents_per_verification: OVERAGE_RATE_CENTS,
     enterprise: { custom: true, contact: 'sales@sankofaapp.com' },
   };
+}
+
+export async function getCheckoutQuote(reference: string): Promise<{ api_key_id: string; plan: string; currency: string; amountMinor: number } | null> {
+  const row = await queryOne<{ api_key_id: string; plan: string; currency: string; amount_minor: string }>(
+    `SELECT api_key_id, plan, currency, amount_minor FROM checkout_quotes WHERE reference = $1`, [reference]);
+  return row ? { api_key_id: row.api_key_id, plan: row.plan, currency: row.currency, amountMinor: Number(row.amount_minor) } : null;
 }

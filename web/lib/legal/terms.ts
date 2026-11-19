@@ -260,5 +260,5 @@ Fees are non-refundable except (a) where the law requires, (b) where we charged 
 
 ### 7. Currency and local payment methods
 
-If a payment is accepted in a local currency, the amount is converted at the provider's rate on the payment date. We are not responsible for bank or provider charges the Customer incurs.
+Prices are in US dollars. Where we offer a local currency at checkout, the price in that currency is worked out from a rate we set, is shown before you pay, and is fixed when you start checkout: the amount shown is the amount charged. Your bank or the payment provider may apply its own fees or exchange rate to your card or account, and we are not responsible for those charges.
 `;

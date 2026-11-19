@@ -442,6 +442,40 @@ test('a payment the provider does not confirm as successful does NOT activate th
   assert.equal(await invoices(), 0);
 });
 
+const quoteFor = (ref: string, currency: string, minor: number) =>
+  db.query(`INSERT INTO checkout_quotes (reference, api_key_id, plan, currency, amount_minor) VALUES ($1, $2, 'starter', $3, $4)`, [ref, keyId, currency, minor]);
+
+test('a local-currency payment is accepted only when it meets the saved quote', { skip, timeout: 60_000 }, async () => {
+  await resetBilling();
+  await quoteFor('tx-ngn-ok', 'NGN', 7_850_000);
+  payingAmount = 7_850_000; payingCurrency = 'NGN';
+  assert.equal((await hook('tx-ngn-ok', { amount: 78500, currency: 'NGN' })).s, 200);
+  assert.deepEqual(await tier(), { tier: 'starter', monthly_limit: 2000 });
+  const inv = (await db.query(`SELECT currency, amount_cents FROM invoices WHERE api_key_id = $1`, [keyId])).rows[0];
+  assert.deepEqual([inv.currency, Number(inv.amount_cents)], ['NGN', 7_850_000]);
+});
+
+test('a local-currency payment that is short of the quote, or in another currency, does NOT activate', { skip, timeout: 60_000 }, async () => {
+  await resetBilling();
+  await quoteFor('tx-ngn-short', 'NGN', 7_850_000);
+  payingAmount = 7_849_900; payingCurrency = 'NGN';
+  await hook('tx-ngn-short', { amount: 78499, currency: 'NGN' });
+  assert.equal((await tier()).tier, 'free');
+  await quoteFor('tx-ngn-usd', 'NGN', 7_850_000);
+  payingAmount = 4900; payingCurrency = 'USD';
+  await hook('tx-ngn-usd');
+  assert.equal((await tier()).tier, 'free', 'paying 49 dollars does not satisfy a naira quote');
+  assert.equal(await invoices(), 0);
+});
+
+test('a quote for one plan cannot be used to buy another', { skip, timeout: 60_000 }, async () => {
+  await resetBilling();
+  await quoteFor('tx-ngn-plan', 'NGN', 7_850_000);
+  payingAmount = 7_850_000; payingCurrency = 'NGN';
+  await hook('tx-ngn-plan', { amount: 78500, currency: 'NGN', meta: { type: 'afriverify_subscription', api_key_id: keyId, plan: 'growth' } });
+  assert.equal((await tier()).tier, 'free');
+});
+
 test('non-subscription and non-successful events are acknowledged and ignored', { skip, timeout: 60_000 }, async () => {
   await resetBilling();
   assert.equal((await hook('tx-other-1', { meta: { type: 'something_else' } })).s, 200);
