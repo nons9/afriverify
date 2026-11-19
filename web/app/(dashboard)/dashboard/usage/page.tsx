@@ -113,6 +113,9 @@ export default function UsagePage() {
   const [subscribingKeyId, setSubscribingKeyId] = useState<string | null>(null);
   const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null);
   const [subscribeError, setSubscribeError] = useState('');
+  // Local currencies the owner has switched on (empty until then). 'USD' is the list price.
+  const [localPrices, setLocalPrices] = useState<Record<string, Record<string, number>>>({});
+  const [currency, setCurrency] = useState('USD');
 
   useEffect(() => {
     Promise.all([
@@ -127,7 +130,14 @@ export default function UsagePage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
+    api.get<{ plans: { id: string; local_prices?: Record<string, number> }[] }>('/v1/plans')
+      .then((r) => setLocalPrices(Object.fromEntries(r.plans.map((pl) => [pl.id, pl.local_prices ?? {}]))))
+      .catch(() => { /* USD only */ });
   }, []);
+
+  const currencies = Array.from(new Set(Object.values(localPrices).flatMap((m) => Object.keys(m))));
+  const priceLabel = (plan: string, usdCents: number) =>
+    currency !== 'USD' && localPrices[plan]?.[currency] !== undefined ? formatMoney(localPrices[plan][currency], currency) : formatMoney(usdCents, 'USD');
 
   async function handleSubscribe(apiKeyId: string, plan: string) {
     setSubscribingKeyId(apiKeyId);
@@ -138,6 +148,7 @@ export default function UsagePage() {
         api_key_id: apiKeyId,
         plan,
         redirect_url: window.location.href,
+        ...(currency !== 'USD' ? { currency } : {}),
       });
       window.location.href = payment_link;
     } catch (err) {
@@ -220,6 +231,17 @@ export default function UsagePage() {
         <h3 className="text-sm font-semibold text-white mb-1">Plans &amp; Usage</h3>
         <p className="text-slate-500 text-xs mb-5">Each API key is billed and metered independently.</p>
 
+        {currencies.length > 0 && (
+          <div className="mb-4 flex items-center gap-2 text-xs text-slate-300">
+            <label htmlFor="pay-currency">Pay in</label>
+            <select id="pay-currency" value={currency} onChange={(e) => setCurrency(e.target.value)} className="bg-white/5 border border-white/10 rounded px-2 py-1 text-white">
+              <option value="USD">USD</option>
+              {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <span className="text-slate-500">The price you see is the price you pay.</span>
+          </div>
+        )}
+
         {subscribeError && (
           <p className="text-xs text-red-400 mb-4 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" /> {subscribeError}
@@ -273,7 +295,7 @@ export default function UsagePage() {
                           <CreditCard className="w-3.5 h-3.5" />
                           {subscribingKeyId === key.id && subscribingPlan === 'starter'
                             ? 'Redirecting…'
-                            : `Starter - ${formatMoney(billing.plans.starter.amountCents, billing.plans.starter.currency)}/mo`}
+                            : `Starter - ${priceLabel('starter', billing.plans.starter.amountCents)}/mo`}
                         </button>
                       )}
                       {billing.plans.growth && (!isActive || currentPlan === 'free' || currentPlan === 'starter') && (
@@ -285,7 +307,7 @@ export default function UsagePage() {
                           <Zap className="w-3.5 h-3.5" />
                           {subscribingKeyId === key.id && subscribingPlan === 'growth'
                             ? 'Redirecting…'
-                            : `Growth - ${formatMoney(billing.plans.growth.amountCents, billing.plans.growth.currency)}/mo`}
+                            : `Growth - ${priceLabel('growth', billing.plans.growth.amountCents)}/mo`}
                         </button>
                       )}
                     </div>

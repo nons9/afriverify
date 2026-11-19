@@ -13,9 +13,10 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 interface Plans {
   currency: string;
+  local_currencies?: string[];
   free: { monthly_limit: number; price_monthly_cents: number; sandbox_limit?: number };
   units?: { phone_check: number; id_check_total: number; face_check_total: number; effective_at: string | null };
-  plans: { id: string; label: string; price_monthly_cents: number; monthly_limit: number; cents_per_verification: number }[];
+  plans: { id: string; label: string; price_monthly_cents: number; monthly_limit: number; cents_per_verification: number; local_prices?: Record<string, number> }[];
   overage_cents_per_verification: number;
   enterprise: { custom: boolean; contact: string };
 }
@@ -115,11 +116,18 @@ export default async function PricingPage() {
             <ul className="list-disc pl-6 space-y-2 text-slate-200">
               {unitsLine(p.units)}
               <li>Prices are in {p.currency}. Past your limit you keep working and pay {usd(p.overage_cents_per_verification)} per extra verification, invoiced after the month.</li>
+              {p.local_currencies && p.local_currencies.length > 0 && (
+                <li>
+                  You can pay in {p.local_currencies.join(', ')} as well as US dollars.{' '}
+                  {p.local_currencies.map((c) => `${c}: ${p.plans.map((pl) => `${pl.label} ${((pl.local_prices?.[c] ?? 0) / 100).toLocaleString('en', { maximumFractionDigits: 0 })}`).join(', ')}`).join('. ')}.
+                  {' '}The price is fixed when you start checkout, and the amount shown is the amount charged.
+                </li>
+              )}
               <li>The limit is per API key. If you stay under it, you never pay overage.</li>
               <li>These numbers come straight from the system that bills you, so this page cannot drift from your invoice.</li>
             </ul>
             <p className="text-slate-300">
-              Questions about volume, local currency or invoicing? <a className="underline" href="mailto:sales@sankofaapp.com">sales@sankofaapp.com</a>. Details of every endpoint are in the{' '}
+              Questions about volume or invoicing? <a className="underline" href="mailto:sales@sankofaapp.com">sales@sankofaapp.com</a>. Details of every endpoint are in the{' '}
               <Link className="underline" href="/docs">docs</Link>.
             </p>
           </section>
