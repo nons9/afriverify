@@ -54,7 +54,7 @@ Depending on your country you may ask to see your information, correct it, delet
 
 ### 7. Security
 
-Images are encrypted before storage, traffic is encrypted, access is limited, and every step is logged. If a breach puts your rights at risk, we will tell the business without undue delay and the supervisory authority within 72 hours where required, and we will tell you without undue delay where required. Our security page lists what is in place and what is not yet.
+Photos are shrunk before storage and the location and device details hidden inside a photo file are removed. Images are encrypted before storage, traffic is encrypted, access is limited, and every step is logged. If a breach puts your rights at risk, we will tell the business without undue delay and the supervisory authority within 72 hours where required, and we will tell you without undue delay where required. Our security page lists what is in place and what is not yet.
 
 ### 8. Children
 
