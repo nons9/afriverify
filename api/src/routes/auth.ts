@@ -1,30 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
-import { promisify } from 'util';
 import jwt from 'jsonwebtoken';
 import { validateBody } from '../middleware/validate';
 import { query, queryOne } from '../db';
 import logger from '../utils/logger';
 import { sendWelcomeEmail } from '../services/email-billing.service';
+import { hashPassword, verifyPassword } from '../services/password';
+import { signMfaToken, verifyMfaToken, verifyLoginCode, notifyOwner } from '../services/mfa.service';
 
 const router = Router();
-const scryptAsync = promisify(scrypt);
-
-async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString('hex');
-  const hash = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${salt}:${hash.toString('hex')}`;
-}
-
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [salt, hash] = stored.split(':');
-  if (!salt || !hash) return false;
-  const hashBuffer = Buffer.from(hash, 'hex');
-  const derivedHash = (await scryptAsync(password, salt, 64)) as Buffer;
-  return timingSafeEqual(hashBuffer, derivedHash);
-}
-
 function signToken(id: string, email: string, company: string): string {
   const secret = process.env.SESSION_JWT_SECRET;
   if (!secret) throw new Error('SESSION_JWT_SECRET not configured');
@@ -95,13 +79,21 @@ router.post(
       company_name: string;
       full_name: string;
       is_active: boolean;
+      mfa_enabled_at: string | null;
     }>(
-      'SELECT id, email, password_hash, company_name, full_name, is_active FROM developers WHERE email = $1',
+      'SELECT id, email, password_hash, company_name, full_name, is_active, mfa_enabled_at FROM developers WHERE email = $1',
       [normalizedEmail]
     );
 
     if (!dev || !dev.is_active || !(await verifyPassword(password, dev.password_hash))) {
       res.status(401).json({ error: 'unauthorized', message: 'Invalid credentials' });
+      return;
+    }
+
+    // Two-step verification: the password alone never produces a session. The person gets a five-minute
+    // challenge pass that is only good for the second step.
+    if (dev.mfa_enabled_at) {
+      res.json({ mfa_required: true, mfa_token: signMfaToken(dev.id) });
       return;
     }
 
@@ -113,6 +105,55 @@ router.post(
     res.json({
       token,
       developer: { id: dev.id, email: dev.email, company_name: dev.company_name, full_name: dev.full_name }
+    });
+  }
+);
+
+const mfaLoginSchema = z.object({
+  mfa_token: z.string().min(20).max(2000),
+  // a 6-digit authenticator code, or a recovery code (xxxxx-xxxxx)
+  code: z.string().min(6).max(32),
+});
+
+// POST /v1/auth/login/mfa : the second step
+router.post(
+  '/login/mfa',
+  validateBody(mfaLoginSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    const { mfa_token, code } = req.body as z.infer<typeof mfaLoginSchema>;
+    const id = verifyMfaToken(mfa_token);
+    if (!id) {
+      res.status(401).json({ error: 'unauthorized', message: 'Your sign-in expired. Start again with your password.' });
+      return;
+    }
+
+    const dev = await queryOne<{ id: string; email: string; company_name: string; full_name: string; is_active: boolean; mfa_enabled_at: string | null }>(
+      'SELECT id, email, company_name, full_name, is_active, mfa_enabled_at FROM developers WHERE id = $1',
+      [id]
+    );
+    if (!dev || !dev.is_active || !dev.mfa_enabled_at) {
+      res.status(401).json({ error: 'unauthorized', message: 'Invalid credentials' });
+      return;
+    }
+
+    const result = await verifyLoginCode(dev.id, code);
+    if (!result.ok) {
+      if (result.reason === 'locked') {
+        res.status(429).json({ error: 'mfa_locked', message: 'Too many wrong codes. Try again in 15 minutes.' });
+      } else {
+        res.status(401).json({ error: 'invalid_code', message: 'That code is not right. Check the 6 digits in your authenticator app, or use a recovery code.' });
+      }
+      return;
+    }
+
+    await query('UPDATE developers SET last_login_at = NOW() WHERE id = $1', [dev.id]);
+    if (result.usedRecovery) void notifyOwner(dev.email, 'recovery_code_used', result.remaining);
+    logger.info('Developer login (two-step)', { id: dev.id, recovery: result.usedRecovery });
+
+    res.json({
+      token: signToken(dev.id, dev.email, dev.company_name),
+      developer: { id: dev.id, email: dev.email, company_name: dev.company_name, full_name: dev.full_name },
+      ...(result.usedRecovery ? { recovery_codes_remaining: result.remaining } : {}),
     });
   }
 );
