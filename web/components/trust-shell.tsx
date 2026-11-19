@@ -33,7 +33,7 @@ export function TrustShell({ title, subtitle, children, wide = false }: { title:
         <div className="max-w-5xl mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-base">
           <Copyright className="text-slate-400" />
           <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-1">
-            {[...TRUST_LINKS, { href: '/privacy', label: 'Privacy' }, { href: '/terms', label: 'Terms' }].map((l) => (
+            {[...TRUST_LINKS, { href: '/privacy', label: 'Privacy' }, { href: '/terms', label: 'Terms' }, { href: '/legal', label: 'Legal' }].map((l) => (
               <Link key={l.href} href={l.href} className="text-slate-300 hover:text-white transition-colors">{l.label}</Link>
             ))}
           </nav>
