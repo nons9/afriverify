@@ -59,3 +59,32 @@ test('readiness: reports pending migrations so an unmigrated build is never prom
   (db as any).query = async () => [{ version: '001_a' }, { version: '002_b' }, { version: '003_c' }];
   assert.equal((await getMigrationStatus(dir)).current, true);
 });
+
+import { sendOpsAlert, warnIfNoAlertChannel } from '../src/services/alerting.service';
+
+test('ops alert reaches the webhook AND the email channel when both are configured', async () => {
+  const hooks: string[] = []; const mails: any[] = [];
+  const out = await sendOpsAlert('engine down', {
+    env: { ALERT_WEBHOOK_URL: 'https://hooks.test/x', ALERT_EMAIL_TO: 'a@x.test, b@x.test', RESEND_API_KEY: 'k', RESEND_FROM_EMAIL: 'AfriVerify <ops@x.test>' } as any,
+    fetchImpl: (async (_u: any, init: any) => { hooks.push(JSON.parse(init.body).text); return { ok: true, status: 200 } as Response; }) as any,
+    emailSender: async (o) => { mails.push(o); },
+  });
+  assert.deepEqual(out, { webhook: 'sent', email: 'sent' });
+  assert.deepEqual(hooks, ['engine down']);
+  assert.deepEqual(mails[0].to, ['a@x.test', 'b@x.test']);
+  assert.match(mails[0].subject, /engine down/);
+});
+
+test('email alone is enough, and a failing channel is reported without throwing', async () => {
+  const out = await sendOpsAlert('x', { env: { ALERT_EMAIL_TO: 'a@x.test', RESEND_API_KEY: 'k', RESEND_FROM_EMAIL: 'f@x.test' } as any, emailSender: async () => { throw new Error('boom'); } });
+  assert.deepEqual(out, { webhook: 'not_configured', email: 'failed' });
+  const hookFail = await sendOpsAlert('x', { env: { ALERT_WEBHOOK_URL: 'https://h.test' } as any, fetchImpl: (async () => ({ ok: false, status: 500 })) as any });
+  assert.equal(hookFail.webhook, 'failed');
+});
+
+test('with no channel configured the alert is reported as not delivered and boot warns', async () => {
+  assert.deepEqual(await sendOpsAlert('x', { env: {} as any }), { webhook: 'not_configured', email: 'not_configured' });
+  assert.equal(warnIfNoAlertChannel({} as any), false);
+  assert.equal(warnIfNoAlertChannel({ ALERT_WEBHOOK_URL: 'https://h.test' } as any), true);
+  assert.equal(warnIfNoAlertChannel({ ALERT_EMAIL_TO: 'a@x.test', RESEND_API_KEY: 'k' } as any), false, 'email also needs a from address');
+});

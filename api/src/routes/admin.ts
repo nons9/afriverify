@@ -7,6 +7,7 @@ import { adminAuth, requireRole } from '../middleware/adminAuth';
 import { validateBody } from '../middleware/validate';
 import { screenIdentity } from '../services/aml-rescreen.service';
 import { evaluateIdentity } from '../services/risk-rules.service';
+import { sendOpsAlert } from '../services/alerting.service';
 
 const router = Router();
 
@@ -272,6 +273,13 @@ router.get('/identities/:id', adminAuth, async (req: Request, res: Response) => 
   } catch (err) {
     res.status(500).json({ error: 'internal_error', message: (err as Error).message });
   }
+});
+
+// Sends a test alert to every configured channel, so you can prove paging works before you need it.
+router.post('/ops/test-alert', adminAuth, async (_req: Request, res: Response) => {
+  const delivery = await sendOpsAlert('Test alert from AfriVerify. If you can read this, ops alerts reach you.');
+  const delivered = delivery.webhook === 'sent' || delivery.email === 'sent';
+  res.status(delivered ? 200 : 503).json({ delivered, ...delivery });
 });
 
 router.post('/identities/:id/rescreen', adminAuth, async (req: Request, res: Response) => {

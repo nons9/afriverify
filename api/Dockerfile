@@ -22,6 +22,10 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY openapi.yaml ./openapi.yaml
 
+# Run as the unprivileged `node` user that ships with the image. The app writes nothing to disk, so no
+# file needs to be writable; a compromised process cannot modify the code or install anything.
+USER node
+
 EXPOSE 3000
 
 # Migrate, THEN start. `&&` (not `;`) so a failed migration stops the container: the deploy fails its health

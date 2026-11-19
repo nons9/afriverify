@@ -89,3 +89,12 @@ def test_face_match_reports_missing_face():
     noise = jpeg(np.random.default_rng(1).integers(0, 255, (320, 320, 3), dtype=np.uint8))
     r = client.post("/v1/face/match", files={"selfie": ("a.jpg", noise), "id_photo": ("b.jpg", noise)}).json()
     assert r["verdict"] == "unable" and r["selfie_face_found"] is False
+
+
+@needs_models
+def test_warmup_loads_models_so_first_request_is_not_cold(monkeypatch):
+    from app import main
+    monkeypatch.delenv("SKIP_WARMUP", raising=False)
+    assert main.warmup() is True
+    monkeypatch.setenv("SKIP_WARMUP", "1")
+    assert main.warmup() is False
