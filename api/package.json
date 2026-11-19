@@ -12,6 +12,7 @@
     "start": "node dist/index.js",
     "migrate:prod": "node dist/db/migrate.js",
     "typecheck": "tsc --noEmit",
+    "cost-model": "ts-node scripts/cost-model.ts",
     "test": "node --require ts-node/register --test test/*.test.ts"
   },
   "dependencies": {
