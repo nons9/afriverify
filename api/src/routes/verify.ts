@@ -452,7 +452,7 @@ router.post(
     }
 
     {
-      const gate = await chargeStep({ sessionId: session.id, apiKeyId: session.api_key_id, phone: session.phone, step: 'id' });
+      const gate = await chargeStep({ sessionId: session.id, apiKeyId: session.api_key_id, phone: session.phone, step: 'id', gateOnly: true });
       if (!gate.ok) { res.status(gate.status!).json(gate.body); return; }
     }
 
@@ -460,6 +460,7 @@ router.post(
     let idVerified = false;
     let smileCode = 'skipped';
     let providerUsed: ProviderName = 'smile_identity';
+    let registryChecked = false; // true only if a vendor really ran the check
 
     try {
       const preferred = req.apiKey?.preferred_provider ?? null;
@@ -476,6 +477,9 @@ router.post(
         },
         preferred
       );
+      // A vendor really answered, so this session now counts as an ID check. (If none is set up or reachable it does not.)
+      registryChecked = true;
+      await chargeStep({ sessionId: session.id, apiKeyId: session.api_key_id, phone: session.phone, step: 'id' });
 
       if (result.pending && result.check_id) {
         // Onfido submitted the check asynchronously - store check_id to resolve via webhook.
@@ -521,6 +525,7 @@ router.post(
         JSON.stringify({
           smile_code: smileCode,
           id_verified: idVerified,
+          registry_checked: registryChecked,
           deepscan_verdict: deepScan.verdict,
           deepscan_confidence: deepScan.confidence
         }),
@@ -539,7 +544,7 @@ router.post(
       metadata: { id_type, nationality, smile_code: smileCode, deepscan_verdict: deepScan.verdict }
     });
 
-    res.json({ upload_id: s3Key, id_verified: idVerified, next_step: 'face_scan' });
+    res.json({ upload_id: s3Key, id_verified: idVerified, registry_checked: registryChecked, next_step: 'face_scan' });
   }
 );
 
