@@ -94,17 +94,29 @@ EOF
 log "uploading $KEY ($SIZE bytes)"
 if [[ "$BACKUP_DEST" == s3://* ]]; then
   DEST="${BACKUP_DEST%/}"
+  rest="${DEST#s3://}"; BUCKET="${rest%%/*}"; PREFIX=""; [[ "$rest" == */* ]] && PREFIX="${rest#*/}/"
   EP=(); [[ -n "${AWS_ENDPOINT_URL:-}" ]] && EP=(--endpoint-url "$AWS_ENDPOINT_URL")
-  aws "${EP[@]}" s3 cp --only-show-errors "$WORK/db.dump.age" "$DEST/$KEY"
-  aws "${EP[@]}" s3 cp --only-show-errors "$WORK/manifest.json" "$DEST/${KEY}.manifest.json"
-  remote="$(aws "${EP[@]}" s3 ls "$DEST/$KEY" | awk '{print $3}')"
+  s3() { aws "${EP[@]}" "$@"; }
+  log "storage bucket=$BUCKET prefix=${PREFIX:-/}"
+  s3 s3api put-object --bucket "$BUCKET" --key "${PREFIX}${KEY}" --body "$WORK/db.dump.age" >/dev/null
+  s3 s3api put-object --bucket "$BUCKET" --key "${PREFIX}${KEY}.manifest.json" --body "$WORK/manifest.json" >/dev/null
+  # verify by asking for the object's size (HeadObject works on every S3-compatible store)
+  remote="$(s3 s3api head-object --bucket "$BUCKET" --key "${PREFIX}${KEY}" --query ContentLength --output text)"
   [[ "$remote" == "$SIZE" ]] || { log "uploaded size $remote differs from $SIZE"; exit 1; }
-  # retention
+  log "upload verified ($remote bytes)"
+  # retention: a listing problem must not fail a backup that is already safely stored, but it must be loud
   cutoff="$(date -u -d "-${RETENTION_DAYS} days" +%Y%m%dT%H%M%SZ)"
-  aws "${EP[@]}" s3 ls "$DEST/" | awk '{print $4}' | grep -E '^db-[0-9]{8}T[0-9]{6}Z\.dump\.age(\.manifest\.json)?$' | while read -r f; do
-    ts="${f#db-}"; ts="${ts%%.*}"
-    if [[ "$ts" < "$cutoff" ]]; then log "pruning $f"; aws "${EP[@]}" s3 rm --only-show-errors "$DEST/$f"; fi
-  done
+  if keys="$(s3 s3api list-objects-v2 --bucket "$BUCKET" --prefix "${PREFIX}db-" --query 'Contents[].Key' --output text 2>"$WORK/list.err")"; then
+    for k in $keys; do
+      [[ "$k" == "None" ]] && continue
+      f="${k##*/}"
+      [[ "$f" =~ ^db-[0-9]{8}T[0-9]{6}Z\.dump\.age(\.manifest\.json)?$ ]] || continue
+      ts="${f#db-}"; ts="${ts%%.*}"
+      if [[ "$ts" < "$cutoff" ]]; then log "pruning $f"; s3 s3api delete-object --bucket "$BUCKET" --key "$k" >/dev/null; fi
+    done
+  else
+    log "WARNING: retention skipped, could not list backups: $(tr '\n' ' ' <"$WORK/list.err")"
+  fi
 else
   mkdir -p "$BACKUP_DEST"
   cp "$WORK/db.dump.age" "$BACKUP_DEST/$KEY"
