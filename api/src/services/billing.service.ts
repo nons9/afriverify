@@ -8,6 +8,7 @@ import logger from '../utils/logger';
 import { UNIT_WEIGHTS, parseEffectiveAt } from './metering-rules';
 import { runOncePerInterval } from '../utils/job-lock';
 import { quoteLocal, localRates, LocalQuote } from './local-pricing';
+import { MIN_TOPUP_USD, MAX_TOPUP_USD, publicFeeList } from './registry-fees';
 
 export const SELF_SERVE_PLANS = ['starter', 'growth'] as const;
 export type SelfServePlan = (typeof SELF_SERVE_PLANS)[number];
@@ -435,6 +436,8 @@ export function getPublicPlans() {
     currency: 'USD',
     // Local currencies the owner has switched on, with the exact price charged for each plan.
     local_currencies: Object.keys(localRates()),
+    // Prepaid credit for identity-registry checks, passed on at the price we pay the vendor plus a margin.
+    registry_checks: { fees: publicFeeList(), topup_usd: { min: MIN_TOPUP_USD, max: MAX_TOPUP_USD } },
     free: { monthly_limit: FREE_TIER_LIMIT, price_monthly_cents: 0, sandbox_limit: SANDBOX_LIMIT },
     units: {
       phone_check: UNIT_WEIGHTS.phone,
@@ -456,8 +459,46 @@ export function getPublicPlans() {
   };
 }
 
-export async function getCheckoutQuote(reference: string): Promise<{ api_key_id: string; plan: string; currency: string; amountMinor: number } | null> {
-  const row = await queryOne<{ api_key_id: string; plan: string; currency: string; amount_minor: string }>(
-    `SELECT api_key_id, plan, currency, amount_minor FROM checkout_quotes WHERE reference = $1`, [reference]);
-  return row ? { api_key_id: row.api_key_id, plan: row.plan, currency: row.currency, amountMinor: Number(row.amount_minor) } : null;
+export async function getCheckoutQuote(reference: string): Promise<{ api_key_id: string; plan: string; currency: string; amountMinor: number; usdCents: number | null } | null> {
+  const row = await queryOne<{ api_key_id: string; plan: string; currency: string; amount_minor: string; usd_cents: string | null }>(
+    `SELECT api_key_id, plan, currency, amount_minor, usd_cents FROM checkout_quotes WHERE reference = $1`, [reference]);
+  return row ? { api_key_id: row.api_key_id, plan: row.plan, currency: row.currency, amountMinor: Number(row.amount_minor), usdCents: row.usd_cents === null ? null : Number(row.usd_cents) } : null;
+}
+
+/** Starts a payment that adds prepaid registry-check credit. The amount is saved here and checked again when paid. */
+export async function createCreditCheckout(params: {
+  apiKeyId: string; email: string; redirectUrl: string; usd: number; currency?: string;
+}): Promise<{ paymentLink: string; reference: string }> {
+  if (!Number.isInteger(params.usd) || params.usd < MIN_TOPUP_USD || params.usd > MAX_TOPUP_USD) throw new Error('amount_out_of_range');
+  const usdCents = params.usd * 100;
+  const wanted = (params.currency ?? 'USD').toUpperCase();
+  let currency = 'USD';
+  let amountMinor = usdCents;
+  if (wanted !== 'USD') {
+    const q = quoteLocal(usdCents, wanted);
+    if (!q) throw new Error('currency_not_supported');
+    currency = q.currency; amountMinor = q.amountMinor;
+  }
+  const reference = `av-cr-${randomUUID()}`;
+  await query(
+    `INSERT INTO checkout_quotes (reference, api_key_id, plan, currency, amount_minor, usd_cents) VALUES ($1, $2, 'credit', $3, $4, $5)`,
+    [reference, params.apiKeyId, currency, amountMinor, usdCents]
+  );
+  const checkout = await createCheckout({
+    email: params.email, amount: amountMinor / 100, currency, reference, redirectUrl: params.redirectUrl,
+    metadata: { type: 'afriverify_credit', api_key_id: params.apiKeyId },
+  });
+  return { paymentLink: checkout.paymentLink, reference };
+}
+
+/** Did the provider confirm at least the quoted amount, in the quoted currency? */
+export function checkQuotedPayment(
+  confirmed: { status: string; amount: number; currency: string },
+  quote: { currency: string; amountMinor: number },
+): { ok: true } | { ok: false; reason: string } {
+  if (String(confirmed.status).toLowerCase() !== 'successful') return { ok: false, reason: `provider status is "${confirmed.status}"` };
+  if (String(confirmed.currency).toUpperCase() !== quote.currency.toUpperCase()) return { ok: false, reason: `currency ${confirmed.currency}, expected ${quote.currency}` };
+  const paid = Math.round(Number(confirmed.amount) * 100);
+  if (!Number.isFinite(paid) || paid < quote.amountMinor) return { ok: false, reason: `paid ${paid}, quote ${quote.amountMinor}` };
+  return { ok: true };
 }

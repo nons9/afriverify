@@ -25,6 +25,7 @@ interface BillingKey {
   tier: string;
   monthly_limit: number;
   verifications_this_month: number;
+  registry_balance_cents: number;
 }
 
 interface Subscription {
@@ -116,6 +117,8 @@ export default function UsagePage() {
   // Local currencies the owner has switched on (empty until then). 'USD' is the list price.
   const [localPrices, setLocalPrices] = useState<Record<string, Record<string, number>>>({});
   const [currency, setCurrency] = useState('USD');
+  const [topupUsd, setTopupUsd] = useState('20');
+  const [toppingKey, setToppingKey] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -155,6 +158,23 @@ export default function UsagePage() {
       setSubscribeError((err as Error).message ?? 'Could not start checkout');
       setSubscribingKeyId(null);
       setSubscribingPlan(null);
+    }
+  }
+
+  async function handleTopup(apiKeyId: string) {
+    setToppingKey(apiKeyId);
+    setSubscribeError('');
+    try {
+      const { payment_link } = await api.post<{ payment_link: string }>('/v1/developer/billing/credit/topup', {
+        api_key_id: apiKeyId,
+        amount_usd: Math.round(Number(topupUsd)),
+        redirect_url: window.location.href,
+        ...(currency !== 'USD' ? { currency } : {}),
+      });
+      window.location.href = payment_link;
+    } catch (err) {
+      setSubscribeError((err as Error).message ?? 'Could not start the top-up');
+      setToppingKey(null);
     }
   }
 
@@ -315,6 +335,34 @@ export default function UsagePage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {billing && billing.keys.some((k) => k.environment === 'production') && (
+          <div className="mt-8">
+            <h3 className="text-sm font-semibold text-white mb-1">ID registry check credit</h3>
+            <p className="text-slate-400 text-xs mb-4">
+              Checking an ID against a government registry costs us a fee from our identity provider, so it is passed on at cost plus a small margin from this prepaid balance. The price for each country is on the <a className="underline" href="/pricing">pricing page</a>. A check that does not run is refunded automatically.
+            </p>
+            <div className="divide-y divide-white/[0.06]">
+              {billing.keys.filter((k) => k.environment === 'production').map((key) => (
+                <div key={key.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-white">{key.platform_name}</p>
+                    <p className="text-xs text-slate-400">Balance: <span className="text-white">{formatMoney(key.registry_balance_cents, 'USD')}</span></p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor={`topup-${key.id}`} className="text-xs text-slate-300">Add (whole USD, 5 to 500)</label>
+                    <input id={`topup-${key.id}`} inputMode="numeric" value={topupUsd} onChange={(e) => setTopupUsd(e.target.value.replace(/\D/g, ''))}
+                      className="w-20 bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white" />
+                    <button onClick={() => handleTopup(key.id)} disabled={toppingKey === key.id || Number(topupUsd) < 5 || Number(topupUsd) > 500}
+                      className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-ink text-xs font-semibold rounded-lg">
+                      {toppingKey === key.id ? 'Redirecting...' : 'Top up'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

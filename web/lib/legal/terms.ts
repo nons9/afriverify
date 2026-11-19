@@ -258,7 +258,11 @@ We may change prices for future periods on at least 30 days' written notice. A c
 
 Fees are non-refundable except (a) where the law requires, (b) where we charged in error, or (c) as stated in the Service Levels and Support terms for missed service levels. Prepaid voucher credit (for example AfriApp or Kliqa vouchers) is non-transferable, non-refundable and expires 12 months after redemption unless the voucher says otherwise.
 
-### 7. Currency and local payment methods
+### 7. Identity registry checks and prepaid credit
+
+Checking an ID number against a government registry or an identity provider costs us a fee from that provider. We pass it on at our cost plus a small margin. The price for each country and ID type is on our pricing page, and we will tell you by email at least 30 days before a price goes up. You pay by topping up prepaid credit on an API key, from 5 to 500 US dollars at a time. The fee is taken from the credit when a check starts. If the check does not run, for example because the provider cannot be reached, the fee is returned to the credit straight away. A check that ran is not refunded, whether or not the person passed it. If the credit is too low for a check, the check is refused and nothing is taken. Credit does not expire while your account is open. When you close your account, we return unused credit on request within 30 days, less the fees the payment provider charged us to take it. Credit is not money held for you in a bank account, it is prepayment for these checks, and it cannot be transferred to another customer.
+
+### 8. Currency and local payment methods
 
 Prices are in US dollars. Where we offer a local currency at checkout, the price in that currency is worked out from a rate we set, is shown before you pay, and is fixed when you start checkout: the amount shown is the amount charged. Your bank or the payment provider may apply its own fees or exchange rate to your card or account, and we are not responsible for those charges.
 `;

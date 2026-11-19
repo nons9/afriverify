@@ -476,6 +476,102 @@ test('a quote for one plan cannot be used to buy another', { skip, timeout: 60_0
   assert.equal((await tier()).tier, 'free');
 });
 
+// ─── registry-check credit ─────────────────────────────────────────────────────────
+
+const balance = async () => Number((await db.query(`SELECT registry_balance_cents AS b FROM api_keys WHERE id = $1`, [keyId])).rows[0].b);
+const creditHook = (ref: string, over: Record<string, unknown> = {}) =>
+  api('/v1/developer/billing/webhook', {
+    event: 'charge.completed',
+    data: { tx_ref: ref, status: 'successful', amount: 20, currency: 'USD', meta: { type: 'afriverify_credit', api_key_id: keyId }, ...over },
+  }, { 'verif-hash': 'whsec_test_hash' });
+const creditQuote = (ref: string, currency: string, minor: number, usd: number) =>
+  db.query(`INSERT INTO checkout_quotes (reference, api_key_id, plan, currency, amount_minor, usd_cents) VALUES ($1, $2, 'credit', $3, $4, $5)`, [ref, keyId, currency, minor, usd]);
+async function resetCredit() {
+  await db.query(`UPDATE api_keys SET registry_balance_cents = 0 WHERE id = $1`, [keyId]);
+  await db.query(`DELETE FROM registry_ledger WHERE api_key_id = $1`, [keyId]);
+}
+
+test('credit: a confirmed top-up adds credit once, however many times the webhook arrives', { skip, timeout: 60_000 }, async () => {
+  await resetCredit();
+  await creditQuote('tx-cr-1', 'USD', 2000, 2000);
+  payingAmount = 2000; payingCurrency = 'USD';
+  const rs = await Promise.all(Array.from({ length: 6 }, () => creditHook('tx-cr-1')));
+  assert.ok(rs.every((r) => r.s === 200));
+  assert.equal(await balance(), 2000, '20 dollars once');
+  const n = (await db.query(`SELECT count(*)::int AS n FROM registry_ledger WHERE api_key_id = $1 AND kind = 'topup'`, [keyId])).rows[0].n;
+  assert.equal(n, 1);
+});
+
+test('credit: a payment with no quote, a short payment, or another currency adds nothing', { skip, timeout: 60_000 }, async () => {
+  await resetCredit();
+  payingAmount = 2000; payingCurrency = 'USD';
+  await creditHook('tx-cr-noquote');
+  assert.equal(await balance(), 0, 'no saved quote');
+  await creditQuote('tx-cr-short', 'USD', 5000, 5000);
+  payingAmount = 4999;
+  await creditHook('tx-cr-short', { amount: 49.99 });
+  assert.equal(await balance(), 0, 'one cent short');
+  await creditQuote('tx-cr-cur', 'NGN', 7_000_000, 5000);
+  payingAmount = 7_000_000; payingCurrency = 'USD';
+  await creditHook('tx-cr-cur');
+  assert.equal(await balance(), 0, 'paid in the wrong currency');
+  await creditQuote('tx-cr-sub', 'USD', 4900, 4900);
+  await db.query(`UPDATE checkout_quotes SET plan = 'starter' WHERE reference = 'tx-cr-sub'`);
+  payingAmount = 4900; payingCurrency = 'USD';
+  await creditHook('tx-cr-sub', { amount: 49 });
+  assert.equal(await balance(), 0, 'a plan quote cannot be used to add credit');
+});
+
+test('credit: a local-currency top-up adds the dollar amount that was quoted', { skip, timeout: 60_000 }, async () => {
+  await resetCredit();
+  await creditQuote('tx-cr-ngn', 'NGN', 7_040_000, 5000);   // 50 dollars quoted as 70,400 naira
+  payingAmount = 7_040_000; payingCurrency = 'NGN';
+  await creditHook('tx-cr-ngn', { amount: 70400, currency: 'NGN' });
+  assert.equal(await balance(), 5000);
+});
+
+test('credit: a check takes its fee first, is refused without credit, and a check that did not run is refunded', { skip, timeout: 60_000 }, async () => {
+  await resetCredit();
+  const { planRegistryCheck, refundRegistryFee } = await import('../src/services/registry-credit.service');
+  const prev = { f: process.env.REGISTRY_CHECK_FEES, s: process.env.SMILE_IDENTITY_PARTNER_ID, k: process.env.SMILE_IDENTITY_API_KEY };
+  const mk = async () => (await db.query(
+    `INSERT INTO verification_sessions (session_token, phone, otp_channel, step, api_key_id, expires_at)
+     VALUES ($1, $2, 'sms', 'id_upload', $3, NOW() + INTERVAL '15 minutes') RETURNING id`, [randomBytes(32).toString('hex'), newPhone(), keyId])).rows[0].id as string;
+  try {
+    const args = (sessionId: string) => ({ sessionId, apiKeyId: keyId, country: 'GH', idType: 'GHANA_CARD' });
+    process.env.REGISTRY_CHECK_FEES = '{"GH":40}';
+    delete process.env.SMILE_IDENTITY_PARTNER_ID; delete process.env.SMILE_IDENTITY_API_KEY;
+    const a = await mk();
+    assert.deepEqual(await planRegistryCheck(args(a)), { action: 'skip', reason: 'no_provider' });
+    process.env.SMILE_IDENTITY_PARTNER_ID = 'p'; process.env.SMILE_IDENTITY_API_KEY = 'k';
+    process.env.REGISTRY_CHECK_FEES = '{"NG":10}';
+    assert.deepEqual(await planRegistryCheck(args(a)), { action: 'skip', reason: 'unpriced' });
+    process.env.REGISTRY_CHECK_FEES = '{"GH":40}';
+    const blocked = await planRegistryCheck(args(a));
+    assert.equal(blocked.action, 'blocked');
+    assert.equal(await balance(), 0);
+
+    await db.query(`UPDATE api_keys SET registry_balance_cents = 100 WHERE id = $1`, [keyId]);
+    assert.deepEqual(await planRegistryCheck(args(a)), { action: 'run' });
+    assert.equal(await balance(), 60, 'fee taken before the vendor is called');
+    assert.deepEqual(await planRegistryCheck(args(a)), { action: 'run' });
+    assert.equal(await balance(), 60, 'the same session is never charged twice');
+
+    await refundRegistryFee(a); await refundRegistryFee(a);
+    assert.equal(await balance(), 100, 'refunded once, not twice');
+    const b = await mk();
+    await planRegistryCheck(args(b)); await planRegistryCheck({ ...args(await mk()) });
+    assert.equal(await balance(), 20);
+    const c = await planRegistryCheck(args(await mk()));
+    assert.equal(c.action, 'blocked', 'only 20 cents left, a 40 cent check is refused');
+    assert.equal(await balance(), 20, 'a refused check takes nothing');
+  } finally {
+    for (const [k, v] of [['REGISTRY_CHECK_FEES', prev.f], ['SMILE_IDENTITY_PARTNER_ID', prev.s], ['SMILE_IDENTITY_API_KEY', prev.k]] as const) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+});
+
 test('non-subscription and non-successful events are acknowledged and ignored', { skip, timeout: 60_000 }, async () => {
   await resetBilling();
   assert.equal((await hook('tx-other-1', { meta: { type: 'something_else' } })).s, 200);

@@ -147,15 +147,24 @@ function selectProviders(
   };
 }
 
+function usableList(country: string, idType: string, preferred?: ProviderName | null): IdentityProvider[] {
+  const chosen = selectProviders(country, idType, preferred);
+  return [chosen.primary, chosen.fallback].filter((p, i, a) => providerConfigured(p.name) && a.findIndex((q) => q.name === p.name) === i);
+}
+
+/** Names of the vendors that could run a check for this country and ID type right now (keys present). */
+export function usableProviders(country: string, idType: string, preferred?: ProviderName | null): ProviderName[] {
+  return usableList(country, idType, preferred).map((p) => p.name);
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export async function verifyId(
   params: ProviderVerifyIdParams,
   preferred?: ProviderName | null
 ): Promise<ProviderResult> {
-  const chosen = selectProviders(params.country, params.id_type, preferred);
+  const usable = usableList(params.country, params.id_type, preferred);
   // Skip any vendor we hold no keys for. If neither is usable there is no registry check to run.
-  const usable = [chosen.primary, chosen.fallback].filter((p, i, a) => providerConfigured(p.name) && a.findIndex((q) => q.name === p.name) === i);
   if (usable.length === 0) throw new NoProviderConfigured();
   const primary = usable[0];
   const fallback = usable[1] ?? usable[0];

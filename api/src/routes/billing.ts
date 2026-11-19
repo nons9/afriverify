@@ -5,7 +5,8 @@ import { validateBody } from '../middleware/validate';
 import { query, queryOne } from '../db';
 import { verifyWebhookSignature, verifyTransactionByReference } from '../services/flutterwave.service';
 import { formatMoney } from '../services/local-pricing';
-import { createSubscriptionCheckout, activateSubscription, isSelfServePlan, checkPayment, getCheckoutQuote, PLAN_PRICING, SelfServePlan } from '../services/billing.service';
+import { creditTopup, getCredit } from '../services/registry-credit.service';
+import { createSubscriptionCheckout, activateSubscription, isSelfServePlan, checkPayment, checkQuotedPayment, createCreditCheckout, getCheckoutQuote, PLAN_PRICING, SelfServePlan } from '../services/billing.service';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -21,8 +22,9 @@ router.get('/', sessionAuth, async (req: Request, res: Response): Promise<void> 
     tier: string;
     monthly_limit: string;
     verifications_this_month: string;
+    registry_balance_cents: string;
   }>(
-    `SELECT id, platform_name, environment, tier, monthly_limit, verifications_this_month
+    `SELECT id, platform_name, environment, tier, monthly_limit, verifications_this_month, registry_balance_cents
      FROM api_keys
      WHERE platform_email = $1 AND is_active = true`,
     [email]
@@ -74,6 +76,7 @@ router.get('/', sessionAuth, async (req: Request, res: Response): Promise<void> 
       ...k,
       monthly_limit: parseInt(k.monthly_limit, 10),
       verifications_this_month: parseInt(k.verifications_this_month, 10),
+      registry_balance_cents: Number(k.registry_balance_cents),
     })),
     subscriptions,
     invoices: invoices.map((i) => ({
@@ -135,6 +138,37 @@ router.post('/subscribe', sessionAuth, validateBody(subscribeSchema), async (req
   }
 
   res.json({ payment_link: checkout.paymentLink });
+});
+
+// ─── Prepaid registry-check credit ──────────────────────────────────────────────────────────────────
+const topupSchema = z.object({
+  api_key_id: z.string().uuid(),
+  amount_usd: z.number().int(),
+  redirect_url: z.string().url(),
+  currency: z.string().regex(/^[A-Za-z]{3}$/).optional(),
+});
+
+router.get('/credit/:apiKeyId', sessionAuth, async (req: Request, res: Response): Promise<void> => {
+  const owned = await queryOne<{ id: string }>(
+    `SELECT id FROM api_keys WHERE id = $1 AND platform_email = $2`, [req.params.apiKeyId, req.developer!.email]);
+  if (!owned) { res.status(404).json({ error: 'not_found', message: 'Key not found' }); return; }
+  res.json(await getCredit(owned.id));
+});
+
+router.post('/credit/topup', sessionAuth, validateBody(topupSchema), async (req: Request, res: Response): Promise<void> => {
+  const { api_key_id, amount_usd, redirect_url, currency } = req.body as z.infer<typeof topupSchema>;
+  const owned = await queryOne<{ id: string }>(
+    `SELECT id FROM api_keys WHERE id = $1 AND platform_email = $2 AND is_active = true`, [api_key_id, req.developer!.email]);
+  if (!owned) { res.status(404).json({ error: 'not_found', message: 'Key not found' }); return; }
+  try {
+    const c = await createCreditCheckout({ apiKeyId: api_key_id, email: req.developer!.email, redirectUrl: redirect_url, usd: amount_usd, currency });
+    res.json({ payment_link: c.paymentLink });
+  } catch (err) {
+    const m = (err as Error).message;
+    if (m === 'amount_out_of_range') { res.status(400).json({ error: 'amount_out_of_range', message: 'Top up a whole number of US dollars, from 5 to 500.' }); return; }
+    if (m === 'currency_not_supported') { res.status(400).json({ error: 'currency_not_supported', message: 'That currency is not available. Pay in USD, or see /v1/plans for the currencies on offer.' }); return; }
+    throw err;
+  }
 });
 
 // ─── GET /developer/billing/invoices/:id ────────────────────────────────────────────────────────────
@@ -336,6 +370,21 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
           amountCents: Math.round(Number(confirmed.amount) * 100),
           currency: confirmed.currency
         });
+      } else if (meta.type === 'afriverify_credit' && meta.api_key_id) {
+        // A credit top-up is paid only against a quote we saved. Without one (or with another key's) nothing is added.
+        const confirmed = await verifyTransactionByReference(event.data.tx_ref);
+        const quote = await getCheckoutQuote(event.data.tx_ref);
+        const check = confirmed.reference !== event.data.tx_ref
+          ? { ok: false as const, reason: 'provider reference does not match the webhook' }
+          : !quote || quote.plan !== 'credit' || !quote.usdCents || quote.api_key_id !== meta.api_key_id
+            ? { ok: false as const, reason: 'no matching credit quote' }
+            : checkQuotedPayment(confirmed, quote);
+        if (!check.ok || !quote?.usdCents) {
+          logger.error('Billing webhook: credit payment does not match its quote, NOT adding credit', { reference: event.data.tx_ref, reason: check.ok ? 'no quote' : check.reason });
+          res.status(200).json({ received: true, credited: false });
+          return;
+        }
+        await creditTopup({ apiKeyId: quote.api_key_id, usdCents: quote.usdCents, reference: event.data.tx_ref });
       } else {
         logger.warn('Billing webhook: charge.completed but not an AfriVerify subscription meta, skipping', { meta });
       }

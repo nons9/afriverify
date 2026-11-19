@@ -14,6 +14,8 @@ import redis from '../redis';
 import { sha256, timingSafeEqualHex } from '../utils/crypto';
 import { sendSms } from '../services/otp.service';
 import { chargeStep, otpSendAllowed } from '../services/metering.service';
+import { planRegistryCheck, refundRegistryFee } from '../services/registry-credit.service';
+
 import { sendOtpEmail } from '../services/email-otp.service';
 import {
   verifyId as verifyIdWithProvider,
@@ -310,7 +312,21 @@ router.post(
     let smileCode = 'skipped';
     let registryChecked = false;
 
+    const registryPlan = await planRegistryCheck({
+      sessionId: session.id, apiKeyId: session.api_key_id, country: nationality.toUpperCase().substring(0, 2), idType: id_type, preferred: null,
+    });
+    if (registryPlan.action === 'blocked') {
+      res.status(402).json({
+        error: 'registry_credit_required',
+        message: 'This business cannot complete ID checks right now. Please contact them.',
+        balance_cents: registryPlan.balanceCents,
+        fee_cents: registryPlan.feeCents,
+      });
+      return;
+    }
+
     try {
+      if (registryPlan.action !== 'run') throw new Error(`registry check not run: ${registryPlan.reason}`);
       const result = await verifyIdWithProvider({
         id_type: id_type.toUpperCase(),
         id_number,
@@ -332,6 +348,7 @@ router.post(
       smileCode = result.result_code;
     } catch (err) {
       logger.warn('Identity provider unavailable in hosted flow', { error: (err as Error).message });
+      await refundRegistryFee(session.id);
     }
 
     await query(
