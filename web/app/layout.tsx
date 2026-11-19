@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://afriverify.sankofaapp.com'),
-  title: "AfriVerify - Africa's Identity Infrastructure",
+  title: "AfriVerify - Identity Infrastructure for Africa",
   description:
     'Verify African identities with a single API call. ID checks in 29 countries, portable Verified Identity Token.',
   alternates: {
@@ -14,14 +14,14 @@ export const metadata: Metadata = {
     type: 'website',
     url: 'https://afriverify.sankofaapp.com',
     siteName: 'AfriVerify',
-    title: "AfriVerify - Africa's Identity Infrastructure",
+    title: "AfriVerify - Identity Infrastructure for Africa",
     description:
       'Verify African identities with a single API call. ID checks in 29 countries, portable Verified Identity Token.',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'AfriVerify: verify once, trusted everywhere' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: "AfriVerify - Africa's Identity Infrastructure",
+    title: "AfriVerify - Identity Infrastructure for Africa",
     description: 'Verify once. Trusted everywhere.',
     images: ['/og-image.png'],
   },

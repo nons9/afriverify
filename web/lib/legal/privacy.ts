@@ -37,7 +37,7 @@ We do not sell your information, use it for advertising, or use your images to t
 
 ### 4. Who receives it
 
-The business; our service providers listed in the sub-processor table of our Data Processing Agreement (hosting, text and email delivery, identity providers); regulators and courts where the law requires; and, if you choose to share a Verified Identity Token with another business, that business. Some providers are outside your country, including in Europe and the United States. We use recognised safeguards for those transfers.
+The business; our service providers listed in the sub-processor table of our Data Processing Agreement (hosting, text and email delivery, identity providers); regulators and courts where the law requires; and, if you choose to share a Verified Identity Token with another business, that business. A token you create yourself carries your verification level, trust score and nationality, and your name only if you tick the box to include it. Tokens created during a verification that a business ran for you can include your name; your account page shows which is which, and you can replace them at any time. Some providers are outside your country, including in Europe and the United States. We use recognised safeguards for those transfers.
 
 ### 5. How long we keep it
 

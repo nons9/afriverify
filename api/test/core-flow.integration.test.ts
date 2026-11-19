@@ -42,6 +42,7 @@ before(async () => {
   process.env.FLUTTERWAVE_SECRET_HASH = 'whsec_test_hash';
   process.env.IDENTITY_SESSION_JWT_SECRET = 'portal-test-secret';
   process.env.SESSION_JWT_SECRET = 'session-test-secret';
+  { const { generateKeyPairSync } = await import('crypto'); const kp = generateKeyPairSync('rsa', { modulusLength: 2048 }); process.env.VIT_PRIVATE_KEY = kp.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(); process.env.VIT_PUBLIC_KEY = kp.publicKey.export({ type: 'spki', format: 'pem' }).toString(); }
   process.env.DATA_ENCRYPTION_KEY = process.env.DATA_ENCRYPTION_KEY || 'ab'.repeat(32);
 
   const code = await new Promise<number>((resolve) => {
@@ -78,6 +79,7 @@ before(async () => {
   const developerRouter = (await import('../src/routes/developer')).default;
   const ussdRouter = (await import('../src/routes/ussd')).default;
   const authRouter = (await import('../src/routes/auth')).default;
+  const vitRouter = (await import('../src/routes/vit')).default;
   const mfaRouter = (await import('../src/routes/mfa')).default;
   const app = express();
   app.use(express.json());
@@ -89,6 +91,7 @@ before(async () => {
   app.use('/v1/developer', developerRouter);
   app.use('/v1/ussd', ussdRouter);
   app.use('/v1/auth', authRouter);
+  app.use('/v1/vit', vitRouter);
   app.use('/v1/auth/mfa', mfaRouter);
   app.use((err: Error, _req: any, res: any, _next: any) => {
     const c = toClientError(err);
@@ -699,4 +702,66 @@ test('mfa: turning it off needs the password AND a code, then login is password-
   assert.deepEqual([row.mfa_secret_enc, row.mfa_enabled_at, row.mfa_recovery_hashes], [null, null, []]);
   const login = await authCall('/v1/auth/login', { email: d.email, password: d.password });
   assert.ok(login.j.token); assert.equal(login.j.mfa_required, undefined);
+});
+
+// ─── Verified Identity Token: the person decides whether their name is in it ───────────────────────────────
+
+const jwtPayload = (t: string) => JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toString('utf8'));
+async function portalSession(fullName = 'Ama Boateng') {
+  const phone = newPhone();
+  const row = await db.query(`INSERT INTO verified_identities (phone, full_name, nationality, verification_level) VALUES ($1, $2, 'GH', 2) RETURNING id`, [phone, fullName]);
+  await api('/v1/identity-portal/login/otp/send', { phone });
+  const login = await api('/v1/identity-portal/login/otp/confirm', { phone, otp: lastSms.get(phone)! });
+  assert.equal(login.s, 200, JSON.stringify(login.j));
+  const bearer = { authorization: `Bearer ${login.j.token}` };
+  return { id: row.rows[0].id as string, bearer, refresh: (body: unknown) => api('/v1/identity-portal/vit/refresh', body, bearer),
+    list: () => fetch(base + '/v1/identity-portal/vit', { headers: bearer }).then((r) => r.json() as Promise<any>) };
+}
+const verifyAsPlatform = (token: string) => api('/v1/vit/verify', { token }, auth);
+
+test('token: by default the person\'s own token does NOT contain their name', { skip, timeout: 60_000 }, async () => {
+  const p = await portalSession();
+  const r = await p.refresh({});
+  assert.equal(r.s, 200, JSON.stringify(r.j));
+  const claims = jwtPayload(r.j.token);
+  assert.equal(claims.name, undefined, 'no name in the token a platform can decode');
+  assert.equal(claims.name_consent, undefined);
+  assert.equal(claims.nationality, 'GH'); assert.equal(claims.level, 2);
+  assert.equal((await p.list()).vits[0].name_sharing, 'none');
+  const v = await verifyAsPlatform(r.j.token);
+  assert.equal(v.j.valid, true); assert.equal(v.j.claims.name, undefined);
+});
+
+test('token: if the person ticks the box, the name is in the token and the platform sees it', { skip, timeout: 60_000 }, async () => {
+  const p = await portalSession('Kofi Mensah');
+  const r = await p.refresh({ include_name: true });
+  const claims = jwtPayload(r.j.token);
+  assert.equal(claims.name, 'Kofi Mensah'); assert.equal(claims.name_consent, 'holder');
+  assert.equal((await p.list()).vits[0].name_sharing, 'holder');
+  assert.equal((await verifyAsPlatform(r.j.token)).j.claims.name, 'Kofi Mensah');
+});
+
+test('token: refreshing swaps the choice and revokes the old token', { skip, timeout: 60_000 }, async () => {
+  const p = await portalSession('Esi Owusu');
+  const withName = (await p.refresh({ include_name: true })).j.token;
+  const without = (await p.refresh({ include_name: false })).j.token;
+  const list = (await p.list()).vits;
+  assert.equal(list.length, 1); assert.equal(list[0].name_sharing, 'none');
+  assert.equal((await verifyAsPlatform(withName)).j.error, 'token_revoked');
+  assert.equal((await verifyAsPlatform(without)).j.valid, true);
+});
+
+test('token: a wrong value for the choice is refused, not guessed', { skip, timeout: 60_000 }, async () => {
+  const p = await portalSession();
+  assert.equal((await p.refresh({ include_name: 'yes' })).s, 400);
+});
+
+test('token: tokens issued by a platform-run verification keep working as before (name in the token, still hidden in platform claims)', { skip, timeout: 60_000 }, async () => {
+  const { issueVIT } = await import('../src/services/vit.service');
+  const p = await portalSession('Yaw Asante');
+  const { token } = await issueVIT(p.id, { nameSharing: 'platform' });
+  const claims = jwtPayload(token);
+  assert.equal(claims.name, 'Yaw Asante'); assert.equal(claims.name_consent, 'platform');
+  assert.equal((await p.list()).vits.find((v: any) => v.name_sharing === 'platform') !== undefined, true);
+  assert.equal((await verifyAsPlatform(token)).j.claims.name, undefined, 'the platform API still hides it unless the holder chose it');
 });

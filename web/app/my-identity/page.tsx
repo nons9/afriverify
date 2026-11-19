@@ -14,7 +14,12 @@ const i18n = {
     nationality: 'Nationality',
     notSet: 'Not set',
     vitTitle: 'Verified Identity Token',
-    vitSubtitle: 'Share your token with platforms to prove your verification - it carries your name, nationality, verification level and trust score, but never your ID number or photos.',
+    vitSubtitle: 'Share your token with platforms to prove your verification. It carries your verification level, trust score and nationality. Your name is in it only if you choose, and never your ID number or photos.',
+    includeName: 'Include my name in new tokens',
+    includeNameHint: 'Off by default. If you turn it on, any platform you give the token to can read your name.',
+    nameNotIncluded: 'Name not included',
+    nameByYou: 'Includes your name (your choice)',
+    nameByPlatform: 'Includes your name (created during a platform verification). Refresh to get one without it.',
     refreshAll: 'Refresh all',
     refreshing: 'Refreshing…',
     noTokens: 'No active tokens.',
@@ -47,7 +52,12 @@ const i18n = {
     nationality: 'Nationalité',
     notSet: 'Non renseigné',
     vitTitle: 'Jeton d\'identité vérifiée',
-    vitSubtitle: 'Partagez votre jeton avec les plateformes pour prouver votre vérification - il contient votre nom, votre nationalité, votre niveau de vérification et votre score de confiance, mais jamais votre numéro de pièce d\'identité ni vos photos.',
+    vitSubtitle: 'Partagez votre jeton avec les plateformes pour prouver votre vérification. Il contient votre niveau de vérification, votre score de confiance et votre nationalité. Votre nom n\'y figure que si vous le choisissez, et jamais votre numéro de pièce d\'identité ni vos photos.',
+    includeName: 'Inclure mon nom dans les nouveaux jetons',
+    includeNameHint: 'Désactivé par défaut. Si vous l\'activez, toute plateforme à qui vous donnez le jeton peut lire votre nom.',
+    nameNotIncluded: 'Nom non inclus',
+    nameByYou: 'Contient votre nom (votre choix)',
+    nameByPlatform: 'Contient votre nom (créé lors d\'une vérification par une plateforme). Renouvelez pour en obtenir un sans nom.',
     refreshAll: 'Tout renouveler',
     refreshing: 'Renouvellement…',
     noTokens: 'Aucun jeton actif.',
@@ -102,6 +112,7 @@ interface VIT {
   last_used_by: string | null;
   expires_at: string;
   created_at: string;
+  name_sharing?: 'holder' | 'platform' | 'none';
 }
 
 function maskPhone(phone: string): string {
@@ -129,6 +140,7 @@ export default function IdentityPortalPage() {
   const [revoking, setRevoking] = useState<string | null>(null);
   const [revokingVit, setRevokingVit] = useState<string | null>(null);
   const [refreshingVit, setRefreshingVit] = useState(false);
+  const [includeName, setIncludeName] = useState(false); // off unless the person turns it on
   const [error, setError] = useState('');
   const [lang, setLang] = useState<Lang>('en');
   const t = i18n[lang];
@@ -178,7 +190,7 @@ export default function IdentityPortalPage() {
     if (!confirm(t.confirmRefresh)) return;
     setRefreshingVit(true);
     try {
-      const result = await identityApi.post<{ token: string; payload: Record<string, unknown> }>('/v1/identity-portal/vit/refresh', {});
+      const result = await identityApi.post<{ token: string; payload: Record<string, unknown> }>('/v1/identity-portal/vit/refresh', { include_name: includeName });
       // Re-fetch the VIT list so we show the new token
       const vitData = await identityApi.get<{ vits: VIT[] }>('/v1/identity-portal/vit');
       setVits(vitData.vits);
@@ -291,6 +303,15 @@ export default function IdentityPortalPage() {
               {refreshingVit ? t.refreshing : t.refreshAll}
             </button>
           </div>
+          <div className="px-6 py-3 border-b border-white/10 bg-white/[0.02]">
+            <label className="flex items-start gap-3 text-sm text-slate-200 cursor-pointer">
+              <input type="checkbox" checked={includeName} onChange={(e) => setIncludeName(e.target.checked)} className="mt-0.5 w-4 h-4" />
+              <span>
+                <span className="font-medium text-white">{t.includeName}</span>
+                <span className="block text-xs text-slate-400 mt-0.5">{t.includeNameHint}</span>
+              </span>
+            </label>
+          </div>
 
           {vits.length === 0 ? (
             <div className="px-6 py-8 text-center">
@@ -325,6 +346,9 @@ export default function IdentityPortalPage() {
                           {t.usedTimes(vit.usage_count)}
                           {vit.last_used_by && <> &middot; {t.lastBy} <span className="text-slate-300">{vit.last_used_by}</span></>}
                           {vit.last_used_at && <> {timeAgo(vit.last_used_at)}</>}
+                        </div>
+                        <div className={vit.name_sharing === 'none' ? 'text-green-300' : 'text-amber-300'}>
+                          {vit.name_sharing === 'none' ? t.nameNotIncluded : vit.name_sharing === 'holder' ? t.nameByYou : t.nameByPlatform}
                         </div>
                         <div>
                           {t.expires(new Date(vit.expires_at).toLocaleDateString())}

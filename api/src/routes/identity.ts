@@ -152,7 +152,7 @@ router.post(
       }
     });
 
-    const { token, payload } = await issueVIT(identity_id);
+    const { token, payload } = await issueVIT(identity_id, { nameSharing: 'platform' });
 
     const networkRisk = await evaluateNetworkRisk(
       identity_id,

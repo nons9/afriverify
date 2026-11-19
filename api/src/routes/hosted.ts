@@ -222,7 +222,7 @@ router.post(
         `UPDATE verification_sessions SET step = 'complete', identity_id = $1 WHERE id = $2`,
         [existing.id, session.id]
       );
-      const { token, payload } = await issueVIT(existing.id);
+      const { token, payload } = await issueVIT(existing.id, { nameSharing: 'platform' });
       res.json({
         confirmed: true,
         returning_user: true,
@@ -593,7 +593,7 @@ router.get('/status/:session_token', async (req: Request, res: Response): Promis
 
   if (row.step === 'complete' && row.identity_id) {
     try {
-      const { token, payload } = await issueVIT(row.identity_id);
+      const { token, payload } = await issueVIT(row.identity_id, { nameSharing: 'platform' });
       out.vit = token;
       out.vit_payload = payload;
       out.identity_id = row.identity_id;

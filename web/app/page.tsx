@@ -73,7 +73,7 @@ const pricing = [
     price: 'Custom',
     priceSub: '',
     limit: 'Custom volume',
-    features: ['Everything in Starter', 'Custom SLA', 'Dedicated support', 'Fraud graph access', 'Custom contracts'],
+    features: ['Everything in Starter', 'Custom SLA', 'Dedicated support', 'Shared fraud-signal API', 'Custom contracts'],
     cta: 'Contact sales',
     href: 'mailto:sales@sankofaapp.com',
     highlight: false,
@@ -129,10 +129,10 @@ export default function LandingPage() {
             Now live - ID checks in 29 African countries
           </div>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1] mb-6">
-            Africa&apos;s identity
+            Identity infrastructure
             <br />
             <span className="bg-gradient-to-r from-gold-300 to-gold-500 bg-clip-text text-transparent">
-              infrastructure layer
+              built for Africa
             </span>
           </h1>
           <p className="text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
@@ -177,9 +177,9 @@ export default function LandingPage() {
       <section id="features" className="py-24 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Built for African scale</h2>
+            <h2 className="text-4xl font-bold mb-4">Built for how Africa verifies</h2>
             <p className="text-slate-400 text-lg max-w-xl mx-auto">
-              Every feature designed around the reality of African identity infrastructure.
+              Phone-first checks, USSD for feature phones, a low-data mode, English and French, and registry checks in 29 countries.
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">

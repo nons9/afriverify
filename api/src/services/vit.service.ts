@@ -4,8 +4,16 @@ import { generateVIT, verifyVIT } from '../utils/vit';
 import { sha256 } from '../utils/crypto';
 import logger from '../utils/logger';
 
+export type NameSharing = 'holder' | 'platform' | 'none';
+
+/**
+ * Issues a token. `nameSharing` is required on purpose: every caller must decide.
+ *  - the portal (the person's own token): 'holder' only if they ticked the box, otherwise 'none';
+ *  - platform-run verifications keep 'platform', which is what tokens always did, so nothing breaks.
+ */
 export async function issueVIT(
-  identityId: string
+  identityId: string,
+  opts: { nameSharing: NameSharing }
 ): Promise<{ token: string; payload: VITPayload }> {
   const identity = await queryOne<VerifiedIdentity>(
     'SELECT * FROM verified_identities WHERE id = $1',
@@ -26,6 +34,7 @@ export async function issueVIT(
   const { token, payload } = generateVIT({
     identity_id: identityId,
     full_name: identity.full_name,
+    name_sharing: opts.nameSharing,
     nationality: identity.nationality,
     id_type: identity.id_type,
     verification_level: identity.verification_level,
@@ -39,7 +48,7 @@ export async function issueVIT(
   });
 
   // Store so the token can later be revoked and usage tracked.
-  await storeVIT(identityId, token, payload).catch((err) =>
+  await storeVIT(identityId, token, payload, opts.nameSharing).catch((err) =>
     logger.error('Failed to store VIT', { identityId, error: (err as Error).message })
   );
 
@@ -49,7 +58,8 @@ export async function issueVIT(
 export async function storeVIT(
   identityId: string,
   token: string,
-  payload: VITPayload
+  payload: VITPayload,
+  nameSharing: NameSharing = 'platform'
 ): Promise<string> {
   const hash = sha256(token);
   const prefix = token.slice(0, 12);
@@ -57,11 +67,11 @@ export async function storeVIT(
 
   const row = await queryOne<{ id: string }>(
     `INSERT INTO verified_identity_tokens
-       (token_hash, token_prefix, identity_id, expires_at)
-     VALUES ($1, $2, $3, $4)
+       (token_hash, token_prefix, identity_id, expires_at, name_sharing)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (token_hash) DO NOTHING
      RETURNING id`,
-    [hash, prefix, identityId, expiresAt]
+    [hash, prefix, identityId, expiresAt, nameSharing]
   );
 
   return row?.id ?? '';
@@ -76,9 +86,10 @@ export async function getIdentityVITs(identityId: string): Promise<{
   last_used_by: string | null;
   expires_at: string;
   created_at: string;
+  name_sharing: NameSharing;
 }[]> {
   return query(
-    `SELECT id, token_prefix, usage_count, last_used_at, last_used_by, expires_at, created_at
+    `SELECT id, token_prefix, usage_count, last_used_at, last_used_by, expires_at, created_at, name_sharing
      FROM verified_identity_tokens
      WHERE identity_id = $1 AND is_revoked = false AND expires_at > NOW()
      ORDER BY created_at DESC`,
@@ -138,6 +149,8 @@ export interface VITVerifyResult {
     issued_at: string;
     expires_at: string;
     platforms_verified_on: string[];
+    /** Only when the person themselves chose to include their name in this token. */
+    name?: string;
   };
 }
 
@@ -209,5 +222,7 @@ function stripPII(p: VITPayload & { sub?: string }) {
     issued_at: p.issued_at,
     expires_at: p.expires_at,
     platforms_verified_on: p.platforms_verified_on,
+    // The name reaches a platform's claims only if the holder chose it. Platform-run tokens still hide it here.
+    ...(p.name_consent === 'holder' && p.name ? { name: p.name } : {}),
   };
 }
