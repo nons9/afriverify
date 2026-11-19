@@ -42,6 +42,7 @@ before(async () => {
   process.env.FLUTTERWAVE_SECRET_HASH = 'whsec_test_hash';
   process.env.IDENTITY_SESSION_JWT_SECRET = 'portal-test-secret';
   process.env.SESSION_JWT_SECRET = 'session-test-secret';
+  process.env.DATA_ENCRYPTION_KEY = process.env.DATA_ENCRYPTION_KEY || 'ab'.repeat(32);
 
   const code = await new Promise<number>((resolve) => {
     const p = spawn(process.execPath, ['--require', 'ts-node/register/transpile-only', path.join(__dirname, '..', 'src', 'db', 'migrate.ts')], { env: process.env, stdio: 'ignore' });
@@ -76,6 +77,8 @@ before(async () => {
   const portalRouter = (await import('../src/routes/identity-portal')).default;
   const developerRouter = (await import('../src/routes/developer')).default;
   const ussdRouter = (await import('../src/routes/ussd')).default;
+  const authRouter = (await import('../src/routes/auth')).default;
+  const mfaRouter = (await import('../src/routes/mfa')).default;
   const app = express();
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
@@ -85,6 +88,8 @@ before(async () => {
   app.use('/v1/identity-portal', portalRouter);
   app.use('/v1/developer', developerRouter);
   app.use('/v1/ussd', ussdRouter);
+  app.use('/v1/auth', authRouter);
+  app.use('/v1/auth/mfa', mfaRouter);
   app.use((err: Error, _req: any, res: any, _next: any) => {
     const c = toClientError(err);
     if (c) { res.status(c.status).json({ error: c.error }); return; }
@@ -573,4 +578,125 @@ test('retention: a failed delete keeps the key so tomorrow retries it', { skip, 
   );
   await purgeCompletedSessionMedia(365);
   assert.equal((await db.query(`SELECT id_photo_s3_key AS a FROM verification_sessions WHERE id = $1`, [r.rows[0].id])).rows[0].a, 'id/stuck.jpg');
+});
+
+// ─── dashboard two-step verification ───────────────────────────────────────────────────────────────────────
+
+import { totp } from '../src/utils/totp';
+const authCall = (p: string, body: unknown, token?: string) =>
+  fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) })
+    .then(async (r) => ({ s: r.status, j: await r.json().catch(() => ({})) as any }));
+const authGet = (p: string, token: string) =>
+  fetch(base + p, { headers: { authorization: `Bearer ${token}` } }).then(async (r) => ({ s: r.status, j: await r.json().catch(() => ({})) as any }));
+
+async function newDeveloper() {
+  const email = `mfa-${randomBytes(4).toString('hex')}@dash.test`;
+  const password = 'correct horse battery';
+  const reg = await authCall('/v1/auth/register', { email, password, company_name: 'MFA Co', full_name: 'Mia Fa' });
+  assert.equal(reg.s, 201, JSON.stringify(reg.j));
+  return { email, password, token: reg.j.token as string, id: reg.j.developer.id as string };
+}
+async function turnOnMfa() {
+  const d = await newDeveloper();
+  const setup = await authCall('/v1/auth/mfa/setup', {}, d.token);
+  assert.equal(setup.s, 200, JSON.stringify(setup.j));
+  const enable = await authCall('/v1/auth/mfa/enable', { code: totp(setup.j.secret) }, d.token);
+  assert.equal(enable.s, 200, JSON.stringify(enable.j));
+  return { ...d, secret: setup.j.secret as string, recovery: enable.j.recovery_codes as string[] };
+}
+const nextCode = (secret: string, stepsAhead = 1) => totp(secret, Date.now() + stepsAhead * 30_000);   // inside the +1 drift window, newer than the last accepted step
+const clearLock = async (id: string) => { const redis = (await import('../src/redis')).default; await redis.del(`mfa-fail:${id}`); };
+
+test('mfa: accounts without it log in exactly as before', { skip, timeout: 60_000 }, async () => {
+  const d = await newDeveloper();
+  const login = await authCall('/v1/auth/login', { email: d.email, password: d.password });
+  assert.equal(login.s, 200);
+  assert.ok(login.j.token); assert.equal(login.j.mfa_required, undefined);
+  assert.equal((await authGet('/v1/auth/mfa/status', login.j.token)).j.enabled, false);
+});
+
+test('mfa: setup needs a real code to switch on, stores the secret encrypted, and gives 10 recovery codes once', { skip, timeout: 60_000 }, async () => {
+  const d = await newDeveloper();
+  const setup = await authCall('/v1/auth/mfa/setup', {}, d.token);
+  assert.match(setup.j.secret, /^[A-Z2-7]{32}$/);
+  assert.match(setup.j.otpauth_uri, /^otpauth:\/\/totp\//);
+  assert.equal((await authGet('/v1/auth/mfa/status', d.token)).j.enabled, false, 'not on until proven');
+  const bad = await authCall('/v1/auth/mfa/enable', { code: '000000' }, d.token);
+  assert.equal(bad.s, 401);
+  const good = await authCall('/v1/auth/mfa/enable', { code: totp(setup.j.secret) }, d.token);
+  assert.equal(good.s, 200); assert.equal(good.j.recovery_codes.length, 10);
+  const st = (await authGet('/v1/auth/mfa/status', d.token)).j;
+  assert.deepEqual([st.enabled, st.recovery_codes_remaining], [true, 10]);
+  const row = (await db.query(`SELECT mfa_secret_enc, mfa_pending_secret_enc, mfa_recovery_hashes FROM developers WHERE id = $1`, [d.id])).rows[0];
+  assert.ok(row.mfa_secret_enc && !row.mfa_secret_enc.includes(setup.j.secret), 'the secret is not stored in clear');
+  assert.equal(row.mfa_pending_secret_enc, null);
+  assert.ok(!JSON.stringify(row.mfa_recovery_hashes).includes(good.j.recovery_codes[0].replace('-', '')), 'recovery codes are stored as hashes');
+  assert.equal((await authCall('/v1/auth/mfa/setup', {}, d.token)).s, 409, 'cannot start setup again while on');
+});
+
+test('mfa: a password alone no longer gives a session; the challenge pass cannot be used as one', { skip, timeout: 60_000 }, async () => {
+  const d = await turnOnMfa();
+  const login = await authCall('/v1/auth/login', { email: d.email, password: d.password });
+  assert.equal(login.s, 200);
+  assert.equal(login.j.mfa_required, true); assert.equal(login.j.token, undefined); assert.ok(login.j.mfa_token);
+  assert.equal((await authGet('/v1/auth/mfa/status', login.j.mfa_token)).s, 401, 'the challenge pass is not a session');
+  assert.equal((await authCall('/v1/auth/login', { email: d.email, password: 'wrong password!' })).s, 401);
+});
+
+test('mfa: the right code finishes login once; the same code again is refused (replay)', { skip, timeout: 60_000 }, async () => {
+  const d = await turnOnMfa();
+  const ch = (await authCall('/v1/auth/login', { email: d.email, password: d.password })).j.mfa_token;
+  const code = nextCode(d.secret);
+  const ok = await authCall('/v1/auth/login/mfa', { mfa_token: ch, code });
+  assert.equal(ok.s, 200, JSON.stringify(ok.j)); assert.ok(ok.j.token);
+  assert.equal((await authGet('/v1/auth/mfa/status', ok.j.token)).s, 200, 'the new session works');
+  const again = await authCall('/v1/auth/login/mfa', { mfa_token: ch, code });
+  assert.equal(again.s, 401, 'a code cannot be used twice');
+});
+
+test('mfa: five wrong codes lock the second step, even for the right code, and a garbage challenge pass is refused', { skip, timeout: 60_000 }, async () => {
+  const d = await turnOnMfa();
+  const ch = (await authCall('/v1/auth/login', { email: d.email, password: d.password })).j.mfa_token;
+  const results = [];
+  for (let i = 0; i < 5; i++) results.push((await authCall('/v1/auth/login/mfa', { mfa_token: ch, code: '000000' })).s);
+  assert.deepEqual(results, [401, 401, 401, 401, 429], 'the fifth wrong code locks');
+  const locked = await authCall('/v1/auth/login/mfa', { mfa_token: ch, code: nextCode(d.secret) });
+  assert.equal(locked.s, 429, 'the right code is refused while locked');
+  await clearLock(d.id);
+  assert.equal((await authCall('/v1/auth/login/mfa', { mfa_token: ch, code: nextCode(d.secret) })).s, 200);
+  assert.equal((await authCall('/v1/auth/login/mfa', { mfa_token: 'x'.repeat(40), code: '123456' })).s, 401);
+});
+
+test('mfa: a recovery code works once and the count goes down', { skip, timeout: 60_000 }, async () => {
+  const d = await turnOnMfa();
+  const ch = (await authCall('/v1/auth/login', { email: d.email, password: d.password })).j.mfa_token;
+  const first = await authCall('/v1/auth/login/mfa', { mfa_token: ch, code: d.recovery[0].toUpperCase() });
+  assert.equal(first.s, 200, JSON.stringify(first.j)); assert.equal(first.j.recovery_codes_remaining, 9);
+  assert.equal((await authCall('/v1/auth/login/mfa', { mfa_token: ch, code: d.recovery[0] })).s, 401, 'a recovery code is single use');
+  assert.equal((await authGet('/v1/auth/mfa/status', first.j.token)).j.recovery_codes_remaining, 9);
+});
+
+test('mfa: replacing recovery codes needs an authenticator code and kills the old set', { skip, timeout: 60_000 }, async () => {
+  const d = await turnOnMfa();
+  assert.equal((await authCall('/v1/auth/mfa/recovery-codes', { code: d.recovery[0] }, d.token)).s, 401, 'a recovery code is not enough');
+  await clearLock(d.id);
+  const out = await authCall('/v1/auth/mfa/recovery-codes', { code: nextCode(d.secret) }, d.token);
+  assert.equal(out.s, 200); assert.equal(out.j.recovery_codes.length, 10);
+  const ch = (await authCall('/v1/auth/login', { email: d.email, password: d.password })).j.mfa_token;
+  assert.equal((await authCall('/v1/auth/login/mfa', { mfa_token: ch, code: d.recovery[1] })).s, 401, 'old codes are dead');
+  assert.equal((await authCall('/v1/auth/login/mfa', { mfa_token: ch, code: out.j.recovery_codes[0] })).s, 200);
+});
+
+test('mfa: turning it off needs the password AND a code, then login is password-only again', { skip, timeout: 60_000 }, async () => {
+  const d = await turnOnMfa();
+  assert.equal((await authCall('/v1/auth/mfa/disable', { password: 'wrong password!', code: nextCode(d.secret) }, d.token)).s, 401);
+  await clearLock(d.id);
+  assert.equal((await authCall('/v1/auth/mfa/disable', { password: d.password, code: '000000' }, d.token)).s, 401);
+  await clearLock(d.id);
+  const off = await authCall('/v1/auth/mfa/disable', { password: d.password, code: nextCode(d.secret) }, d.token);
+  assert.equal(off.s, 200);
+  const row = (await db.query(`SELECT mfa_secret_enc, mfa_enabled_at, mfa_recovery_hashes FROM developers WHERE id = $1`, [d.id])).rows[0];
+  assert.deepEqual([row.mfa_secret_enc, row.mfa_enabled_at, row.mfa_recovery_hashes], [null, null, []]);
+  const login = await authCall('/v1/auth/login', { email: d.email, password: d.password });
+  assert.ok(login.j.token); assert.equal(login.j.mfa_required, undefined);
 });

@@ -10,6 +10,7 @@ import { requestMetrics } from './middleware/requestMetrics';
 import { getMigrationStatus } from './db/migration-status';
 import redis from './redis';
 import authRouter from './routes/auth';
+import mfaRouter from './routes/mfa';
 import verifyRouter from './routes/verify';
 import identityRouter from './routes/identity';
 import kybRouter from './routes/kyb';
@@ -104,6 +105,7 @@ app.get('/health/ready', async (_req: Request, res: Response) => {
 app.use(rateLimitGlobal);
 
 app.use('/v1/auth', authRouter);
+app.use('/v1/auth/mfa', mfaRouter);
 app.use('/v1/verify', verifyRouter);
 app.use('/v1/identity', identityRouter);
 app.use('/v1/kyb', kybRouter);

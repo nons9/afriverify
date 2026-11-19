@@ -15,6 +15,7 @@ const IN_PLACE: { title: string; body: string }[] = [
   { title: 'Encryption of images', body: 'ID photos, selfies and live-scan frames are encrypted with AES-256-GCM by our application before they reach storage, so a storage misconfiguration alone does not expose them.' },
   { title: 'Short retention', body: 'By default, media from verifications that never completed is deleted after 30 days. Live-scan evidence is deleted after 30 days by default. Evaluation studies set their own retention, and a participant can withdraw at any time, which deletes their images and results.' },
   { title: 'API keys are never stored', body: 'We store only a SHA-256 hash of each API key. Keys carry explicit permissions and can be revoked or suspended.' },
+  { title: 'Two-step verification', body: 'Dashboard accounts can turn on two-step sign-in with any authenticator app. Codes work once, five wrong codes lock the second step for 15 minutes, recovery codes are stored only as hashes and work once, the secret is encrypted, and we email you whenever it is changed. Turning it off needs your password and a current code.' },
   { title: 'Customer isolation', body: 'Dashboard and API data is scoped to the customer account, and another account asking for it gets "not found".' },
   { title: 'Tamper-resistant audit trail', body: 'Every verification step is written to an append-only event log: the database rejects edits and deletes of those records.' },
   { title: 'Abuse and cost protection', body: 'Rate limits per API key, per IP and per phone number; per-session limits on one-time codes; one-time-code attempts are spent atomically, so a burst of parallel guesses cannot exceed the limit; atomic use counting on shareable links; limits that fail closed if their store is unavailable.' },
@@ -33,6 +34,7 @@ const NOT_YET: string[] = [
   'An independent penetration test. We have not commissioned one yet.',
   'Independent presentation-attack testing of the live scan (for example iBeta or a NIST-style evaluation). Our own measured results are in progress and we will publish them with confidence intervals and a skin-tone breakdown.',
   'A bug bounty programme. We accept and thank good-faith reports (below), but do not pay bounties yet.',
+  'Single sign-on and IP allow-lists for the dashboard, and a way for an account owner to require two-step verification for the whole team.',
   'Customer-selectable data residency. Today the service runs in Europe and the United States.',
   'A track record on the public status page. It started recording on November 18, 2026, and shows its own coverage honestly.',
 ];

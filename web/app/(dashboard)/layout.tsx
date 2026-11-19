@@ -26,6 +26,7 @@ import {
   Gauge,
   ScanFace,
   ClipboardList,
+  Lock,
 } from 'lucide-react';
 import { getSession, clearSession, Developer } from '@/lib/auth';
 import { AfriVerifyLogo, AfriVerifyMark } from '@/components/logo';
@@ -51,6 +52,7 @@ const nav = [
   { href: '/dashboard/provider-settings', label: 'ID Providers', icon: Layers },
   { href: '/dashboard/team', label: 'Team', icon: Users },
   { href: '/dashboard/rate-limits', label: 'Rate Limits', icon: Gauge },
+  { href: '/dashboard/security', label: 'Account Security', icon: Lock },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
