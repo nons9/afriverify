@@ -163,13 +163,20 @@ for (const channel of ['verify', 'hosted'] as const) {
   });
 }
 
-test('hosted: a person cannot request more than 5 codes for one session', { skip, timeout: 60_000 }, async () => {
+test('hosted: a person cannot request more than 3 codes for one session', { skip, timeout: 60_000 }, async () => {
   const phone = newPhone();
   const init = await api('/v1/verify/initiate', { phone }, auth);
   const sends = [];
-  for (let i = 0; i < 7; i++) sends.push((await api('/v1/hosted/otp/send', { session_token: init.j.session_token })).s);
-  assert.deepEqual(sends.slice(0, 5), [200, 200, 200, 200, 200]);
-  assert.deepEqual(sends.slice(5), [429, 429]);
+  for (let i = 0; i < 5; i++) sends.push((await api('/v1/hosted/otp/send', { session_token: init.j.session_token })).s);
+  assert.deepEqual(sends.slice(0, 3), [200, 200, 200]);
+  assert.deepEqual(sends.slice(3), [429, 429]);
+});
+
+test('the API route caps codes per session too (it used to have no cap)', { skip, timeout: 60_000 }, async () => {
+  const init = await api('/v1/verify/initiate', { phone: newPhone() }, auth);
+  const sends = [];
+  for (let i = 0; i < 5; i++) sends.push((await api('/v1/verify/otp/send', { session_token: init.j.session_token }, auth)).s);
+  assert.deepEqual(sends, [200, 200, 200, 429, 429]);
 });
 
 // ─── identity portal login (a login to a person's verified identity, by phone + code) ────────────
@@ -433,4 +440,97 @@ test('non-subscription and non-successful events are acknowledged and ignored', 
   assert.equal((await hook('tx-pending-1', { status: 'pending' })).s, 200);
   assert.equal((await hook('tx-unknown-plan', { meta: { type: 'afriverify_subscription', api_key_id: keyId, plan: 'platinum' } })).s, 200);
   assert.equal(await invoices(), 0); assert.equal((await tier()).tier, 'free');
+});
+
+// ─── metering v2: billed by how far a session goes, switched on by date, grandfathered, free tier gated ────────
+
+async function meterSetup(over: { tier?: string; env?: string; phone?: string } = {}) {
+  await db.query(`UPDATE api_keys SET tier = $1, environment = $2, monthly_limit = 100000, verifications_this_month = 0 WHERE id = $3`, [over.tier ?? 'starter', over.env ?? 'production', keyId]);
+  await db.query(`DELETE FROM usage_records WHERE api_key_id = $1`, [keyId]);
+  await db.query(`DELETE FROM subscriptions WHERE api_key_id = $1`, [keyId]);
+  const phone = over.phone ?? newPhone();
+  const r = await db.query(
+    `INSERT INTO verification_sessions (session_token, phone, otp_channel, step, api_key_id, expires_at)
+     VALUES ($1, $2, 'sms', 'id_upload', $3, NOW() + INTERVAL '15 minutes') RETURNING id`,
+    [randomBytes(32).toString('hex'), phone, keyId]
+  );
+  return { sessionId: r.rows[0].id as string, phone };
+}
+const counted = async () => Number((await db.query(`SELECT verifications_this_month AS n FROM api_keys WHERE id = $1`, [keyId])).rows[0].n);
+const records = async () => (await db.query(`SELECT verification_type AS t, SUM(count)::int AS n FROM usage_records WHERE api_key_id = $1 GROUP BY 1 ORDER BY 1`, [keyId])).rows;
+const stepOf = async (step: 'phone' | 'id' | 'face', s: { sessionId: string; phone: string }) => {
+  const { chargeStep } = await import('../src/services/metering.service');
+  return chargeStep({ sessionId: s.sessionId, apiKeyId: keyId, phone: s.phone, step });
+};
+
+test('metering: nothing changes until the effective date is set', { skip, timeout: 60_000 }, async () => {
+  delete process.env.METERING_V2_AT;
+  const s = await meterSetup();
+  assert.deepEqual(await stepOf('id', s), { ok: true });
+  assert.deepEqual(await stepOf('face', s), { ok: true });
+  assert.equal(await counted(), 0);
+  assert.deepEqual(await records(), []);
+});
+
+test('metering: an ID step adds 2 units and a face step 2 more, each exactly once', { skip, timeout: 60_000 }, async () => {
+  process.env.METERING_V2_AT = '2020-01-01T00:00:00Z';
+  const s = await meterSetup();
+  await stepOf('id', s); await stepOf('id', s);               // a retry must not double-charge
+  assert.equal(await counted(), 2);
+  await stepOf('face', s); await stepOf('face', s);
+  assert.equal(await counted(), 4);                           // 1 (counted at creation) + 4 = 5 units for a full verification
+  assert.deepEqual(await records(), [{ t: 'level2', n: 2 }, { t: 'level3', n: 2 }]);
+});
+
+test('metering: parallel requests for the same step charge once', { skip, timeout: 60_000 }, async () => {
+  process.env.METERING_V2_AT = '2020-01-01T00:00:00Z';
+  const s = await meterSetup();
+  await Promise.all(Array.from({ length: 8 }, () => stepOf('id', s)));
+  assert.equal(await counted(), 2);
+});
+
+test('metering: a premium-SMS country adds one unit to the phone check and to the total', { skip, timeout: 60_000 }, async () => {
+  process.env.METERING_V2_AT = '2020-01-01T00:00:00Z';
+  process.env.SMS_PREMIUM_PREFIXES = JSON.stringify(['2349']);
+  try {
+    const s = await meterSetup({ phone: '+2349012345678' });
+    await stepOf('phone', s);
+    assert.equal(await counted(), 1);
+    await stepOf('id', s);
+    assert.equal(await counted(), 3);                         // 3 + 1 premium = 4 total, 1 already counted at creation
+  } finally { delete process.env.SMS_PREMIUM_PREFIXES; }
+});
+
+test('metering: a free live key cannot run ID or face steps, but a free sandbox key can and is not charged', { skip, timeout: 60_000 }, async () => {
+  process.env.METERING_V2_AT = '2020-01-01T00:00:00Z';
+  const blocked = await stepOf('id', await meterSetup({ tier: 'free', env: 'production' }));
+  assert.equal(blocked.ok, false); assert.equal(blocked.status, 402); assert.equal(blocked.body!.error, 'plan_required');
+  assert.equal(await counted(), 0);
+  const sandbox = await stepOf('id', await meterSetup({ tier: 'free', env: 'sandbox' }));
+  assert.equal(sandbox.ok, true);
+});
+
+test('metering: a customer whose paid period began before the effective date keeps old metering until it ends', { skip, timeout: 60_000 }, async () => {
+  process.env.METERING_V2_AT = new Date(Date.now() - 5 * 86400_000).toISOString();     // took effect 5 days ago
+  const s = await meterSetup();
+  await db.query(
+    `INSERT INTO subscriptions (api_key_id, plan, status, payment_provider, provider_reference, current_period_start, current_period_end, amount_cents, currency)
+     VALUES ($1, 'starter', 'active', 'flutterwave', $2, NOW() - INTERVAL '10 days', NOW() + INTERVAL '20 days', 4900, 'USD')`, [keyId, `gf-${randomBytes(4).toString('hex')}`]
+  );
+  await stepOf('id', s);
+  assert.equal(await counted(), 0, 'still on the old metering: this cycle is grandfathered');
+  await db.query(`UPDATE subscriptions SET current_period_end = NOW() - INTERVAL '1 hour' WHERE api_key_id = $1`, [keyId]);
+  await stepOf('id', s);
+  assert.equal(await counted(), 2, 'once the paid period has ended, the new metering applies');
+});
+
+test('free keys: one email may hold at most 2 free live keys; sandbox keys are not limited', { skip, timeout: 60_000 }, async () => {
+  const email = `farm-${randomBytes(3).toString('hex')}@keys.test`;
+  const make = (environment: string) => api('/v1/developer/keys', { platform_name: 'Farm Co', platform_email: email, environment });
+  const a = await make('production'); const b = await make('production'); const c = await make('production');
+  assert.equal(a.s, 201); assert.equal(b.s, 201);
+  assert.equal(a.j.monthly_limit, 50, 'new live free keys start at 50 sessions a month');
+  assert.equal(c.s, 429); assert.equal(c.j.error, 'free_key_limit');
+  const sb = await make('sandbox');
+  assert.equal(sb.s, 201); assert.equal(sb.j.monthly_limit, 100);
 });

@@ -13,6 +13,7 @@ import { query, queryOne } from '../db';
 import redis from '../redis';
 import { sha256, timingSafeEqualHex } from '../utils/crypto';
 import { sendSms } from '../services/otp.service';
+import { chargeStep, otpSendAllowed } from '../services/metering.service';
 import { sendOtpEmail } from '../services/email-otp.service';
 import {
   verifyId as verifyIdWithProvider,
@@ -124,15 +125,12 @@ router.post(
     }
 
     // Cap sends per session: this endpoint is public and each send can cost an SMS.
-    try {
-      const sendKey = `hosted:otp-sends:${session.id}`;
-      const sends = await redis.incr(sendKey);
-      if (sends === 1) await redis.expire(sendKey, 1800);
-      if (sends > 5) {
-        res.status(429).json({ error: 'otp_send_limit', message: 'Too many codes requested. Please start again later.' });
-        return;
-      }
-    } catch {
+    const sendCheck = await otpSendAllowed(session.id);
+    if (sendCheck === 'limit') {
+      res.status(429).json({ error: 'otp_send_limit', message: 'Too many codes requested. Please start again later.' });
+      return;
+    }
+    if (sendCheck === 'error') {
       res.status(503).json({ error: 'otp_send_failed', message: 'Could not send a code right now. Please try again.' });
       return;
     }
@@ -302,6 +300,11 @@ router.post(
       return;
     }
 
+    {
+      const gate = await chargeStep({ sessionId: session.id, apiKeyId: session.api_key_id, phone: session.phone, step: 'id' });
+      if (!gate.ok) { res.status(gate.status!).json(gate.body); return; }
+    }
+
     const idHash = sha256(id_number);
     let idVerified = false;
     let smileCode = 'skipped';
@@ -399,6 +402,11 @@ router.post(
       return;
     }
 
+    {
+      const gate = await chargeStep({ sessionId: session.id, apiKeyId: session.api_key_id, phone: session.phone, step: 'face' });
+      if (!gate.ok) { res.status(gate.status!).json(gate.body); return; }
+    }
+
     await query(
       `UPDATE verification_sessions SET step = 'processing', face_photo_s3_key = $1 WHERE id = $2`,
       [selfieKey, session.id]
@@ -487,6 +495,11 @@ router.post(
     if (!session?.identity_id) {
       res.status(404).json({ error: 'session_not_found', message: 'Session not found or wrong step' });
       return;
+    }
+
+    {
+      const gate = await chargeStep({ sessionId: session.id, apiKeyId: session.api_key_id, phone: session.phone, step: 'face' });
+      if (!gate.ok) { res.status(gate.status!).json(gate.body); return; }
     }
 
     try {

@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth';
 import { sessionAuth } from '../middleware/sessionAuth';
 import { validateBody } from '../middleware/validate';
 import { query, queryOne } from '../db';
+import { FREE_TIER_LIMIT, SANDBOX_LIMIT, MAX_FREE_LIVE_KEYS_PER_EMAIL } from '../services/billing.service';
 import { generateApiKey, encryptString, getDataEncryptionKey, sha256 } from '../utils/crypto';
 import { verifyAfriAppKey } from '../services/afriapp-verify.service';
 import logger from '../utils/logger';
@@ -30,16 +31,27 @@ router.post(
     const { platform_name, platform_email, environment, scope, intent, allowed_flows, expires_at } =
       req.body as z.infer<typeof createKeySchema>;
 
+    if (environment === 'production') {
+      const held = await queryOne<{ n: string }>(
+        `SELECT COUNT(*) AS n FROM api_keys WHERE LOWER(platform_email) = LOWER($1) AND environment = 'production' AND tier = 'free' AND is_active`,
+        [platform_email]
+      );
+      if (parseInt(held?.n ?? '0', 10) >= MAX_FREE_LIVE_KEYS_PER_EMAIL) {
+        res.status(429).json({ error: 'free_key_limit', message: `This email already has ${MAX_FREE_LIVE_KEYS_PER_EMAIL} free live keys. Use a sandbox key to test, or upgrade a plan.` });
+        return;
+      }
+    }
+    const startLimit = environment === 'production' ? FREE_TIER_LIMIT : SANDBOX_LIMIT;
     const { key, hash, prefix } = generateApiKey(environment);
 
     const rows = await query<{ id: string }>(
       `INSERT INTO api_keys
          (platform_name, platform_email, api_key_hash, api_key_prefix, environment,
           tier, monthly_limit, scope, intent, allowed_flows, expires_at)
-       VALUES ($1,$2,$3,$4,$5,'free',100,$6,$7,$8,$9)
+       VALUES ($1,$2,$3,$4,$5,'free',$10,$6,$7,$8,$9)
        RETURNING id`,
       [platform_name, platform_email, hash, prefix, environment,
-       scope, intent ?? null, JSON.stringify(allowed_flows), expires_at ?? null]
+       scope, intent ?? null, JSON.stringify(allowed_flows), expires_at ?? null, startLimit]
     );
 
     logger.info('New API key created', { platform: platform_name, environment, scope, id: rows[0].id });
@@ -49,7 +61,7 @@ router.post(
       prefix,
       environment,
       tier: 'free',
-      monthly_limit: 100,
+      monthly_limit: startLimit,
       scope,
       intent: intent ?? null,
       allowed_flows,

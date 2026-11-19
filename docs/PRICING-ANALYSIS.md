@@ -40,15 +40,25 @@ A level 2 or 3 session adds vendor lookups that typically cost several times the
 
 Inputs worth being careful with: SMS rate by country and your country mix, resends per session, the share of sessions that reach level 2 and level 3, vendor price per lookup, and your actual monthly infrastructure bill (Railway, Vercel, storage, domains, monitoring).
 
-## 5. Decisions for you (recommended direction)
+## 5. Decisions taken (and how to switch them on)
 
-I did not apply any of these because each changes what customers pay.
+Rule used: enterprise buyers accept usage that tracks cost, published rules and notice before change. Startups need low entry prices and no surprises. So prices of plans stay the same, the counting becomes fairer, and nothing changes any bill until you set a date.
 
-1. **Meter by level, not by session.** Count a unit per level reached (or charge a weight: level 1 = 1, level 2 = 3, level 3 = 5, set from the model). This fixes the biggest leak. Existing customers' bills rise only if they use levels 2 and 3, which is exactly where our cost is.
-2. **Count every OTP message** (resends included) or cap resends per session, so SMS cost cannot be multiplied for free.
-3. **Raise the floor.** Choose the per-session price from the model for a target margin (70% is a common SaaS aim for usage that carries pass-through cost), with a minimum monthly fee that covers fixed infrastructure.
-4. **Pass SMS through at cost plus a margin for high-cost countries**, instead of one flat price for all of Africa.
-5. **Tighten the free tier**: 100 sessions per verified business account (not per key), level 1 only, and no ID lookups.
-6. **Grandfather existing paying customers** for one billing cycle and tell them before the change. Do not change meters or prices without notice.
+| # | Decision | Status |
+| --- | --- | --- |
+| 1 | **Meter by level.** Phone check = 1 unit, plus ID check = 3 units in total, plus live face scan = 5 units in total. Each step is charged exactly once per session (retries and parallel requests cannot double-charge). | Built, OFF until `METERING_V2_AT` is set |
+| 2 | **Cap OTP messages.** At most 3 codes per session on the API and hosted routes (the API route had no cap before). Fails closed if the counter store is down. | Live on deploy |
+| 3 | **Price floor.** Plan prices unchanged ($49 and $149, overage 3 cents per unit). With units, a full verification (phone + ID + face) costs 5 units, about 12 cents on Starter and 7 cents on Growth, against a few cents when counted as one. The floor is enforced by the weights, not by a blind price rise. Re-run `npm run cost-model` with real rates after one month of metered data and raise unit prices only if margin is below your target. | Decided; no price change |
+| 4 | **SMS pass-through.** Countries listed in `SMS_PREMIUM_PREFIXES` (JSON array of calling codes) add 1 unit to the phone check. Rule for listing a country: its SMS cost per session exceeds 40% of the unit price. The list is empty until you fill it from real invoices. | Built, empty |
+| 5 | **Tighten the free tier.** New live free keys start at 50 a month (was 100), sandbox keeps 100, one email may hold 2 free live keys, and once metering is on, free live keys cannot run ID or face steps (those call paid vendors). Existing keys are not reduced. | Limits live on deploy; vendor gate OFF until metering date |
+| 6 | **Grandfather.** A customer whose paid period began before `METERING_V2_AT` keeps the old counting until that period ends (one full billing cycle). Set the date at least 30 days after telling customers. | Built |
 
-Once you give me real rates, I can run the model, propose exact numbers, and implement the metering and price changes behind a switch so you can test them before they affect any bill.
+### To switch on
+
+1. Fill `SMS_PREMIUM_PREFIXES` from your invoices (for example `["234"]`).
+2. Email customers and add the date to the changelog (the pricing page shows the date automatically once it is set).
+3. Set `METERING_V2_AT` (for example `2026-12-20T00:00:00Z`) on the API service. To roll back, remove it.
+
+### Still needs your real numbers
+
+Whether the plan prices themselves are right depends on your vendor and SMS rates, which I do not have. The model and the break-even rules in sections 3 and 4 will tell you in minutes once you fill the inputs.

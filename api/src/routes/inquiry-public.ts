@@ -14,6 +14,7 @@ import { query, queryOne } from '../db';
 import { validateBody } from '../middleware/validate';
 import { checkBlacklist } from '../services/blacklist.service';
 import { recordUsage } from '../services/billing.service';
+import { chargeStep } from '../services/metering.service';
 import { evaluateNetworkRisk } from '../services/orbitshield/fraud-graph.service';
 import { livenessEnabled } from '../services/liveness.service';
 import { generateSecureToken } from '../utils/crypto';
@@ -140,6 +141,7 @@ router.post('/:slug/start', validateBody(startSchema), async (req: Request, res:
 
   const sessionToken = generateSecureToken(32);
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  let createdSessionId = '';
   try {
     const rows = await query<{ id: string }>(
       `INSERT INTO verification_sessions
@@ -148,6 +150,7 @@ router.post('/:slug/start', validateBody(startSchema), async (req: Request, res:
       [sessionToken, phone, email ?? null, otp_channel, link.api_key_id, req.ip ?? null, deviceId ?? null, expiresAt, lang,
        livenessEnabled() && link.require_liveness, link.redirect_url, link.id]
     );
+    createdSessionId = rows[0].id;
     await query(
       `INSERT INTO inquiry_submissions (inquiry_id, session_id, ip_hash) VALUES ($1,$2,$3)`,
       [link.id, rows[0].id, createHash('sha256').update(ip).digest('hex')]
@@ -162,6 +165,7 @@ router.post('/:slug/start', validateBody(startSchema), async (req: Request, res:
 
   await query('UPDATE api_keys SET verifications_this_month = verifications_this_month + 1 WHERE id = $1', [link.api_key_id]);
   await recordUsage(link.api_key_id, 'level1').catch(() => {});
+  await chargeStep({ sessionId: createdSessionId, apiKeyId: link.api_key_id, phone, step: 'phone' });
 
   res.status(201).json({ session_token: sessionToken, expires_at: expiresAt.toISOString(), next_step: 'otp' });
 });
