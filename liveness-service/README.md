@@ -19,7 +19,7 @@ browser (MediaPipe guidance + camera frames) ──► API (/v1/hosted|verify/fa
 | Active liveness | Server-issued random sequence (1 head turn + blink + smile). Each motion is re-detected **server-side** from the frames (MediaPipe Face Landmarker) - client measurements are never trusted. Order + time windows enforced. | `app/challenges.py`, `app/vision.py` |
 | Passive PAD (v1 heuristics) | moiré/pixel-grid spectrum peaks (screen replay), glare, blur, low light/contrast, frozen or looped frames, no natural motion | `app/passive.py` |
 | Presence | one face, consistently visible, big enough | `app/main.py` |
-| Face match | 1:1 ArcFace (w600k_mbf, ONNX) between best live frame and ID photo; only a similarity score leaves the service, never embeddings | `app/embedding.py` |
+| Face match | 1:1 SFace (OpenCV Zoo, Apache-2.0, ONNX) between best live frame and ID photo; only a similarity score leaves the service, never embeddings | `app/embedding.py` |
 
 Decision logic lives in the API (`api/src/services/liveness.service.ts#decide`): liveness fail → reject; liveness pass + match → approve;
 borderline → existing vendor (Smile/Dojah/Onfido) second opinion, else manual review case.
@@ -40,9 +40,10 @@ Linux needs `libgles2`/`libegl1` for MediaPipe (the Dockerfile installs them).
 
 ## Read before production
 
-1. **Model licence.** `w600k_mbf.onnx` comes from InsightFace's `buffalo_s` pack, published for
-   **non-commercial research use only**. Get a commercial licence or swap in a commercially-licensed
-   ArcFace-style ONNX via `FACE_MODEL_PATH` before charging customers.
+1. **Model licence.** The default face-match model is OpenCV Zoo SFace (Apache-2.0, commercial use allowed;
+   the download is checksum-verified). Its training-data provenance should be reviewed by counsel before you
+   rely on it commercially. The older InsightFace ArcFace model is non-commercial: it is only fetched with
+   `FETCH_ARCFACE=1` and `FACE_MODEL=arcface` for local comparison. See `../docs/FACE-MATCH.md`.
 2. **Thresholds are unvalidated.** `MATCH_*`, `PASSIVE_*` and challenge thresholds are sensible
    starting points tuned on a handful of images. Measure FAR/FRR on real captures (including African
    skin tones, low-end phones and low light) before relying on them. All are env-tunable (`app/config.py`).

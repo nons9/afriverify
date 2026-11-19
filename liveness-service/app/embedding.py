@@ -1,4 +1,4 @@
-"""Face embedding + 1:1 matching (selfie vs ID photo) with an ArcFace ONNX model.
+"""Face embedding + 1:1 matching (selfie vs ID photo) with an ONNX recognition model (SFace by default).
 
 Embeddings stay inside this process: they are never returned, logged or stored.
 Only the similarity score leaves the service.
@@ -46,7 +46,10 @@ def align(img_bgr: np.ndarray, points5: np.ndarray) -> np.ndarray:
 
 def embed_aligned(aligned_bgr: np.ndarray) -> np.ndarray:
     rgb = cv2.cvtColor(aligned_bgr, cv2.COLOR_BGR2RGB).astype(np.float32)
-    blob = ((rgb - 127.5) / 127.5).transpose(2, 0, 1)[None]
+    if config.FACE_MODEL == "sface":
+        blob = rgb.transpose(2, 0, 1)[None]                 # SFace takes raw 0..255 RGB
+    else:
+        blob = ((rgb - 127.5) / 127.5).transpose(2, 0, 1)[None]
     sess = _get_session()
     with _lock:
         out = sess.run(None, {sess.get_inputs()[0].name: blob})[0][0]

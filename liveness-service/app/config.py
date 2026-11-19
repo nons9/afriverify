@@ -14,7 +14,13 @@ def _i(name: str, default: int) -> int:
 
 MODELS_DIR = Path(os.environ.get("MODELS_DIR", Path(__file__).resolve().parent.parent / "models"))
 LANDMARKER_PATH = Path(os.environ.get("LANDMARKER_PATH", MODELS_DIR / "face_landmarker.task"))
-FACE_MODEL_PATH = Path(os.environ.get("FACE_MODEL_PATH", MODELS_DIR / "w600k_mbf.onnx"))
+# Face recognition model. "sface" (OpenCV Zoo SFace, Apache-2.0, commercial use allowed) is the default.
+# "arcface" is InsightFace buffalo_s (NON-COMMERCIAL licence): for local comparison only, never for paying customers.
+FACE_MODEL = os.environ.get("FACE_MODEL", "sface").lower()
+if FACE_MODEL not in ("sface", "arcface"):
+    raise RuntimeError(f"FACE_MODEL must be 'sface' or 'arcface', got {FACE_MODEL!r}")
+_DEFAULT_MODEL_FILE = {"sface": "face_recognition_sface_2021dec.onnx", "arcface": "w600k_mbf.onnx"}[FACE_MODEL]
+FACE_MODEL_PATH = Path(os.environ.get("FACE_MODEL_PATH", MODELS_DIR / _DEFAULT_MODEL_FILE))
 
 # Shared secret between the Node API and this service.
 SERVICE_KEY = os.environ.get("LIVENESS_SERVICE_KEY", "")
@@ -52,9 +58,11 @@ PASSIVE_REVIEW = _f("PASSIVE_REVIEW", 0.40)
 # Screen fringes (low-frequency moire beats from re-photographing a screen). Score is 0..1; above this it is flagged.
 FRINGE_FLAG = _f("FRINGE_FLAG", 0.35)
 
-# Face match (cosine similarity of ArcFace embeddings)
+# Face match (cosine similarity of embeddings). Scales differ per model, so defaults are per model.
+# Measured on 699 LFW pairs: SFace at 0.40 accepted 96.2% of same-person pairs and 0 of 360 different-person pairs;
+# ArcFace at 0.28 accepted 96.2% and 0 of 360. Re-measure on African faces before trusting either (see docs/FACE-MATCH.md).
 MATCH_PASS = _f("MATCH_PASS", 0.40)
-MATCH_REVIEW = _f("MATCH_REVIEW", 0.28)
+MATCH_REVIEW = _f("MATCH_REVIEW", 0.30 if FACE_MODEL == "sface" else 0.28)
 
 # Screen-light (flash) challenge. FLASH_MODE: off | advisory (flag only) | required (no pass => at most "review")
 FLASH_MODE = os.environ.get("FLASH_MODE", "advisory")
