@@ -13,6 +13,8 @@ import { validateBody } from '../middleware/validate';
 import { writeAuditEvent } from '../middleware/audit';
 import { sendSms } from '../services/otp.service';
 import { chargeStep, otpSendAllowed } from '../services/metering.service';
+import { planRegistryCheck, refundRegistryFee } from '../services/registry-credit.service';
+
 import { sendOtpEmail } from '../services/email-otp.service';
 import {
   verifyId as verifyIdWithProvider,
@@ -462,7 +464,21 @@ router.post(
     let providerUsed: ProviderName = 'smile_identity';
     let registryChecked = false; // true only if a vendor really ran the check
 
+    const registryPlan = await planRegistryCheck({
+      sessionId: session.id, apiKeyId: session.api_key_id, country: nationality.toUpperCase().substring(0, 2), idType: id_type, preferred: req.apiKey?.preferred_provider ?? null,
+    });
+    if (registryPlan.action === 'blocked') {
+      res.status(402).json({
+        error: 'registry_credit_required',
+        message: 'This account has too little registry credit for this check. Top up at https://afriverify.sankofaapp.com/dashboard/usage and try again.',
+        balance_cents: registryPlan.balanceCents,
+        fee_cents: registryPlan.feeCents,
+      });
+      return;
+    }
+
     try {
+      if (registryPlan.action !== 'run') throw new Error(`registry check not run: ${registryPlan.reason}`);
       const preferred = req.apiKey?.preferred_provider ?? null;
       const result = await verifyIdWithProvider(
         {
@@ -510,6 +526,7 @@ router.post(
       }
     } catch (err) {
       logger.warn('Identity provider unavailable, continuing', { error: (err as Error).message });
+      await refundRegistryFee(session.id); // no vendor answered, so nothing is charged
     }
 
     await query(

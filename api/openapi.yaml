@@ -452,6 +452,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '402':
+          description: |
+            `registry_credit_required`: the API key has too little prepaid registry credit for this check. Nothing is
+            taken and the session stays at this step, so you can top up and submit again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Session not found or at wrong step
           content:

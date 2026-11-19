@@ -484,7 +484,8 @@ async function tryVendorFallback(
   session: VerificationSession,
   bestFrame: Buffer
 ): Promise<'approved' | 'rejected' | 'unavailable'> {
-  if (process.env.LIVENESS_VENDOR_FALLBACK === 'false' || !session.identity_id) return 'unavailable';
+  // Off unless the owner opts in: it calls a paid vendor and there is no fee passed on for it.
+  if (process.env.LIVENESS_VENDOR_FALLBACK !== 'true' || !session.identity_id) return 'unavailable';
   try {
     const identity = await queryOne<{ nationality: string; id_type: string }>(
       'SELECT nationality, id_type FROM verified_identities WHERE id = $1',

@@ -14,6 +14,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 interface Plans {
   currency: string;
   local_currencies?: string[];
+  registry_checks?: { fees: { scope: string; cents: number }[]; topup_usd: { min: number; max: number } };
   free: { monthly_limit: number; price_monthly_cents: number; sandbox_limit?: number };
   units?: { phone_check: number; id_check_total: number; face_check_total: number; effective_at: string | null };
   plans: { id: string; label: string; price_monthly_cents: number; monthly_limit: number; cents_per_verification: number; local_prices?: Record<string, number> }[];
@@ -121,6 +122,14 @@ export default async function PricingPage() {
                   You can pay in {p.local_currencies.join(', ')} as well as US dollars.{' '}
                   {p.local_currencies.map((c) => `${c}: ${p.plans.map((pl) => `${pl.label} ${((pl.local_prices?.[c] ?? 0) / 100).toLocaleString('en', { maximumFractionDigits: 0 })}`).join(', ')}`).join('. ')}.
                   {' '}The price is fixed when you start checkout, and the amount shown is the amount charged.
+                </li>
+              )}
+              {p.registry_checks && (
+                <li>
+                  Checking an ID against a government registry costs us a fee from our identity provider, so it is charged at our cost plus a small margin, from prepaid credit you top up ({usd(p.registry_checks.topup_usd.min * 100)} to {usd(p.registry_checks.topup_usd.max * 100)} at a time). A check that does not run is refunded.{' '}
+                  {p.registry_checks.fees.length > 0
+                    ? <>Per check: {p.registry_checks.fees.map((f) => `${f.scope === '*' ? 'all other countries' : f.scope.replace(':', ' ')} ${(f.cents / 100).toLocaleString('en', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 })}`).join(', ')}.</>
+                    : 'Registry checks are not switched on yet, so there is no per-check price to show.'}
                 </li>
               )}
               <li>The limit is per API key. If you stay under it, you never pay overage.</li>
