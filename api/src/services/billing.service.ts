@@ -5,6 +5,7 @@ import { sendUsageAlertEmail, sendOverageInvoiceEmail, sendSubscriptionPastDueEm
 import { generateInvoicePdf } from './pdf-invoice.service';
 import { ApiTier } from '../types';
 import logger from '../utils/logger';
+import { UNIT_WEIGHTS, parseEffectiveAt } from './metering-rules';
 import { runOncePerInterval } from '../utils/job-lock';
 
 export const SELF_SERVE_PLANS = ['starter', 'growth'] as const;
@@ -26,7 +27,11 @@ export const PLAN_PRICING: Record<SelfServePlan, PlanDefinition> = {
 
 // Applied when a subscription lapses without renewal - matches the tier a
 // brand-new key gets (see developer.ts's POST /keys).
-export const FREE_TIER_LIMIT = 100;
+export const FREE_TIER_LIMIT = 50;
+// Sandbox keys call no paid vendors, so they keep the roomier limit for integration testing.
+export const SANDBOX_LIMIT = 100;
+// Live free keys one email address may hold at once (stops farming the free tier with many keys).
+export const MAX_FREE_LIVE_KEYS_PER_EMAIL = 2;
 
 // How long an expired subscription keeps working before it's downgraded,
 // so a developer whose card needs re-entering doesn't lose access mid-day.
@@ -411,7 +416,14 @@ export function startBillingCron(): void {
 export function getPublicPlans() {
   return {
     currency: 'USD',
-    free: { monthly_limit: FREE_TIER_LIMIT, price_monthly_cents: 0 },
+    free: { monthly_limit: FREE_TIER_LIMIT, price_monthly_cents: 0, sandbox_limit: SANDBOX_LIMIT },
+    units: {
+      phone_check: UNIT_WEIGHTS.phone,
+      id_check_total: UNIT_WEIGHTS.id,
+      face_check_total: UNIT_WEIGHTS.face,
+      // null until the owner sets METERING_V2_AT; before that every session still counts as one.
+      effective_at: parseEffectiveAt(process.env.METERING_V2_AT)?.toISOString() ?? null,
+    },
     plans: SELF_SERVE_PLANS.map((id) => {
       const p = PLAN_PRICING[id];
       return {

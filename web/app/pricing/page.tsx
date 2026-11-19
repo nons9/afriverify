@@ -13,10 +13,24 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 interface Plans {
   currency: string;
-  free: { monthly_limit: number; price_monthly_cents: number };
+  free: { monthly_limit: number; price_monthly_cents: number; sandbox_limit?: number };
+  units?: { phone_check: number; id_check_total: number; face_check_total: number; effective_at: string | null };
   plans: { id: string; label: string; price_monthly_cents: number; monthly_limit: number; cents_per_verification: number }[];
   overage_cents_per_verification: number;
   enterprise: { custom: boolean; contact: string };
+}
+
+function unitsLine(u: Plans['units']) {
+  if (!u?.effective_at) return <li>Every verification session you start counts once toward your monthly limit, however many steps it has.</li>;
+  const when = new Date(u.effective_at);
+  const on = when.getTime() <= Date.now();
+  const date = when.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  return (
+    <li>
+      A verification is counted in units by how far it goes: a phone check is {u.phone_check} unit, a session that adds an ID check is {u.id_check_total} units in total, and one that also adds a live face scan is {u.face_check_total} units in total.{' '}
+      {on ? `This has applied since ${date}.` : `This starts on ${date}. Until then every session counts once. If you already pay for a plan, your current billing period is unchanged and the new counting starts when it ends.`}
+    </li>
+  );
 }
 
 async function loadPlans(): Promise<Plans | null> {
@@ -70,7 +84,7 @@ export default async function PricingPage() {
               name="Free"
               price="$0"
               per={`${p.free.monthly_limit} verifications a month`}
-              items={['Sandbox for testing', 'No card needed', 'Upgrade any time']}
+              items={['Sandbox for testing', 'Phone checks on live keys', 'No card needed', 'ID and face checks need a paid plan']}
               cta={<Link href="/register" className={`${btn} border border-white/20 text-white hover:bg-white/5`}>Start free</Link>}
             />
             {p.plans.map((pl) => (
@@ -99,7 +113,7 @@ export default async function PricingPage() {
           <section className="space-y-3 text-base leading-relaxed">
             <h2 className="text-xl font-semibold text-white">How billing works</h2>
             <ul className="list-disc pl-6 space-y-2 text-slate-200">
-              <li>Every verification session you start counts once toward your monthly limit, however many steps it has.</li>
+              {unitsLine(p.units)}
               <li>Prices are in {p.currency}. Past your limit you keep working and pay {usd(p.overage_cents_per_verification)} per extra verification, invoiced after the month.</li>
               <li>The limit is per API key. If you stay under it, you never pay overage.</li>
               <li>These numbers come straight from the system that bills you, so this page cannot drift from your invoice.</li>

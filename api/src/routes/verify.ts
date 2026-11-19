@@ -12,6 +12,7 @@ import {
 import { validateBody } from '../middleware/validate';
 import { writeAuditEvent } from '../middleware/audit';
 import { sendSms } from '../services/otp.service';
+import { chargeStep, otpSendAllowed } from '../services/metering.service';
 import { sendOtpEmail } from '../services/email-otp.service';
 import {
   verifyId as verifyIdWithProvider,
@@ -161,10 +162,11 @@ router.post(
     const sessionToken = generateSecureToken(32);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    await query(
+    const created = await query<{ id: string }>(
       `INSERT INTO verification_sessions
          (session_token, phone, email, otp_channel, step, api_key_id, ip_address, device_id, expires_at, platform_user_id, flow_id, lang, liveness_required, redirect_url)
-       VALUES ($1,$2,$3,$4,'phone',$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+       VALUES ($1,$2,$3,$4,'phone',$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       RETURNING id`,
       [
         sessionToken,
         phone,
@@ -187,6 +189,7 @@ router.post(
       [apiKey.id]
     );
     await recordUsage(apiKey.id, 'level1');
+    await chargeStep({ sessionId: created[0].id, apiKeyId: apiKey.id, phone, step: 'phone' });
 
     await writeAuditEvent(req, {
       event_type: 'registration_attempt',
@@ -217,6 +220,17 @@ router.post(
 
     if (!session) {
       res.status(404).json({ error: 'session_not_found', message: 'Session not found or expired' });
+      return;
+    }
+
+    // Every code can cost an SMS, so one session may only trigger a few.
+    const sendCheck = await otpSendAllowed(session.id);
+    if (sendCheck === 'limit') {
+      res.status(429).json({ error: 'otp_send_limit', message: 'Too many codes requested for this session. Start a new verification.' });
+      return;
+    }
+    if (sendCheck === 'error') {
+      res.status(503).json({ error: 'otp_send_failed', message: 'Could not send a code right now. Please try again.' });
       return;
     }
 
@@ -436,6 +450,11 @@ router.post(
       return;
     }
 
+    {
+      const gate = await chargeStep({ sessionId: session.id, apiKeyId: session.api_key_id, phone: session.phone, step: 'id' });
+      if (!gate.ok) { res.status(gate.status!).json(gate.body); return; }
+    }
+
     const idHash = sha256(id_number);
     let idVerified = false;
     let smileCode = 'skipped';
@@ -599,6 +618,11 @@ router.post(
       return;
     }
 
+    {
+      const gate = await chargeStep({ sessionId: session.id, apiKeyId: session.api_key_id, phone: session.phone, step: 'face' });
+      if (!gate.ok) { res.status(gate.status!).json(gate.body); return; }
+    }
+
     await query(
       `UPDATE verification_sessions SET step = 'processing', face_photo_s3_key = $1 WHERE id = $2`,
       [selfieKey, session.id]
@@ -693,6 +717,11 @@ router.post(
     if (!session?.identity_id) {
       res.status(404).json({ error: 'session_not_found', message: 'Session not found or wrong step' });
       return;
+    }
+
+    {
+      const gate = await chargeStep({ sessionId: session.id, apiKeyId: session.api_key_id, phone: session.phone, step: 'face' });
+      if (!gate.ok) { res.status(gate.status!).json(gate.body); return; }
     }
 
     try {
