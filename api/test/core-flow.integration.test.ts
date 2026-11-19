@@ -534,3 +534,43 @@ test('free keys: one email may hold at most 2 free live keys; sandbox keys are n
   const sb = await make('sandbox');
   assert.equal(sb.s, 201); assert.equal(sb.j.monthly_limit, 100);
 });
+
+// ─── retention: ID photos and selfies of completed verifications are deleted after the stated period ───────────
+
+test('retention: completed-verification photos older than the period are deleted; recent and incomplete ones are not', { skip, timeout: 60_000 }, async () => {
+  const s3 = await import('../src/utils/s3');
+  const deleted: string[] = [];
+  (s3 as any).deleteFromS3 = async (k: string) => { deleted.push(k); };
+  const { purgeCompletedSessionMedia } = await import('../src/services/retention.service');
+  const mk = async (step: string, ageDays: number, tag: string) => {
+    const r = await db.query(
+      `INSERT INTO verification_sessions (session_token, phone, otp_channel, step, api_key_id, expires_at, id_photo_s3_key, face_photo_s3_key, completed_at)
+       VALUES ($1, $2, 'sms', $3, $4, NOW() + INTERVAL '1 day', $5, $6, NOW() - ($7 || ' days')::interval) RETURNING id`,
+      [randomBytes(32).toString('hex'), newPhone(), step, keyId, `id/${tag}.jpg`, `face/${tag}.jpg`, String(ageDays)]
+    );
+    return r.rows[0].id as string;
+  };
+  const old = await mk('complete', 400, 'old');
+  const recent = await mk('complete', 30, 'recent');
+  const incomplete = await mk('face_scan', 400, 'inc');
+  const n = await purgeCompletedSessionMedia(365);
+  assert.ok(n >= 1);
+  assert.deepEqual(deleted.sort(), ['face/old.jpg', 'id/old.jpg']);
+  const row = async (id: string) => (await db.query(`SELECT id_photo_s3_key AS a, face_photo_s3_key AS b FROM verification_sessions WHERE id = $1`, [id])).rows[0];
+  assert.deepEqual(await row(old), { a: null, b: null });
+  assert.deepEqual(await row(recent), { a: 'id/recent.jpg', b: 'face/recent.jpg' });
+  assert.deepEqual(await row(incomplete), { a: 'id/inc.jpg', b: 'face/inc.jpg' }, 'incomplete sessions follow the 30-day rule, not this one');
+});
+
+test('retention: a failed delete keeps the key so tomorrow retries it', { skip, timeout: 60_000 }, async () => {
+  const s3 = await import('../src/utils/s3');
+  (s3 as any).deleteFromS3 = async () => { throw new Error('storage down'); };
+  const { purgeCompletedSessionMedia } = await import('../src/services/retention.service');
+  const r = await db.query(
+    `INSERT INTO verification_sessions (session_token, phone, otp_channel, step, api_key_id, expires_at, id_photo_s3_key, completed_at)
+     VALUES ($1, $2, 'sms', 'complete', $3, NOW() + INTERVAL '1 day', 'id/stuck.jpg', NOW() - INTERVAL '500 days') RETURNING id`,
+    [randomBytes(32).toString('hex'), newPhone(), keyId]
+  );
+  await purgeCompletedSessionMedia(365);
+  assert.equal((await db.query(`SELECT id_photo_s3_key AS a FROM verification_sessions WHERE id = $1`, [r.rows[0].id])).rows[0].a, 'id/stuck.jpg');
+});
