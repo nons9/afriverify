@@ -22,6 +22,7 @@ const rekognition = new RekognitionClient({
 });
 
 const DEEPSCAN_ENABLED = process.env.DEEPSCAN_ENABLED !== 'false';
+export const rekognitionEnabled = () => process.env.DEEPSCAN_REKOGNITION === 'true';
 
 // Analyse raw image buffer for deepfake signals without any external API.
 // Real camera photos: have EXIF data, have characteristic file sizes, have
@@ -153,8 +154,11 @@ export async function scanImage(
   const signals: Record<string, boolean | number | string> = { ...bufferResult.flags };
   let provider = 'internal';
 
-  // Layer 2 - AWS Rekognition (runs when configured)
-  if (process.env.AWS_ACCESS_KEY_ID) {
+  // Layer 2 - AWS Rekognition: a PAID, per-image cloud service, so it runs only when switched on on purpose
+  // (DEEPSCAN_REKOGNITION=true). The AWS key in the environment exists for file storage and must never be what
+  // turns on a metered service by accident. Switching it on also makes AWS a sub-processor of ID photos and
+  // selfies: add it to the sub-processor list in the Data Processing Agreement first.
+  if (rekognitionEnabled() && process.env.AWS_ACCESS_KEY_ID) {
     try {
       const rekResult = await rekognitionAnalyse(buffer, scanType);
       // Rekognition score carries 70% weight; buffer heuristics carry 30%
