@@ -40,7 +40,7 @@ import webhooksRouter from './routes/webhooks';
 import logger from './utils/logger';
 import { initSentry, captureError } from './utils/sentry';
 import { toClientError } from './utils/http-errors';
-import { startFailureRateMonitor, startHttpHealthMonitor } from './services/alerting.service';
+import { startFailureRateMonitor, startHttpHealthMonitor, warnIfNoAlertChannel } from './services/alerting.service';
 import { startRetentionPurge } from './services/retention.service';
 import { startBillingCron } from './services/billing.service';
 import { startAmlRescreenWorker } from './workers/aml-rescreen.worker';
@@ -180,6 +180,7 @@ async function bootstrap(): Promise<void> {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
 
+  warnIfNoAlertChannel();
   startFailureRateMonitor();
   startHttpHealthMonitor();
   startRetentionPurge();

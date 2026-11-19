@@ -31,23 +31,71 @@ async function sendAlert(eventType: string, total: number, failed: number, rate:
   await sendOpsAlert(message);
 }
 
-/** Posts a message to ALERT_WEBHOOK_URL (Slack-style {text}); logs only when unset. Never throws. */
-export async function sendOpsAlert(message: string): Promise<void> {
-  const webhookUrl = process.env.ALERT_WEBHOOK_URL;
-  if (!webhookUrl) {
-    logger.warn('Ops alert (no ALERT_WEBHOOK_URL set)', { message });
-    return;
+export interface AlertDelivery { webhook: 'sent' | 'failed' | 'not_configured'; email: 'sent' | 'failed' | 'not_configured' }
+
+type EmailSender = (opts: { apiKey: string; from: string; to: string[]; subject: string; text: string }) => Promise<void>;
+
+const defaultEmailSender: EmailSender = async ({ apiKey, from, to, subject, text }) => {
+  const { Resend } = await import('resend');
+  const r = await new Resend(apiKey).emails.send({ from, to, subject, text });
+  if (r.error) throw new Error(r.error.message);
+};
+
+/**
+ * Delivers an ops alert to every configured channel: ALERT_WEBHOOK_URL (Slack-style {text}) and/or
+ * ALERT_EMAIL_TO (comma separated, sent through Resend). Never throws. If NO channel is configured the
+ * alert is logged as an error, because an alert nobody receives is the same as no alert.
+ */
+export async function sendOpsAlert(
+  message: string,
+  deps: { env?: NodeJS.ProcessEnv; fetchImpl?: typeof fetch; emailSender?: EmailSender } = {}
+): Promise<AlertDelivery> {
+  const env = deps.env ?? process.env;
+  const doFetch = deps.fetchImpl ?? fetch;
+  const out: AlertDelivery = { webhook: 'not_configured', email: 'not_configured' };
+
+  if (env.ALERT_WEBHOOK_URL) {
+    try {
+      const r = await doFetch(env.ALERT_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: message }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      out.webhook = r.ok ? 'sent' : 'failed';
+      if (!r.ok) logger.error('Alert webhook rejected the message', { status: r.status });
+    } catch (err) {
+      out.webhook = 'failed';
+      logger.error('Failed to deliver alert webhook', { error: (err as Error).message });
+    }
   }
-  try {
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: message }),
-      signal: AbortSignal.timeout(10_000)
-    });
-  } catch (err) {
-    logger.error('Failed to deliver alert webhook', { error: (err as Error).message });
+
+  const to = (env.ALERT_EMAIL_TO ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+  if (to.length && env.RESEND_API_KEY && env.RESEND_FROM_EMAIL) {
+    try {
+      await (deps.emailSender ?? defaultEmailSender)({
+        apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM_EMAIL, to,
+        subject: `[AfriVerify alert] ${message.slice(0, 80)}`, text: message,
+      });
+      out.email = 'sent';
+    } catch (err) {
+      out.email = 'failed';
+      logger.error('Failed to deliver alert email', { error: (err as Error).message });
+    }
   }
+
+  if (out.webhook !== 'sent' && out.email !== 'sent') {
+    logger.error('OPS ALERT NOT DELIVERED (set ALERT_EMAIL_TO or ALERT_WEBHOOK_URL)', { message, delivery: out });
+  }
+  return out;
+}
+
+/** Logged once at boot so a deploy with no alert channel is visible in the logs, not silent. */
+export function warnIfNoAlertChannel(env: NodeJS.ProcessEnv = process.env): boolean {
+  const hasEmail = !!(env.ALERT_EMAIL_TO && env.RESEND_API_KEY && env.RESEND_FROM_EMAIL);
+  const ok = !!env.ALERT_WEBHOOK_URL || hasEmail;
+  if (!ok) logger.error('NO ALERT CHANNEL CONFIGURED: nobody will be told if the service degrades. Set ALERT_EMAIL_TO or ALERT_WEBHOOK_URL.');
+  return ok;
 }
 
 async function checkFailureRates(): Promise<void> {

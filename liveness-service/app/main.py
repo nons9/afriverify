@@ -10,9 +10,11 @@ from __future__ import annotations
 import hmac
 import json
 import logging
+import os
 import time
 from typing import List
 
+import cv2
 import numpy as np
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 
@@ -34,6 +36,25 @@ def require_key(x_internal_key: str = Header(default="")) -> None:
 def _startup() -> None:
     if not config.SERVICE_KEY and not config.ALLOW_NO_AUTH:
         raise RuntimeError("LIVENESS_SERVICE_KEY must be set (or ALLOW_NO_AUTH=1 for local dev)")
+    warmup()
+
+
+def warmup() -> bool:
+    """Load both models and run one tiny inference BEFORE serving, so the first real person does not pay the
+    cold start (measured at about 8 seconds). /healthz only answers once this is done, so a deploy does not take
+    traffic until the engine is genuinely ready."""
+    if os.environ.get("SKIP_WARMUP") == "1" or not (config.LANDMARKER_PATH.exists() and config.FACE_MODEL_PATH.exists()):
+        return False
+    t0 = time.time()
+    try:
+        img = np.full((320, 320, 3), 127, dtype=np.uint8)
+        vision.extract(img)
+        embedding.embed_aligned(cv2.resize(img, (112, 112)))
+    except Exception as exc:  # a failed warm-up must not stop the service: the first request will load lazily
+        log.warning("warm-up failed: %s", exc)
+        return False
+    log.info("warm-up done in %.1fs", time.time() - t0)
+    return True
 
 
 @app.get("/healthz")
