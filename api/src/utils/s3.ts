@@ -8,6 +8,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
 import logger from './logger';
 import { encryptBuffer, decryptBuffer, getDataEncryptionKey } from './crypto';
+import { compressImage } from './image-compress';
 
 // AWS_ENDPOINT_URL lets this point at any S3-compatible store (e.g.
 // Cloudflare R2) instead of real AWS. R2 needs path-style addressing and
@@ -37,6 +38,10 @@ export async function uploadToS3(
   body: Buffer,
   contentType: string
 ): Promise<void> {
+  // Photos are shrunk before they are encrypted and stored (the originals are not kept).
+  const packed = await compressImage(body, contentType);
+  body = packed.body;
+  contentType = packed.contentType;
   const encrypted = encryptBuffer(body, getDataEncryptionKey());
   await s3.send(
     new PutObjectCommand({
@@ -48,7 +53,7 @@ export async function uploadToS3(
       ...(customEndpoint ? {} : { ServerSideEncryption: 'aws:kms' })
     })
   );
-  logger.info('S3 upload complete', { key });
+  logger.info('S3 upload complete', { key, bytes: body.length, saved: packed.saved });
 }
 
 export async function downloadFromS3(key: string): Promise<Buffer> {
