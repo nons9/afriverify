@@ -301,13 +301,14 @@ router.post(
     }
 
     {
-      const gate = await chargeStep({ sessionId: session.id, apiKeyId: session.api_key_id, phone: session.phone, step: 'id' });
+      const gate = await chargeStep({ sessionId: session.id, apiKeyId: session.api_key_id, phone: session.phone, step: 'id', gateOnly: true });
       if (!gate.ok) { res.status(gate.status!).json(gate.body); return; }
     }
 
     const idHash = sha256(id_number);
     let idVerified = false;
     let smileCode = 'skipped';
+    let registryChecked = false;
 
     try {
       const result = await verifyIdWithProvider({
@@ -320,6 +321,8 @@ router.post(
         phone: session.phone,
         id_photo_buffer: file.buffer
       });
+      registryChecked = true;
+      await chargeStep({ sessionId: session.id, apiKeyId: session.api_key_id, phone: session.phone, step: 'id' });
       if (result.rejected) {
         await query(`UPDATE verification_sessions SET step = 'failed' WHERE id = $1`, [session.id]);
         res.status(400).json({ error: 'id_verification_failed', message: result.result_text });
@@ -341,7 +344,7 @@ router.post(
         nationality,
         id_type,
         idHash,
-        JSON.stringify({ smile_code: smileCode, id_verified: idVerified, deepscan_verdict: deepScan.verdict }),
+        JSON.stringify({ smile_code: smileCode, id_verified: idVerified, registry_checked: registryChecked, deepscan_verdict: deepScan.verdict }),
         session.identity_id,
       ]
     );
@@ -350,7 +353,7 @@ router.post(
       [s3Key, session.id]
     );
 
-    res.json({ upload_id: s3Key, id_verified: idVerified, next_step: 'face_scan' });
+    res.json({ upload_id: s3Key, id_verified: idVerified, registry_checked: registryChecked, next_step: 'face_scan' });
   }
 );
 

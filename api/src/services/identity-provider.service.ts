@@ -53,6 +53,18 @@ export interface IdentityProvider {
   biometricKYC(params: ProviderBiometricParams): Promise<ProviderResult>;
 }
 
+/** Has the owner given us this vendor's keys? Without them we do not call it (and do not charge for a check). */
+export function providerConfigured(name: ProviderName): boolean {
+  const e = process.env;
+  if (name === 'smile_identity') return !!(e.SMILE_IDENTITY_PARTNER_ID && e.SMILE_IDENTITY_API_KEY);
+  if (name === 'dojah') return !!(e.DOJAH_APP_ID && e.DOJAH_SECRET_KEY);
+  return !!e.ONFIDO_API_TOKEN;
+}
+
+export class NoProviderConfigured extends Error {
+  constructor() { super('no_identity_provider_configured'); }
+}
+
 // ─── Provider registry (lazy-loaded to avoid circular imports) ───────────────
 
 let _smile: IdentityProvider | undefined;
@@ -141,7 +153,12 @@ export async function verifyId(
   params: ProviderVerifyIdParams,
   preferred?: ProviderName | null
 ): Promise<ProviderResult> {
-  const { primary, fallback } = selectProviders(params.country, params.id_type, preferred);
+  const chosen = selectProviders(params.country, params.id_type, preferred);
+  // Skip any vendor we hold no keys for. If neither is usable there is no registry check to run.
+  const usable = [chosen.primary, chosen.fallback].filter((p, i, a) => providerConfigured(p.name) && a.findIndex((q) => q.name === p.name) === i);
+  if (usable.length === 0) throw new NoProviderConfigured();
+  const primary = usable[0];
+  const fallback = usable[1] ?? usable[0];
   const useFallback = primary.name !== fallback.name;
 
   logger.info('Identity verification routing', {

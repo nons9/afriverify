@@ -2,7 +2,7 @@ import { query, queryOne } from '../db';
 import redis from '../redis';
 import logger from '../utils/logger';
 import {
-  Step, STEP_USAGE_TYPE, OTP_MAX_SENDS, meteringState, parseEffectiveAt, parsePremiumPrefixes, isPremiumPhone, targetUnits, MeteringState,
+  Step, STEP_USAGE_TYPE, OTP_MAX_SENDS, meteringState, parseEffectiveAt, parsePremiumPrefixes, isPremiumPhone, targetUnits, UNIT_WEIGHTS, MeteringState,
 } from './metering-rules';
 
 const v2At = () => parseEffectiveAt(process.env.METERING_V2_AT);
@@ -29,7 +29,11 @@ async function stateFor(apiKeyId: string): Promise<{ state: MeteringState; tier:
  * Free production keys cannot run vendor-backed steps once metering v2 is on. Otherwise the session is
  * billed up to the step's units, exactly once per step, even under retries or concurrent requests.
  */
-export async function chargeStep(opts: { sessionId: string; apiKeyId: string; phone: string; step: Step }): Promise<StepDecision> {
+/**
+ * `gateOnly` runs the plan checks without charging anything. The ID step uses it before calling a vendor, then
+ * charges afterwards only if a registry check really ran, so nobody pays for a check that did not happen.
+ */
+export async function chargeStep(opts: { sessionId: string; apiKeyId: string; phone: string; step: Step; gateOnly?: boolean }): Promise<StepDecision> {
   let ctx;
   try {
     ctx = await stateFor(opts.apiKeyId);
@@ -48,14 +52,22 @@ export async function chargeStep(opts: { sessionId: string; apiKeyId: string; ph
     };
   }
 
-  const target = targetUnits(opts.step, isPremiumPhone(opts.phone, premiumPrefixes()));
+  if (opts.gateOnly) return { ok: true };
+
+  const premium = isPremiumPhone(opts.phone, premiumPrefixes());
+  const target = targetUnits(opts.step, premium);
+  // A face scan adds 2 units on top of the ID check. If the ID check was never charged (no registry check ran),
+  // the face scan adds its 2 units on top of the phone check instead.
+  const skippedId = UNIT_WEIGHTS.id - UNIT_WEIGHTS.phone;
+  const rank = { phone: 1, id: 2, face: 3 }[opts.step];
   try {
     const row = await queryOne<{ delta: number }>(
-      `WITH prev AS (SELECT billed_units AS b FROM verification_sessions WHERE id = $1 FOR UPDATE)
-       UPDATE verification_sessions s SET billed_units = $2 FROM prev
-       WHERE s.id = $1 AND prev.b < $2
-       RETURNING ($2::int - prev.b) AS delta`,
-      [opts.sessionId, target]
+      `WITH prev AS (SELECT billed_units AS b, billed_rank AS r FROM verification_sessions WHERE id = $1 FOR UPDATE)
+       UPDATE verification_sessions s SET billed_units = t.n, billed_rank = $4::smallint FROM prev,
+         LATERAL (SELECT CASE WHEN $3::text = 'face' AND prev.r < 2 THEN $2::int - $5::int ELSE $2::int END AS n) t
+       WHERE s.id = $1 AND prev.r < $4::smallint AND prev.b < t.n
+       RETURNING (t.n - prev.b) AS delta`,
+      [opts.sessionId, target, opts.step, rank, skippedId]
     );
     const delta = row?.delta ?? 0;
     if (delta > 0 && opts.step !== 'phone') {

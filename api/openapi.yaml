@@ -440,6 +440,9 @@ paths:
                   id_verified:
                     type: boolean
                     description: Whether the ID was confirmed with the identity provider
+                  registry_checked:
+                    type: boolean
+                    description: Whether an identity provider actually ran a registry check. When false the session is not billed as an ID check.
                   next_step:
                     type: string
                     example: face_scan

@@ -524,6 +524,27 @@ test('metering: an ID step adds 2 units and a face step 2 more, each exactly onc
   assert.deepEqual(await records(), [{ t: 'level2', n: 2 }, { t: 'level3', n: 2 }]);
 });
 
+test('metering: the gate alone charges nothing; a face scan with no ID check adds only its own 2 units', { skip, timeout: 60_000 }, async () => {
+  process.env.METERING_V2_AT = '2020-01-01T00:00:00Z';
+  const { chargeStep } = await import('../src/services/metering.service');
+  const s = await meterSetup();
+  const g = await chargeStep({ sessionId: s.sessionId, apiKeyId: keyId, phone: s.phone, step: 'id', gateOnly: true });
+  assert.equal(g.ok, true);
+  assert.equal(await counted(), 0, 'checking the plan is not a charge');
+  await stepOf('face', s);                                    // no registry check ever ran
+  assert.equal(await counted(), 2, 'phone 1 + face 2 = 3 units, not 5');
+  await stepOf('face', s);
+  assert.equal(await counted(), 2, 'still exactly once');
+});
+
+test('metering: a free live key is still refused at the gate before any vendor is called', { skip, timeout: 60_000 }, async () => {
+  process.env.METERING_V2_AT = '2020-01-01T00:00:00Z';
+  const { chargeStep } = await import('../src/services/metering.service');
+  const s = await meterSetup({ tier: 'free' });
+  const g = await chargeStep({ sessionId: s.sessionId, apiKeyId: keyId, phone: s.phone, step: 'id', gateOnly: true });
+  assert.equal(g.ok, false); assert.equal(g.status, 402);
+});
+
 test('metering: parallel requests for the same step charge once', { skip, timeout: 60_000 }, async () => {
   process.env.METERING_V2_AT = '2020-01-01T00:00:00Z';
   const s = await meterSetup();
