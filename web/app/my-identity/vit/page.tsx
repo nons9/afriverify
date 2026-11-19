@@ -10,7 +10,7 @@ const i18n = {
   en: {
     back: 'Back',
     vitTitle: 'Verified Identity Token',
-    vitSubtitle: 'Show this to a platform to prove your AfriVerify verification.\nThey see only your trust score - never your name or ID.',
+    vitSubtitle: 'Show this to a platform to prove your AfriVerify verification.\nIt carries your name, nationality, level and trust score, but never your ID number or photos.',
     copy: 'Copy',
     copied: 'Copied',
     expiresIn: (d: number) => `Expires in ${d} day${d === 1 ? '' : 's'}`,
@@ -24,7 +24,7 @@ const i18n = {
   fr: {
     back: 'Retour',
     vitTitle: 'Jeton d\'identité vérifiée',
-    vitSubtitle: 'Présentez ce jeton à une plateforme pour prouver votre vérification AfriVerify.\nElle voit uniquement votre score de confiance - jamais votre nom ni votre pièce d\'identité.',
+    vitSubtitle: 'Présentez ce jeton à une plateforme pour prouver votre vérification AfriVerify.\nIl contient votre nom, votre nationalité, votre niveau et votre score de confiance, mais jamais votre numéro de pièce d\'identité ni vos photos.',
     copy: 'Copier',
     copied: 'Copié',
     expiresIn: (d: number) => `Expire dans ${d} jour${d === 1 ? '' : 's'}`,

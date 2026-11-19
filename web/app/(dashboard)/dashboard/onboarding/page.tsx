@@ -157,7 +157,7 @@ export default function OnboardingPage() {
           </div>
           <div>
             <h1 className="text-lg font-semibold text-white">Quickstart</h1>
-            <p className="text-xs text-slate-500">Go live in under 10 minutes</p>
+            <p className="text-xs text-slate-500">Go live step by step</p>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-3">

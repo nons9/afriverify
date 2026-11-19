@@ -197,7 +197,7 @@ const verifyEndpoints = [
   {
     method: 'GET',
     path: '/internal/users/:platform_user_id/status',
-    desc: 'Check a platform user’s verification status. Sub-100ms.',
+    desc: 'Check a platform user’s verification status.',
     body: 'none',
     returns: 'verified, level, trust_score, aml_status, is_blacklisted',
   },

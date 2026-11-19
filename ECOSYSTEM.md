@@ -71,7 +71,7 @@ AfriVerify is the **identity and trust layer** powering an interconnected ecosys
 **Key Contracts:**
 - VIT JWT (RS256-signed, zero PII): `{sub, verification_level, trust_score, trust_level, country_code, id_types_verified}`
 - Trust Score API: post and retrieve trust signals cross-platform
-- KYC lookup: sub-100ms identity check
+- KYC lookup: identity check
 - Webhooks: verification completion, trust updates, fraud signals
 
 **Dependencies:** PostgreSQL, Redis, Smile Identity, Africa's Talking/Termii, AWS S3
