@@ -19,7 +19,7 @@ import numpy as np
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 
 from . import challenges as ch
-from . import config, embedding, flash as flashmod, passive, vision
+from . import camera as cammod, config, embedding, flash as flashmod, passive, vision
 
 log = logging.getLogger("liveness")
 app = FastAPI(title="AfriVerify Liveness Engine", version="1.0.0")
@@ -223,6 +223,12 @@ def analyze(meta: str = Form(...), frames: List[UploadFile] = File(...)):
         # weak to measure (sunlight) or mismatched all stop an auto-pass; none of them is a rejection by itself.
         verdict = flashmod.apply_policy(verdict, flash_res, config.FLASH_MODE)
 
+    cam_res = cammod.assess(meta_obj.get("camera"))
+    report.flags.extend(cam_res.flags)
+    verdict = cammod.apply_policy(verdict, cam_res, config.CAMERA_ACTION)
+    if cam_res.suspicious and config.CAMERA_ACTION == "fail":
+        reasons.append("virtual_camera")
+
     out = {
         "verdict": verdict,
         "liveness_score": score,
@@ -230,6 +236,7 @@ def analyze(meta: str = Form(...), frames: List[UploadFile] = File(...)):
         "passive": report.to_dict(),
         "flash": flash_res.to_dict() if flash_res else None,
         "capture_profile": capture_profile,
+        "camera": cam_res.to_dict(),
         "reasons": reasons,
         "best_frame_index": best,
         "frame_stats": {

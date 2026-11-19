@@ -64,6 +64,9 @@ FRINGE_FLAG = _f("FRINGE_FLAG", 0.35)
 MATCH_PASS = _f("MATCH_PASS", 0.40)
 MATCH_REVIEW = _f("MATCH_REVIEW", 0.30 if FACE_MODEL == "sface" else 0.28)
 
+# Virtual / injected camera (by device label). off | review (never auto-approve) | fail. Advisory: labels can be faked.
+CAMERA_ACTION = os.environ.get("CAMERA_ACTION", "review").lower()
+
 # Screen-light (flash) challenge. FLASH_MODE: off | advisory (flag only) | required (no pass => at most "review")
 FLASH_MODE = os.environ.get("FLASH_MODE", "advisory")
 FLASH_MIN_R = _f("FLASH_MIN_R", 0.6)               # mean Pearson r(emitted, observed) over R,G,B

@@ -130,6 +130,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
   const [lite, setLite] = useState(false);
   const [liteAuto, setLiteAuto] = useState(false);
   const liteRef = useRef(false);
+  const cameraRef = useRef<{ label: string } | null>(null);
   const [skipFlash, setSkipFlash] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [flashing, setFlashing] = useState(false);
@@ -195,6 +196,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
         video: { facingMode: 'user', width: { ideal: prof.width }, height: { ideal: prof.height } }, audio: false,
       });
       streamRef.current = stream;
+      cameraRef.current = { label: (stream.getVideoTracks()[0]?.label ?? '').slice(0, 80) };
       const v = videoRef.current!;
       v.srcObject = stream;
       await v.play();
@@ -337,7 +339,7 @@ export default function LiveFaceCapture({ token = '', api = '', btnColor, requir
       const fd = new FormData();
       fd.append('session_token', token);
       fd.append('liveness_id', start.liveness_id);
-      fd.append('meta', JSON.stringify({ timestamps_ms: stamps.slice(0, n), windows, ...(flash ? { flash } : {}), profile: prof?.name ?? 'standard' }));
+      fd.append('meta', JSON.stringify({ timestamps_ms: stamps.slice(0, n), windows, ...(flash ? { flash } : {}), profile: prof?.name ?? 'standard', camera: cameraRef.current }));
       frames.slice(0, n).forEach((b, i) => fd.append('frames', b, `f${i}.jpg`));
       if (demo) { demo.onResult(await demo.complete(fd)); return; }
       const res: CompleteResponse = await post(api, '/face/liveness/complete', { method: 'POST', body: fd });

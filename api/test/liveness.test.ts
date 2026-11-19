@@ -53,3 +53,12 @@ test('liveness is only enforced when the engine is configured', () => {
   process.env.LIVENESS_REQUIRED = 'true';
   assert.equal(isLivenessRequired({ liveness_required: false }), true);
 });
+
+test('the capture meta accepts the browser camera label and rejects an oversized one', async () => {
+  const { livenessMetaSchema } = await import('../src/services/liveness.service');
+  const base = { timestamps_ms: [0, 200, 400] };
+  assert.equal(livenessMetaSchema.safeParse({ ...base, camera: { label: 'Front Camera' } }).success, true);
+  assert.equal(livenessMetaSchema.safeParse(base).success, true, 'camera is optional (older clients)');
+  assert.equal(livenessMetaSchema.safeParse({ ...base, camera: { label: 'x'.repeat(200) } }).success, false);
+  assert.equal(livenessMetaSchema.safeParse({ ...base, camera: { label: 5 } }).success, false);
+});

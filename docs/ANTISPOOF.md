@@ -56,3 +56,13 @@ Thresholds: `FLASH_MIN_R=0.6`, `FLASH_MAX_P=0.01`, `FLASH_MIN_EFFECT=2.0`, `FLAS
 - **A printed photo reflects light like a face** and passes this check by itself. It is stopped by the random prompts (it cannot blink, smile or turn) and the flat-turn check.
 - **Virtual camera / injected video.** Software that feeds fake frames into the browser and tints them to match the plan we sent defeats this and every web-only liveness check. That needs a native app with device attestation.
 - **Cost of the safe design.** Skipped or unmeasurable scans need a person: if many users hit this, review volume (and, if enabled, second-opinion vendor spend) rises. Watch the `liveness_flash_*` counters.
+
+## Camera integrity (`app/camera.py`)
+
+Replays on a second phone are one attack. Another is software that feeds any video into the browser as if it were a webcam (OBS Virtual Camera, ManyCam, DroidCam, Snap Camera, face-swap tools).
+
+- The browser reports its camera's device label with the frames. The engine matches it against well-known virtual-camera and capture software.
+- A match is flagged `virtual_camera` and, by default (`CAMERA_ACTION=review`), a pass becomes a human review. `CAMERA_ACTION=fail` rejects it; `off` ignores it.
+- A missing label is recorded as `camera_label_missing` for study but never blocks, because privacy modes hide labels.
+
+**Limits, stated plainly:** the label is client-reported, so a determined attacker renames the device and gets past this. It stops the off-the-shelf tools and raises the cost of the rest. The real defence against injected video is the screen-light challenge: an injected video does not react to the colours the server picked for this attempt. Measure whether virtual cameras get through in the Accuracy Studies (add a "virtual camera" attack type before the main study).

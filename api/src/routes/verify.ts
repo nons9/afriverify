@@ -733,6 +733,7 @@ router.post(
         windows: meta.windows,
         flash: meta.flash,
         profile: meta.profile,
+        camera: meta.camera,
       });
       if (out.kind === 'bad_request') {
         res.status(out.status).json({ error: out.error, message: out.message });

@@ -97,6 +97,8 @@ export const livenessMetaSchema = z.object({
   timestamps_ms: z.array(z.number().finite()).min(2).max(MAX_FRAMES),
   windows: z.array(windowSchema).max(8).optional(),
   profile: z.enum(['standard', 'lite']).optional(),     // capture profile: Lite = fewer, smaller frames for slow connections
+  // What the browser says about its camera (advisory: a determined attacker can rename a virtual camera).
+  camera: z.object({ label: z.string().max(80) }).optional(),
   flash: z
     .union([
       z.object({ skipped: z.literal(true) }),
@@ -185,10 +187,11 @@ export async function engineAnalyze(
   timestampsMs: number[],
   windows?: { start_ms: number; end_ms: number }[],
   flash?: EngineFlash,
-  profile?: 'standard' | 'lite'
+  profile?: 'standard' | 'lite',
+  camera?: { label: string }
 ): Promise<EngineLivenessResult> {
   const form = new FormData();
-  form.append('meta', JSON.stringify({ challenges, timestamps_ms: timestampsMs, windows, flash, profile }));
+  form.append('meta', JSON.stringify({ challenges, timestamps_ms: timestampsMs, windows, flash, profile, camera }));
   frames.forEach((buf, i) => form.append('frames', buf, { filename: `f${i}.jpg`, contentType: 'image/jpeg' }));
   try {
     const { data } = await axios.post<EngineLivenessResult>(
@@ -317,6 +320,7 @@ export interface CompleteInput {
   windows?: { start_ms: number; end_ms: number }[];
   flash?: LivenessMeta['flash'];
   profile?: 'standard' | 'lite';
+  camera?: { label: string };
 }
 
 export type CompleteOutcome =
@@ -346,7 +350,7 @@ export async function completeLiveness(input: CompleteInput): Promise<CompleteOu
 
   let live: EngineLivenessResult;
   try {
-    live = await engineAnalyze(input.frames, row.challenges, input.timestampsMs, input.windows, buildFlashMeta(row.flash_plan, input.flash), input.profile);
+    live = await engineAnalyze(input.frames, row.challenges, input.timestampsMs, input.windows, buildFlashMeta(row.flash_plan, input.flash), input.profile, input.camera);
     if (live.flash) void incrMetric(`liveness_flash_${live.flash.verdict}`);
     void incrMetric(`liveness_profile_${input.profile ?? 'standard'}`);
   } catch (err) {
